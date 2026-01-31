@@ -133,13 +133,24 @@ export async function clearCart() {
     return { success: true };
 }
 
-export async function getCartCount() {
-    const user = await getCurrentUser();
+export async function getCartCount(): Promise<number> {
+    try {
+        const session = await auth.api.getSession({
+            headers: await headers(),
+        });
 
-    const cartItems = await db.query.carts.findMany({
-        where: eq(carts.user_id, user.id),
-        columns: { quantity: true },
-    });
+        if (!session?.user) {
+            return 0;
+        }
 
-    return cartItems.reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0);
+        const cartItems = await db.query.carts.findMany({
+            where: eq(carts.user_id, session.user.id),
+            columns: { quantity: true },
+        });
+
+        return cartItems.reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0);
+    } catch {
+        return 0;
+    }
 }
+

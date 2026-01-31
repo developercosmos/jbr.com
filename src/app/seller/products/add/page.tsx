@@ -17,6 +17,7 @@ export default function AddProductPage() {
     const [title, setTitle] = useState("");
     const [category, setCategory] = useState("");
     const [brand, setBrand] = useState("");
+    const [gender, setGender] = useState<"UNISEX" | "MEN" | "WOMEN">("UNISEX");
     const [description, setDescription] = useState("");
     const [condition, setCondition] = useState<"NEW" | "PRELOVED">("PRELOVED");
     const [conditionRating, setConditionRating] = useState(8);
@@ -46,6 +47,8 @@ export default function AddProductPage() {
             await createProduct({
                 title,
                 description,
+                brand: brand || undefined,
+                gender,
                 price: parseFloat(price),
                 condition,
                 condition_rating: condition === "PRELOVED" ? conditionRating : undefined,
@@ -225,10 +228,35 @@ export default function AddProductPage() {
                                             <option disabled value="">
                                                 Pilih Merek
                                             </option>
-                                            <option value="yonex">Yonex</option>
-                                            <option value="lining">Li-Ning</option>
-                                            <option value="victor">Victor</option>
-                                            <option value="mizuno">Mizuno</option>
+                                            <option value="Yonex">Yonex</option>
+                                            <option value="Li-Ning">Li-Ning</option>
+                                            <option value="Victor">Victor</option>
+                                            <option value="Mizuno">Mizuno</option>
+                                            <option value="Apacs">Apacs</option>
+                                            <option value="Kawasaki">Kawasaki</option>
+                                            <option value="Flypower">Flypower</option>
+                                            <option value="Lainnya">Lainnya</option>
+                                        </select>
+                                        <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-slate-500">
+                                            <ChevronDown className="w-4 h-4" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-sm font-medium mb-2 text-slate-500 dark:text-slate-400">
+                                        Target Gender
+                                    </label>
+                                    <div className="relative">
+                                        <select
+                                            className="w-full appearance-none rounded-lg bg-slate-50 dark:bg-black/20 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary py-3 px-4 pr-10"
+                                            value={gender}
+                                            onChange={(e) => setGender(e.target.value as "UNISEX" | "MEN" | "WOMEN")}
+                                        >
+                                            <option value="UNISEX">Unisex</option>
+                                            <option value="MEN">Pria</option>
+                                            <option value="WOMEN">Wanita</option>
                                         </select>
                                         <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-slate-500">
                                             <ChevronDown className="w-4 h-4" />

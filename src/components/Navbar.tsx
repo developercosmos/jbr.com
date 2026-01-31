@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Search, ShoppingCart, MessageCircle, Bell, Zap, Tag, Menu } from "lucide-react";
+import { Search, Bell, Zap, Tag, Menu } from "lucide-react";
 import { NavbarUserArea } from "./NavbarClient";
+import { ChatBadge } from "./ChatBadge";
+import { CartBadge } from "./CartBadge";
 
 export function Navbar() {
     return (
@@ -44,26 +46,14 @@ export function Navbar() {
                         {/* Icons Group */}
                         <div className="flex items-center gap-1 sm:gap-1 border-r border-slate-200 pr-3 mr-1">
                             {/* Chat */}
-                            <Link href="/chat">
-                                <button className="relative p-2 rounded-full text-slate-500 hover:text-brand-primary hover:bg-slate-50 transition-all group">
-                                    <MessageCircle className="w-5 h-5" />
-                                    <span className="absolute top-1.5 right-1.5 size-1.5 bg-brand-primary rounded-full border border-white scale-0 group-hover:scale-100 transition-transform duration-200"></span>
-                                </button>
-                            </Link>
+                            <ChatBadge />
                             {/* Notifications */}
                             <button className="relative p-2 rounded-full text-slate-500 hover:text-brand-primary hover:bg-slate-50 transition-all">
                                 <Bell className="w-5 h-5" />
                                 <span className="absolute top-2 right-2.5 size-1.5 bg-orange-500 rounded-full border border-white"></span>
                             </button>
                             {/* Cart */}
-                            <Link href="/cart">
-                                <button className="relative p-2 rounded-full text-slate-500 hover:text-brand-primary hover:bg-slate-50 transition-all">
-                                    <ShoppingCart className="w-5 h-5" />
-                                    <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[16px] h-4 px-0.5 bg-brand-primary text-[9px] font-bold text-white rounded-full border border-white">
-                                        3
-                                    </span>
-                                </button>
-                            </Link>
+                            <CartBadge />
                         </div>
 
                         {/* User Profile */}
@@ -78,19 +68,19 @@ export function Navbar() {
 
                 {/* Secondary Navigation */}
                 <div className="hidden md:flex items-center gap-6 h-10 text-xs font-medium text-slate-500 border-t border-slate-100">
-                    <Link href="#" className="text-brand-primary border-b-2 border-brand-primary px-1 py-2.5">
+                    <Link href="/feed" className="hover:text-brand-primary hover:border-b-2 hover:border-slate-200 px-1 py-2.5 transition-all">
                         Feed
                     </Link>
-                    <Link href="#" className="hover:text-brand-primary hover:border-b-2 hover:border-slate-200 px-1 py-2.5 transition-all">
+                    <Link href="/men" className="hover:text-brand-primary hover:border-b-2 hover:border-slate-200 px-1 py-2.5 transition-all">
                         Men
                     </Link>
-                    <Link href="#" className="hover:text-brand-primary hover:border-b-2 hover:border-slate-200 px-1 py-2.5 transition-all">
+                    <Link href="/women" className="hover:text-brand-primary hover:border-b-2 hover:border-slate-200 px-1 py-2.5 transition-all">
                         Women
                     </Link>
-                    <Link href="#" className="hover:text-brand-primary hover:border-b-2 hover:border-slate-200 px-1 py-2.5 transition-all">
+                    <Link href="/equipment" className="hover:text-brand-primary hover:border-b-2 hover:border-slate-200 px-1 py-2.5 transition-all">
                         Equipment
                     </Link>
-                    <Link href="#" className="hover:text-brand-primary hover:border-b-2 hover:border-slate-200 px-1 py-2.5 transition-all">
+                    <Link href="/brands" className="hover:text-brand-primary hover:border-b-2 hover:border-slate-200 px-1 py-2.5 transition-all">
                         Brands
                     </Link>
                     <Link
@@ -103,5 +93,6 @@ export function Navbar() {
                 </div>
             </div>
         </nav>
+
     );
 }

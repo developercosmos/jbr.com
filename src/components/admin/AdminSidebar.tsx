@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ShieldCheck, Package, Users, BarChart3, LifeBuoy, LogOut, Gavel, ShoppingBag, Zap } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, Package, Users, BarChart3, LifeBuoy, LogOut, Gavel, ShoppingBag, Zap, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -21,6 +21,11 @@ const navItems = [
         label: "Users",
         href: "/admin/users",
         icon: Users,
+    },
+    {
+        label: "Categories",
+        href: "/admin/categories",
+        icon: FolderOpen,
     },
     {
         label: "Products",

@@ -1,8 +1,39 @@
 import Link from "next/link";
 import Image from "next/image";
-import { History, PlayCircle, Hourglass, TrendingUp, Flag, CheckCircle, Timer, ArrowDown, Search, Filter, MoreHorizontal, Ban, Gavel, ChevronDown } from "lucide-react";
+import { History, PlayCircle, Hourglass, TrendingUp, Flag, CheckCircle, Timer, ArrowDown, Search, Filter, MoreHorizontal, Ban, Gavel, ChevronDown, Package } from "lucide-react";
+import { getModerationQueue, getAdminDashboardStats } from "@/actions/admin";
+import { ModerationActions } from "./ModerationActions";
 
-export default function ModerationPage() {
+function formatPrice(price: string) {
+    return new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+        minimumFractionDigits: 0,
+    }).format(parseFloat(price));
+}
+
+function formatDate(date: Date) {
+    return new Intl.DateTimeFormat("id-ID", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+    }).format(date);
+}
+
+function timeAgo(date: Date) {
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+    if (seconds < 60) return `${seconds} detik lalu`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} menit lalu`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} jam lalu`;
+    return `${Math.floor(seconds / 86400)} hari lalu`;
+}
+
+export default async function ModerationPage() {
+    const [stats, pendingProducts] = await Promise.all([
+        getAdminDashboardStats(),
+        getModerationQueue(),
+    ]);
+
     return (
         <>
             <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-white to-transparent pointer-events-none dark:from-white/5 dark:to-transparent"></div>
@@ -59,7 +90,7 @@ export default function ModerationPage() {
                                     Pending
                                 </p>
                                 <p className="mt-1 text-3xl font-bold text-slate-900 dark:text-white font-heading">
-                                    142
+                                    {stats.pendingProducts}
                                 </p>
                             </div>
                             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-50 dark:bg-orange-500/10 text-orange-500">
@@ -67,21 +98,37 @@ export default function ModerationPage() {
                             </div>
                         </div>
                         <div className="mt-4 flex items-center gap-2 text-sm">
-                            <span className="flex items-center rounded-full bg-green-50 dark:bg-green-500/10 px-2 py-0.5 text-xs font-bold text-green-600 dark:text-green-400">
-                                <TrendingUp className="w-3.5 h-3.5 mr-1" /> 12%
-                            </span>
-                            <span className="text-slate-400">vs yesterday</span>
+                            <span className="text-slate-400">Waiting for review</span>
                         </div>
                     </div>
-                    {/* Flagged */}
+                    {/* Published */}
                     <div className="group relative overflow-hidden rounded-2xl bg-white dark:bg-surface-dark p-6 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 border border-slate-100 dark:border-slate-800">
                         <div className="flex justify-between items-start">
                             <div>
                                 <p className="text-sm font-medium text-slate-400 uppercase tracking-wider">
-                                    Flagged
+                                    Published
                                 </p>
                                 <p className="mt-1 text-3xl font-bold text-slate-900 dark:text-white font-heading">
-                                    12
+                                    {stats.publishedProducts}
+                                </p>
+                            </div>
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-50 dark:bg-green-500/10 text-green-500">
+                                <CheckCircle className="w-6 h-6" />
+                            </div>
+                        </div>
+                        <div className="mt-4 flex items-center gap-2 text-sm">
+                            <span className="text-slate-400">Active products</span>
+                        </div>
+                    </div>
+                    {/* Moderated */}
+                    <div className="group relative overflow-hidden rounded-2xl bg-white dark:bg-surface-dark p-6 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 border border-slate-100 dark:border-slate-800">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <p className="text-sm font-medium text-slate-400 uppercase tracking-wider">
+                                    Moderated
+                                </p>
+                                <p className="mt-1 text-3xl font-bold text-slate-900 dark:text-white font-heading">
+                                    {stats.moderatedProducts}
                                 </p>
                             </div>
                             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 dark:bg-red-500/10 text-red-500">
@@ -89,45 +136,18 @@ export default function ModerationPage() {
                             </div>
                         </div>
                         <div className="mt-4 flex items-center gap-2 text-sm">
-                            <span className="text-slate-500 dark:text-slate-400 font-medium">
-                                Critical Attention
-                            </span>
+                            <span className="text-slate-400">Rejected</span>
                         </div>
                     </div>
-                    {/* Processed */}
+                    {/* Total Users */}
                     <div className="group relative overflow-hidden rounded-2xl bg-white dark:bg-surface-dark p-6 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 border border-slate-100 dark:border-slate-800">
                         <div className="flex justify-between items-start">
                             <div>
                                 <p className="text-sm font-medium text-slate-400 uppercase tracking-wider">
-                                    Processed
+                                    Total Users
                                 </p>
                                 <p className="mt-1 text-3xl font-bold text-slate-900 dark:text-white font-heading">
-                                    85
-                                </p>
-                            </div>
-                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-50 dark:bg-green-500/10 text-green-500">
-                                <CheckCircle className="w-6 h-6" />
-                            </div>
-                        </div>
-                        <div className="mt-4 w-full rounded-full bg-slate-100 dark:bg-slate-700 h-1.5">
-                            <div
-                                className="bg-green-500 h-1.5 rounded-full"
-                                style={{ width: "85%" }}
-                            ></div>
-                        </div>
-                        <p className="mt-1 text-xs text-slate-400 text-right">
-                            85% of daily target
-                        </p>
-                    </div>
-                    {/* Speed */}
-                    <div className="group relative overflow-hidden rounded-2xl bg-white dark:bg-surface-dark p-6 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 border border-slate-100 dark:border-slate-800">
-                        <div className="flex justify-between items-start">
-                            <div>
-                                <p className="text-sm font-medium text-slate-400 uppercase tracking-wider">
-                                    Speed
-                                </p>
-                                <p className="mt-1 text-3xl font-bold text-slate-900 dark:text-white font-heading">
-                                    2m 14s
+                                    {stats.totalUsers}
                                 </p>
                             </div>
                             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-500/10 text-brand-primary">
@@ -136,9 +156,9 @@ export default function ModerationPage() {
                         </div>
                         <div className="mt-4 flex items-center gap-2 text-sm">
                             <span className="flex items-center rounded-full bg-green-50 dark:bg-green-500/10 px-2 py-0.5 text-xs font-bold text-green-600 dark:text-green-400">
-                                <ArrowDown className="w-3.5 h-3.5 mr-1" /> 15s
+                                <TrendingUp className="w-3.5 h-3.5 mr-1" /> +{stats.newUsersThisWeek}
                             </span>
-                            <span className="text-slate-400">faster avg</span>
+                            <span className="text-slate-400">this week</span>
                         </div>
                     </div>
                 </div>
@@ -158,270 +178,144 @@ export default function ModerationPage() {
                             />
                         </div>
                         <div className="flex flex-wrap gap-3 w-full md:w-auto">
-                            <div className="relative">
-                                <select className="appearance-none cursor-pointer rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark py-2.5 pl-4 pr-10 text-sm font-medium text-slate-700 dark:text-slate-300 hover:border-brand-primary focus:border-brand-primary focus:ring-1 focus:ring-brand-primary transition-all">
-                                    <option>All Categories</option>
-                                    <option>Footwear</option>
-                                    <option>Apparel</option>
-                                    <option>Equipment</option>
-                                </select>
-                                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-                                    <ChevronDown className="w-5 h-5" />
-                                </div>
-                            </div>
-                            <div className="relative">
-                                <select className="appearance-none cursor-pointer rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark py-2.5 pl-4 pr-10 text-sm font-medium text-slate-700 dark:text-slate-300 hover:border-brand-primary focus:border-brand-primary focus:ring-1 focus:ring-brand-primary transition-all">
-                                    <option>Status: Pending</option>
-                                    <option>Flagged</option>
-                                    <option>Approved</option>
-                                    <option>Rejected</option>
-                                </select>
-                                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-                                    <ChevronDown className="w-5 h-5" />
-                                </div>
-                            </div>
                             <button className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-brand-primary">
                                 <Filter className="w-5 h-5" />
-                                More Filters
+                                Filters
                             </button>
                         </div>
                     </div>
 
-                    {/* Table */}
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
-                            <thead className="bg-slate-50 dark:bg-black/20 border-b border-slate-100 dark:border-slate-800">
-                                <tr>
-                                    <th className="w-14 px-6 py-4">
-                                        <input
-                                            className="h-5 w-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
-                                            type="checkbox"
-                                        />
-                                    </th>
-                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 font-heading">
-                                        Product Info
-                                    </th>
-                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 font-heading">
-                                        Seller
-                                    </th>
-                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 font-heading">
-                                        Pricing
-                                    </th>
-                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 font-heading">
-                                        Condition & Status
-                                    </th>
-                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 font-heading text-right">
-                                        Actions
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {/* Row 1 */}
-                                <tr className="group hover:bg-blue-50/50 dark:hover:bg-white/5 transition-colors">
-                                    <td className="px-6 py-5 align-top">
-                                        <input
-                                            className="mt-2 h-5 w-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
-                                            type="checkbox"
-                                        />
-                                    </td>
-                                    <td className="px-6 py-5">
-                                        <div className="flex items-start gap-4">
-                                            <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark shadow-sm">
-                                                <Image
-                                                    alt="Red Nike running shoe side profile"
-                                                    className="object-cover transition-transform group-hover:scale-105"
-                                                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuAjtvov4R-3D8xUXzpY1hYUmmQHEH_zW5bHXmlEgOCD3Zmj_Ju6smzyK-Q-s01pPNMYq_zROiv-kltWMCKK_p5Ic1PNstr_XOrWYNKuUnyC6RGtQkX4fjhEPJXTiwUOKUpgHwfoHhQC-ZsH2eAYzsVPYbFVvUeSvohcAHTw2eJYLZ_t2qmjJT07ACDeU96o9z0i9NsLe7bs_S_WyLL4-SMcMHE3U1xkB0i1fEuo-ZUDqf585xMl5aE8aqehhZJXedcrG4_KRnF7Ifg"
-                                                    fill
-                                                />
-                                            </div>
-                                            <div className="flex flex-col gap-1.5">
-                                                <span className="font-bold text-slate-900 dark:text-white text-base line-clamp-1">
-                                                    Nike Air Zoom Pegasus 38
-                                                </span>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="inline-flex items-center rounded-md bg-slate-100 dark:bg-white/10 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                                                        Running
-                                                    </span>
-                                                    <span className="text-xs text-slate-400 font-mono">
-                                                        ID: 8291
-                                                    </span>
-                                                </div>
-                                                <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                                                    Posted 2 mins ago
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-5 align-top">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-9 w-9 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-300 font-bold text-xs">
-                                                SO
-                                            </div>
-                                            <div className="flex flex-col">
-                                                <span className="font-semibold text-slate-900 dark:text-white">
-                                                    SportySpice_Official
-                                                </span>
-                                                <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
-                                                    <span className="text-orange-500">★</span>
-                                                    <span className="font-bold text-slate-700 dark:text-slate-300">
-                                                        4.9
-                                                    </span>
-                                                    <span>(1.2k)</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-5 align-top">
-                                        <span className="font-bold text-slate-900 dark:text-white font-heading text-lg">
-                                            Rp 1.850.000
-                                        </span>
-                                        <div className="text-xs text-slate-400 mt-1">
-                                            Retail: Rp 2.100.000
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-5 align-top">
-                                        <div className="flex flex-col gap-2 items-start">
-                                            <span className="inline-flex items-center rounded-full bg-green-50 dark:bg-green-500/10 px-3 py-1 text-xs font-bold text-green-700 dark:text-green-400 ring-1 ring-inset ring-green-600/20">
-                                                New Condition
-                                            </span>
-                                            <span className="inline-flex items-center gap-1.5 rounded-full bg-yellow-50 dark:bg-yellow-500/10 px-3 py-1 text-xs font-bold text-yellow-700 dark:text-yellow-400 ring-1 ring-inset ring-yellow-600/20">
-                                                <span className="h-1.5 w-1.5 rounded-full bg-yellow-500 animate-pulse"></span>
-                                                Pending Review
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-5 text-right align-top">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <button
-                                                className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-600 transition-colors"
-                                                title="Reject"
-                                            >
-                                                <Ban className="w-5 h-5" />
-                                            </button>
-                                            <button
-                                                className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-primary/10 text-brand-primary hover:bg-brand-primary hover:text-white hover:shadow-lg hover:shadow-brand-primary/20 transition-all"
-                                                title="Approve"
-                                            >
-                                                <CheckCircle className="w-5 h-5" />
-                                            </button>
-                                            <button className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-700 dark:hover:text-white transition-colors">
-                                                <MoreHorizontal className="w-5 h-5" />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {/* Row 2 - Flagged */}
-                                <tr className="group hover:bg-blue-50/50 dark:hover:bg-white/5 transition-colors bg-red-50/30 dark:bg-red-500/5">
-                                    <td className="px-6 py-5 align-top">
-                                        <input
-                                            className="mt-2 h-5 w-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
-                                            type="checkbox"
-                                        />
-                                    </td>
-                                    <td className="px-6 py-5">
-                                        <div className="flex items-start gap-4">
-                                            <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl border border-red-200 dark:border-red-800 bg-white dark:bg-surface-dark shadow-sm">
-                                                <div className="absolute inset-0 bg-red-500/10 z-10"></div>
-                                                <Image
-                                                    alt="Badminton racket grip close up"
-                                                    className="object-cover transition-transform group-hover:scale-105"
-                                                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuAGpIGIc7OPbDUH-8ukxsGLX_M1g0kfG-koocon5rVGIXRirllk5f2V3W1PA0awwn2JMdzaLa9tS4FTN7Ak-BzCPyKTWaDdBhMJ8MMQAJfSZWYm-8xtwGoniZ3fqTy9kLMzNeQPtegc30eY387gKV_3OXG4bEf14ja9OJgWcTxuPIyY5f_e0BZ5_3Bm6IRpahrb0iVELETAdVdLNrXnfiDoKdkXHIgBiR5qzei0VLRENsRGvuHgGrJqo3UrsreeYdMTViIEUr3A5zo"
-                                                    fill
-                                                />
-                                            </div>
-                                            <div className="flex flex-col gap-1.5">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-bold text-slate-900 dark:text-white text-base line-clamp-1">
-                                                        Yonex Astrox 99 Pro
-                                                    </span>
-                                                    <Flag className="w-4 h-4 text-red-500" />
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="inline-flex items-center rounded-md bg-slate-100 dark:bg-white/10 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                                                        Badminton
-                                                    </span>
-                                                    <span className="text-xs text-slate-400 font-mono">
-                                                        ID: 8292
-                                                    </span>
-                                                </div>
-                                                <div className="mt-1 text-xs text-red-500 font-medium">
-                                                    Reported: Suspected Counterfeit
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-5 align-top">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-9 w-9 rounded-full bg-blue-100 dark:bg-blue-900/30 text-brand-primary flex items-center justify-center font-bold text-xs border border-blue-200 dark:border-blue-800">
-                                                BT
-                                            </div>
-                                            <div className="flex flex-col">
-                                                <span className="font-semibold text-slate-900 dark:text-white">
-                                                    Badmintalk_ID
-                                                </span>
-                                                <div className="flex items-center gap-1 text-xs text-brand-primary">
-                                                    <span className="px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 font-bold">
-                                                        NEW SELLER
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-5 align-top">
-                                        <span className="font-bold text-slate-900 dark:text-white font-heading text-lg">
-                                            Rp 2.400.000
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-5 align-top">
-                                        <div className="flex flex-col gap-2 items-start">
-                                            <span className="inline-flex items-center rounded-full bg-orange-50 dark:bg-orange-500/10 px-3 py-1 text-xs font-bold text-orange-600 dark:text-orange-400 ring-1 ring-inset ring-orange-600/20">
-                                                Pre-loved - Good
-                                            </span>
-                                            <span className="inline-flex items-center gap-1.5 rounded-full bg-red-50 dark:bg-red-500/10 px-3 py-1 text-xs font-bold text-red-700 dark:text-red-400 ring-1 ring-inset ring-red-600/20">
-                                                <span className="h-1.5 w-1.5 rounded-full bg-red-500"></span>
-                                                Flagged
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-5 text-right align-top">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <button
-                                                className="flex h-10 w-10 items-center justify-center rounded-xl text-red-500 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 hover:text-red-700 transition-colors"
-                                                title="Ban Seller"
-                                            >
-                                                <Gavel className="w-5 h-5" />
-                                            </button>
-                                            <button className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5 hover:text-slate-700 dark:hover:text-white transition-colors">
-                                                <MoreHorizontal className="w-5 h-5" />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    {/* Pagination */}
-                    <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-surface-dark px-6 py-4">
-                        <div className="text-sm text-slate-500 dark:text-slate-400">
-                            Showing{" "}
-                            <span className="font-bold text-slate-900 dark:text-white">
-                                1-5
-                            </span>{" "}
-                            of{" "}
-                            <span className="font-bold text-slate-900 dark:text-white">
-                                142
-                            </span>{" "}
-                            items
+                    {pendingProducts.length === 0 ? (
+                        <div className="text-center py-16">
+                            <Package className="w-16 h-16 mx-auto text-slate-300 mb-4" />
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
+                                Queue is empty
+                            </h3>
+                            <p className="text-slate-500">
+                                No products waiting for moderation.
+                            </p>
                         </div>
-                        <div className="flex gap-2">
-                            <button className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark px-4 py-2 text-sm font-medium text-slate-500 dark:text-slate-400 disabled:opacity-50 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                                Previous
-                            </button>
-                            <button className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark px-4 py-2 text-sm font-medium text-slate-700 dark:text-white hover:bg-slate-50 dark:hover:bg-white/5 hover:text-brand-primary transition-colors shadow-sm">
-                                Next
-                            </button>
-                        </div>
-                    </div>
+                    ) : (
+                        <>
+                            {/* Table */}
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm">
+                                    <thead className="bg-slate-50 dark:bg-black/20 border-b border-slate-100 dark:border-slate-800">
+                                        <tr>
+                                            <th className="w-14 px-6 py-4">
+                                                <input
+                                                    className="h-5 w-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
+                                                    type="checkbox"
+                                                />
+                                            </th>
+                                            <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 font-heading">
+                                                Product Info
+                                            </th>
+                                            <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 font-heading">
+                                                Seller
+                                            </th>
+                                            <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 font-heading">
+                                                Pricing
+                                            </th>
+                                            <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 font-heading">
+                                                Condition & Status
+                                            </th>
+                                            <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-400 font-heading text-right">
+                                                Actions
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {pendingProducts.map((product) => (
+                                            <tr key={product.id} className="group hover:bg-blue-50/50 dark:hover:bg-white/5 transition-colors">
+                                                <td className="px-6 py-5 align-top">
+                                                    <input
+                                                        className="mt-2 h-5 w-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
+                                                        type="checkbox"
+                                                    />
+                                                </td>
+                                                <td className="px-6 py-5">
+                                                    <div className="flex items-start gap-4">
+                                                        <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark shadow-sm">
+                                                            {product.images && product.images.length > 0 ? (
+                                                                <Image
+                                                                    alt={product.title}
+                                                                    className="object-cover transition-transform group-hover:scale-105"
+                                                                    src={product.images[0]}
+                                                                    fill
+                                                                />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-800">
+                                                                    <Package className="w-8 h-8 text-slate-400" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex flex-col gap-1.5">
+                                                            <span className="font-bold text-slate-900 dark:text-white text-base line-clamp-1">
+                                                                {product.title}
+                                                            </span>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="inline-flex items-center rounded-md bg-slate-100 dark:bg-white/10 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                                                    {product.category?.name || "Uncategorized"}
+                                                                </span>
+                                                                <span className="text-xs text-slate-400 font-mono">
+                                                                    ID: {product.id.slice(0, 4)}
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                                                Posted {timeAgo(product.created_at)}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-5 align-top">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="h-9 w-9 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500 dark:text-slate-300 font-bold text-xs">
+                                                            {product.seller?.name?.slice(0, 2).toUpperCase() || "??"}
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className="font-semibold text-slate-900 dark:text-white">
+                                                                {product.seller?.store_name || product.seller?.name || "Unknown"}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-5 align-top">
+                                                    <span className="font-bold text-slate-900 dark:text-white font-heading text-lg">
+                                                        {formatPrice(product.price)}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-5 align-top">
+                                                    <div className="flex flex-col gap-2 items-start">
+                                                        <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${product.condition === "NEW" ? "bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 ring-1 ring-inset ring-green-600/20" : "bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 ring-1 ring-inset ring-orange-600/20"}`}>
+                                                            {product.condition === "NEW" ? "New Condition" : `Pre-loved ${product.condition_rating || ""}/10`}
+                                                        </span>
+                                                        <span className="inline-flex items-center gap-1.5 rounded-full bg-yellow-50 dark:bg-yellow-500/10 px-3 py-1 text-xs font-bold text-yellow-700 dark:text-yellow-400 ring-1 ring-inset ring-yellow-600/20">
+                                                            <span className="h-1.5 w-1.5 rounded-full bg-yellow-500 animate-pulse"></span>
+                                                            Pending Review
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-5 text-right align-top">
+                                                    <ModerationActions productId={product.id} />
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {/* Pagination */}
+                            <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-surface-dark px-6 py-4">
+                                <div className="text-sm text-slate-500 dark:text-slate-400">
+                                    Showing{" "}
+                                    <span className="font-bold text-slate-900 dark:text-white">
+                                        {pendingProducts.length}
+                                    </span>{" "}
+                                    items
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
         </>

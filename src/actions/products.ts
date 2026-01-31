@@ -12,6 +12,8 @@ import { z } from "zod";
 const createProductSchema = z.object({
     title: z.string().min(3).max(200),
     description: z.string().optional(),
+    brand: z.string().optional(),
+    gender: z.enum(["UNISEX", "MEN", "WOMEN"]).default("UNISEX"),
     price: z.number().positive(),
     condition: z.enum(["NEW", "PRELOVED"]),
     condition_rating: z.number().min(1).max(10).optional(),
@@ -124,6 +126,9 @@ export async function getSellerProducts() {
     const sellerProducts = await db.query.products.findMany({
         where: eq(products.seller_id, user.id),
         orderBy: [desc(products.created_at)],
+        with: {
+            category: true,
+        },
     });
 
     return sellerProducts;
@@ -180,3 +185,197 @@ export async function publishProduct(productId: string) {
 export async function archiveProduct(productId: string) {
     return updateProduct({ id: productId, status: "ARCHIVED" });
 }
+
+// ============================================
+// FILTERING & BROWSE ACTIONS
+// ============================================
+
+import { categories } from "@/db/schema";
+import { or, asc, ilike, sql, count } from "drizzle-orm";
+
+export type ProductFilters = {
+    categorySlug?: string;
+    gender?: "UNISEX" | "MEN" | "WOMEN";
+    includeUnisex?: boolean;
+    brand?: string;
+    search?: string;
+    condition?: "NEW" | "PRELOVED";
+    minPrice?: number;
+    maxPrice?: number;
+    sortBy?: "newest" | "oldest" | "price_asc" | "price_desc";
+    limit?: number;
+    offset?: number;
+};
+
+export async function getFilteredProducts(filters: ProductFilters = {}) {
+    const conditions = [eq(products.status, "PUBLISHED")];
+
+    // Category filter
+    if (filters.categorySlug) {
+        const category = await db.query.categories.findFirst({
+            where: eq(categories.slug, filters.categorySlug),
+        });
+        if (category) {
+            conditions.push(eq(products.category_id, category.id));
+        }
+    }
+
+    // Gender filter
+    if (filters.gender) {
+        if (filters.includeUnisex) {
+            conditions.push(
+                or(
+                    eq(products.gender, filters.gender),
+                    eq(products.gender, "UNISEX")
+                )!
+            );
+        } else {
+            conditions.push(eq(products.gender, filters.gender));
+        }
+    }
+
+    // Brand filter
+    if (filters.brand) {
+        conditions.push(ilike(products.brand, filters.brand));
+    }
+
+    // Search filter
+    if (filters.search) {
+        conditions.push(
+            or(
+                ilike(products.title, `%${filters.search}%`),
+                ilike(products.description, `%${filters.search}%`),
+                ilike(products.brand, `%${filters.search}%`)
+            )!
+        );
+    }
+
+    // Condition filter
+    if (filters.condition) {
+        conditions.push(eq(products.condition, filters.condition));
+    }
+
+    // Price range
+    if (filters.minPrice !== undefined) {
+        conditions.push(sql`${products.price} >= ${filters.minPrice}`);
+    }
+    if (filters.maxPrice !== undefined) {
+        conditions.push(sql`${products.price} <= ${filters.maxPrice}`);
+    }
+
+    // Sort
+    let orderBy;
+    switch (filters.sortBy) {
+        case "oldest":
+            orderBy = asc(products.created_at);
+            break;
+        case "price_asc":
+            orderBy = asc(products.price);
+            break;
+        case "price_desc":
+            orderBy = desc(products.price);
+            break;
+        case "newest":
+        default:
+            orderBy = desc(products.created_at);
+    }
+
+    const result = await db.query.products.findMany({
+        where: and(...conditions),
+        orderBy: [orderBy],
+        limit: filters.limit || 24,
+        offset: filters.offset || 0,
+        with: {
+            seller: {
+                columns: {
+                    id: true,
+                    name: true,
+                    store_name: true,
+                    store_slug: true,
+                    image: true,
+                },
+            },
+            category: {
+                columns: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                },
+            },
+        },
+    });
+
+    return result;
+}
+
+export async function getProductCount(filters: ProductFilters = {}): Promise<number> {
+    const conditions = [eq(products.status, "PUBLISHED")];
+
+    if (filters.categorySlug) {
+        const category = await db.query.categories.findFirst({
+            where: eq(categories.slug, filters.categorySlug),
+        });
+        if (category) {
+            conditions.push(eq(products.category_id, category.id));
+        }
+    }
+
+    if (filters.gender) {
+        if (filters.includeUnisex) {
+            conditions.push(
+                or(
+                    eq(products.gender, filters.gender),
+                    eq(products.gender, "UNISEX")
+                )!
+            );
+        } else {
+            conditions.push(eq(products.gender, filters.gender));
+        }
+    }
+
+    if (filters.brand) {
+        conditions.push(ilike(products.brand, filters.brand));
+    }
+
+    if (filters.search) {
+        conditions.push(
+            or(
+                ilike(products.title, `%${filters.search}%`),
+                ilike(products.description, `%${filters.search}%`),
+                ilike(products.brand, `%${filters.search}%`)
+            )!
+        );
+    }
+
+    if (filters.condition) {
+        conditions.push(eq(products.condition, filters.condition));
+    }
+
+    const result = await db
+        .select({ count: count() })
+        .from(products)
+        .where(and(...conditions));
+
+    return result[0]?.count || 0;
+}
+
+export async function getBrands(): Promise<{ name: string; count: number }[]> {
+    const result = await db
+        .select({
+            brand: products.brand,
+            count: count(),
+        })
+        .from(products)
+        .where(and(
+            eq(products.status, "PUBLISHED"),
+            sql`${products.brand} IS NOT NULL AND ${products.brand} != ''`
+        ))
+        .groupBy(products.brand)
+        .orderBy(desc(count()));
+
+    return result.map((r) => ({
+        name: r.brand || "Unknown",
+        count: r.count,
+    }));
+}
+

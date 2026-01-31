@@ -30,6 +30,8 @@ export const orderStatusEnum = pgEnum("order_status", [
     "CANCELLED",
     "REFUNDED",
 ]);
+export const genderEnum = pgEnum("gender", ["UNISEX", "MEN", "WOMEN"]);
+
 
 // ============================================
 // USERS TABLE
@@ -132,6 +134,8 @@ export const products = pgTable(
         title: text("title").notNull(),
         slug: text("slug").notNull().unique(),
         description: text("description"),
+        brand: text("brand"),
+        gender: genderEnum("gender").default("UNISEX").notNull(),
         price: decimal("price", { precision: 12, scale: 2 }).notNull(),
         condition: productConditionEnum("condition").default("PRELOVED").notNull(),
         condition_rating: integer("condition_rating"),

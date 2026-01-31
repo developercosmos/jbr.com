@@ -1,78 +1,191 @@
-import { Star, ShieldCheck, Truck, Heart, Share2 } from "lucide-react";
-import Image from "next/image";
+"use client";
 
-export function ProductInfo() {
+import { Star, ShieldCheck, Truck, Heart, Share2, ShoppingCart, Loader2, MessageCircle } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { addToCart } from "@/actions/cart";
+import { startConversation } from "@/actions/chat";
+
+interface ProductSeller {
+    id: string;
+    name: string;
+    store_name: string | null;
+    store_slug: string | null;
+    store_description: string | null;
+    image: string | null;
+}
+
+interface ProductCategory {
+    id: string;
+    name: string;
+    slug: string;
+}
+
+interface ProductInfoProps {
+    product: {
+        id: string;
+        title: string;
+        description: string | null;
+        price: string;
+        condition: "NEW" | "PRELOVED";
+        condition_rating: number | null;
+        condition_notes: string | null;
+        stock: number;
+        seller: ProductSeller | null;
+        category: ProductCategory | null;
+    };
+}
+
+export function ProductInfo({ product }: ProductInfoProps) {
+    const router = useRouter();
+    const [isPending, startTransition] = useTransition();
+    const [isChatPending, startChatTransition] = useTransition();
+    const [added, setAdded] = useState(false);
+
+    const formatPrice = (price: string) => {
+        return new Intl.NumberFormat("id-ID", {
+            style: "currency",
+            currency: "IDR",
+            minimumFractionDigits: 0,
+        }).format(parseFloat(price));
+    };
+
+    const getConditionLabel = () => {
+        if (product.condition === "NEW") return "Baru";
+        if (product.condition_rating) return `Pre-loved ${product.condition_rating}/10`;
+        return "Pre-loved";
+    };
+
+    const handleAddToCart = () => {
+        startTransition(async () => {
+            try {
+                await addToCart(product.id);
+                setAdded(true);
+                setTimeout(() => setAdded(false), 2000);
+            } catch (error) {
+                console.error("Failed to add to cart:", error);
+            }
+        });
+    };
+
+    const handleChatSeller = () => {
+        if (!product.seller) return;
+
+        startChatTransition(async () => {
+            try {
+                const result = await startConversation(product.seller!.id, product.id);
+                router.push(`/chat?conversation=${result.conversationId}`);
+            } catch (error: any) {
+                // If unauthorized, redirect to login
+                if (error.message === "Unauthorized") {
+                    router.push("/auth/login");
+                } else {
+                    console.error("Failed to start conversation:", error);
+                }
+            }
+        });
+    };
+
     return (
         <div className="flex flex-col gap-6">
             <div>
                 <div className="flex items-center gap-2 mb-3">
                     <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
-                        Tennis
+                        {product.category?.name || "Raket"}
                     </span>
                     <span className="inline-flex items-center rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-semibold text-green-700 border border-green-100">
-                        Condition: Pre-loved - Good
+                        Kondisi: {getConditionLabel()}
                     </span>
                 </div>
                 <h1 className="text-3xl font-bold text-slate-900 font-heading leading-tight">
-                    Yonex Ezone 98 Tennis Racket (305g)
+                    {product.title}
                 </h1>
                 <div className="flex items-center gap-4 mt-3 text-sm">
-                    <div className="flex items-center gap-1">
-                        <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                        <span className="font-bold text-slate-900">4.8</span>
-                        <span className="text-slate-500 underline decoration-slate-300 underline-offset-2 cursor-pointer hover:text-brand-primary">
-                            (12 reviews)
-                        </span>
-                    </div>
-                    <span className="text-slate-300">|</span>
-                    <span className="text-slate-500">ID: #829102</span>
+                    <span className="text-slate-500">Stok: {product.stock}</span>
                 </div>
             </div>
 
             <div className="flex items-baseline gap-3 pb-6 border-b border-slate-100">
                 <span className="text-4xl font-bold text-brand-primary font-heading">
-                    Rp 1.500.000
-                </span>
-                <span className="text-lg text-slate-400 line-through">
-                    Rp 2.800.000
-                </span>
-                <span className="text-sm font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
-                    -46%
+                    {formatPrice(product.price)}
                 </span>
             </div>
 
             {/* Seller Info */}
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <div className="flex items-center gap-3">
-                    <div className="relative w-12 h-12 rounded-full overflow-hidden border border-white shadow-sm">
-                        <Image
-                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCwMhnTxkU39OZcBzkGXc0JD3POuCyM5R6UBZheVTqYQ_xBk0F-tmVFLaCPuuwkA9LaHHbVHbRarujUByPjRFYcMmge95FShdkmzndkA8wEZUAw89Z_2u-WgKWQYBYeut0RhACug3fY5rNeiT0jidAnvW9JJ2rtzc8JtKohRbf4XOIogvha-0mhmYlPk-e7ohYbOwFIhtXns-AQp7BkX0Hu90uA-wawXAHDw6_eYgWyN0YvO0QM25U2vz4X_PCosWpyO-d5KP1-BSo"
-                            alt="Seller"
-                            fill
-                            className="object-cover"
-                        />
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-slate-900">Sarah Tennis</span>
-                            <ShieldCheck className="w-4 h-4 text-brand-primary" />
+            {product.seller && (
+                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
+                    <div className="flex items-center gap-3">
+                        {product.seller.image ? (
+                            <div className="relative w-12 h-12 rounded-full overflow-hidden border border-white shadow-sm">
+                                <Image
+                                    src={product.seller.image}
+                                    alt={product.seller.name}
+                                    fill
+                                    className="object-cover"
+                                />
+                            </div>
+                        ) : (
+                            <div className="w-12 h-12 rounded-full bg-brand-primary flex items-center justify-center">
+                                <span className="text-xl text-white font-bold">
+                                    {(product.seller.store_name || product.seller.name).charAt(0).toUpperCase()}
+                                </span>
+                            </div>
+                        )}
+                        <div>
+                            <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-slate-900">
+                                    {product.seller.store_name || product.seller.name}
+                                </span>
+                                <ShieldCheck className="w-4 h-4 text-brand-primary" />
+                            </div>
+                            <p className="text-xs text-slate-500">Verified Seller</p>
                         </div>
-                        <p className="text-xs text-slate-500">Joined 2021 • Jakarta Selatan</p>
                     </div>
+                    {product.seller.store_slug && (
+                        <Link
+                            href={`/store/${product.seller.store_slug}`}
+                            className="text-sm font-semibold text-brand-primary hover:underline"
+                        >
+                            View Profile
+                        </Link>
+                    )}
                 </div>
-                <button className="text-sm font-semibold text-brand-primary hover:underline">
-                    View Profile
-                </button>
-            </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex flex-col gap-3">
                 <div className="flex gap-3">
-                    <button className="flex-1 bg-brand-primary hover:bg-slate-800 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg shadow-brand-primary/20 transition-all active:scale-[0.98]">
-                        Buy Now
+                    <button
+                        onClick={handleAddToCart}
+                        disabled={isPending || product.stock === 0}
+                        className="flex-1 bg-brand-primary hover:bg-slate-800 disabled:bg-slate-400 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg shadow-brand-primary/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                    >
+                        {isPending ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : added ? (
+                            <>✓ Ditambahkan</>
+                        ) : (
+                            <>
+                                <ShoppingCart className="w-5 h-5" />
+                                {product.stock === 0 ? "Stok Habis" : "Add to Cart"}
+                            </>
+                        )}
                     </button>
-                    <button className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 text-slate-900 font-bold py-3.5 px-6 rounded-xl transition-all active:scale-[0.98]">
-                        Chat Seller
+                    <button
+                        onClick={handleChatSeller}
+                        disabled={isChatPending || !product.seller}
+                        className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 text-slate-900 font-bold py-3.5 px-6 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                    >
+                        {isChatPending ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                            <>
+                                <MessageCircle className="w-5 h-5" />
+                                Tanya Penjual
+                            </>
+                        )}
                     </button>
                 </div>
                 <div className="flex gap-3">
@@ -90,41 +203,42 @@ export function ProductInfo() {
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-50/50 border border-blue-100">
                     <ShieldCheck className="w-5 h-5 text-brand-primary shrink-0 mt-0.5" />
                     <div>
-                        <h4 className="text-xs font-bold text-slate-900">Authenticity Guarantee</h4>
+                        <h4 className="text-xs font-bold text-slate-900">Garansi Keaslian</h4>
                         <p className="text-[10px] text-slate-500 leading-snug mt-0.5">
-                            Verified by our experts or money back.
+                            Produk asli atau uang kembali.
                         </p>
                     </div>
                 </div>
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-green-50/50 border border-green-100">
                     <Truck className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
                     <div>
-                        <h4 className="text-xs font-bold text-slate-900">Secure Shipping</h4>
+                        <h4 className="text-xs font-bold text-slate-900">Pengiriman Aman</h4>
                         <p className="text-[10px] text-slate-500 leading-snug mt-0.5">
-                            Tracked delivery with insurance included.
+                            Dilacak dengan asuransi pengiriman.
                         </p>
                     </div>
                 </div>
             </div>
 
             {/* Description */}
-            <div className="pt-6 border-t border-slate-100">
-                <h3 className="font-bold text-slate-900 mb-3">Description</h3>
-                <div className="text-sm text-slate-600 leading-relaxed space-y-4">
-                    <p>
-                        Selling my spare Yonex Ezone 98. It&apos;s the 2022 model, 305g unstrung.
-                        Grip size L2 (4 1/4).
-                    </p>
-                    <p>
-                        Condition is good, just some minor paint chips on the hoop from normal play (see photos).
-                        No cracks or structural damage.
-                    </p>
-                    <p>
-                        Strung with Yonex Poly Tour Pro at 52lbs about a month ago.
-                        Fresh overgrip installed. Ready to play!
-                    </p>
+            {product.description && (
+                <div className="pt-6 border-t border-slate-100">
+                    <h3 className="font-bold text-slate-900 mb-3">Deskripsi</h3>
+                    <div className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
+                        {product.description}
+                    </div>
                 </div>
-            </div>
+            )}
+
+            {/* Condition Notes */}
+            {product.condition_notes && (
+                <div className="pt-4 border-t border-slate-100">
+                    <h3 className="font-bold text-slate-900 mb-3">Catatan Kondisi</h3>
+                    <div className="text-sm text-slate-600 leading-relaxed bg-orange-50 p-4 rounded-lg border border-orange-100">
+                        {product.condition_notes}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -21,24 +21,26 @@ export const auth = betterAuth({
     //     sendOnSignUp: true,
     //     autoSignInAfterVerification: true,
     // },
-    socialProviders: {
-        google: {
-            clientId: process.env.GOOGLE_CLIENT_ID!,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-        },
-        facebook: {
-            clientId: process.env.FACEBOOK_CLIENT_ID!,
-            clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
-        },
-        apple: {
-            clientId: process.env.APPLE_CLIENT_ID!,
-            clientSecret: process.env.APPLE_CLIENT_SECRET!,
-        },
-        twitter: {
-            clientId: process.env.TWITTER_CLIENT_ID!,
-            clientSecret: process.env.TWITTER_CLIENT_SECRET!,
-        },
-    },
+
+    // OAuth Providers - DISABLED for now (uncomment when credentials are configured)
+    // socialProviders: {
+    //     google: {
+    //         clientId: process.env.GOOGLE_CLIENT_ID!,
+    //         clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    //     },
+    //     facebook: {
+    //         clientId: process.env.FACEBOOK_CLIENT_ID!,
+    //         clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
+    //     },
+    //     apple: {
+    //         clientId: process.env.APPLE_CLIENT_ID!,
+    //         clientSecret: process.env.APPLE_CLIENT_SECRET!,
+    //     },
+    //     twitter: {
+    //         clientId: process.env.TWITTER_CLIENT_ID!,
+    //         clientSecret: process.env.TWITTER_CLIENT_SECRET!,
+    //     },
+    // },
     trustedOrigins: [process.env.BETTER_AUTH_URL || "http://localhost:3000"],
 });
 

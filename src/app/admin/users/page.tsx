@@ -1,427 +1,287 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, Users, UserPlus, ShieldCheck, Store, Search, ChevronDown, Download, Lock, Ban, ChevronRight, ShieldAlert, RefreshCcw } from "lucide-react";
+import { Plus, Users, UserPlus, ShieldCheck, Store, Search, ChevronDown, Download, Lock, Ban, ChevronRight, ShieldAlert, RefreshCcw, Package } from "lucide-react";
+import { getAdminUsers, getAdminDashboardStats } from "@/actions/admin";
+import { UserActions } from "./UserActions";
 
-export default function UserManagementPage() {
+function formatDate(date: Date) {
+    return new Intl.DateTimeFormat("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+    }).format(date);
+}
+
+function formatTime(date: Date) {
+    return new Intl.DateTimeFormat("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+    }).format(date);
+}
+
+export default async function UserManagementPage() {
+    const [stats, users] = await Promise.all([
+        getAdminDashboardStats(),
+        getAdminUsers(),
+    ]);
+
     return (
-        <div className="flex-1 bg-background-dark p-4 md:p-8 lg:px-12 text-white">
-            <div className="max-w-7xl mx-auto space-y-8">
-                {/* Breadcrumbs */}
-                <nav className="flex flex-wrap gap-2 text-sm">
-                    <Link
-                        href="/admin"
-                        className="text-slate-400 hover:text-brand-primary transition-colors"
-                    >
-                        Home
-                    </Link>
-                    <span className="text-slate-400">/</span>
-                    <Link
-                        href="/admin"
-                        className="text-slate-400 hover:text-brand-primary transition-colors"
-                    >
-                        Admin
-                    </Link>
-                    <span className="text-slate-400">/</span>
-                    <span className="text-white font-medium">User Management</span>
-                </nav>
-
-                {/* Page Header */}
-                <div className="flex flex-wrap justify-between items-end gap-4">
-                    <div className="flex flex-col gap-2 max-w-2xl">
-                        <h1 className="text-2xl sm:text-3xl font-heading font-bold tracking-tight text-white uppercase">
+        <>
+            <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-white to-transparent pointer-events-none dark:from-white/5 dark:to-transparent"></div>
+            <div className="container mx-auto max-w-[1600px] p-6 lg:p-10 flex flex-col gap-8 relative z-0">
+                {/* Header */}
+                <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
+                    <div>
+                        <nav aria-label="Breadcrumb" className="flex mb-3">
+                            <ol className="flex items-center space-x-2 text-sm text-slate-500 dark:text-slate-400">
+                                <li>
+                                    <Link
+                                        href="/admin"
+                                        className="hover:text-brand-primary transition-colors"
+                                    >
+                                        Dashboard
+                                    </Link>
+                                </li>
+                                <li>
+                                    <span className="text-slate-300 dark:text-slate-600">/</span>
+                                </li>
+                                <li>
+                                    <span className="font-medium text-brand-primary">
+                                        User Management
+                                    </span>
+                                </li>
+                            </ol>
+                        </nav>
+                        <h1 className="text-2xl sm:text-3xl font-heading font-bold tracking-tight text-slate-900 dark:text-white uppercase">
                             User Management
                         </h1>
-                        <p className="text-slate-400 text-base">
-                            Manage user accounts, verify identities, and monitor trust scores
-                            for a safer marketplace.
+                        <p className="mt-2 text-slate-500 dark:text-slate-400 text-lg">
+                            Manage user accounts, verify identities, and monitor trust scores.
                         </p>
                     </div>
-                    <button className="flex items-center gap-2 bg-brand-primary hover:bg-blue-600 text-white px-5 py-2.5 rounded-lg font-semibold shadow-lg shadow-brand-primary/25 transition-all active:scale-95">
+                    <button className="flex items-center gap-2 bg-brand-primary hover:bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-lg shadow-brand-primary/25 transition-all active:scale-95">
                         <Plus className="w-5 h-5" />
                         <span>Add New User</span>
                     </button>
                 </div>
 
                 {/* Stats Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-[#1a2632] border border-[#344d65] rounded-xl p-5 flex flex-col gap-2 shadow-sm">
+                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                    {/* Total Users */}
+                    <div className="group relative overflow-hidden rounded-2xl bg-white dark:bg-surface-dark p-6 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 border border-slate-100 dark:border-slate-800">
                         <div className="flex justify-between items-start">
-                            <p className="text-slate-400 text-sm font-medium">Total Users</p>
-                            <Users className="w-5 h-5 text-brand-primary" />
+                            <div>
+                                <p className="text-sm font-medium text-slate-400 uppercase tracking-wider">
+                                    Total Users
+                                </p>
+                                <p className="mt-1 text-3xl font-bold text-slate-900 dark:text-white font-heading">
+                                    {stats.totalUsers.toLocaleString()}
+                                </p>
+                            </div>
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-500/10 text-brand-primary">
+                                <Users className="w-6 h-6" />
+                            </div>
                         </div>
-                        <div className="flex items-end gap-3">
-                            <p className="text-white text-2xl font-bold">14,203</p>
-                            <span className="text-green-500 text-xs font-semibold mb-1 bg-green-500/10 px-1.5 py-0.5 rounded">
-                                +2.5%
+                        <div className="mt-4 flex items-center gap-2 text-sm">
+                            <span className="flex items-center rounded-full bg-green-50 dark:bg-green-500/10 px-2 py-0.5 text-xs font-bold text-green-600 dark:text-green-400">
+                                <UserPlus className="w-3.5 h-3.5 mr-1" /> +{stats.newUsersThisWeek}
+                            </span>
+                            <span className="text-slate-400">this week</span>
+                        </div>
+                    </div>
+
+                    {/* Active Sellers */}
+                    <div className="group relative overflow-hidden rounded-2xl bg-white dark:bg-surface-dark p-6 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 border border-slate-100 dark:border-slate-800">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <p className="text-sm font-medium text-slate-400 uppercase tracking-wider">
+                                    Active Sellers
+                                </p>
+                                <p className="mt-1 text-3xl font-bold text-slate-900 dark:text-white font-heading">
+                                    {stats.totalSellers.toLocaleString()}
+                                </p>
+                            </div>
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-50 dark:bg-orange-500/10 text-orange-500">
+                                <Store className="w-6 h-6" />
+                            </div>
+                        </div>
+                        <div className="mt-4 flex items-center gap-2 text-sm">
+                            <span className="text-slate-400">
+                                {stats.totalUsers > 0 ? Math.round((stats.totalSellers / stats.totalUsers) * 100) : 0}% of total
                             </span>
                         </div>
                     </div>
-                    <div className="bg-[#1a2632] border border-[#344d65] rounded-xl p-5 flex flex-col gap-2 shadow-sm">
+
+                    {/* Published Products */}
+                    <div className="group relative overflow-hidden rounded-2xl bg-white dark:bg-surface-dark p-6 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 border border-slate-100 dark:border-slate-800">
                         <div className="flex justify-between items-start">
-                            <p className="text-slate-400 text-sm font-medium">
-                                New This Week
-                            </p>
-                            <UserPlus className="w-5 h-5 text-brand-primary" />
+                            <div>
+                                <p className="text-sm font-medium text-slate-400 uppercase tracking-wider">
+                                    Live Products
+                                </p>
+                                <p className="mt-1 text-3xl font-bold text-slate-900 dark:text-white font-heading">
+                                    {stats.publishedProducts.toLocaleString()}
+                                </p>
+                            </div>
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-50 dark:bg-green-500/10 text-green-500">
+                                <Package className="w-6 h-6" />
+                            </div>
                         </div>
-                        <div className="flex items-end gap-3">
-                            <p className="text-white text-2xl font-bold">124</p>
-                            <span className="text-green-500 text-xs font-semibold mb-1 bg-green-500/10 px-1.5 py-0.5 rounded">
-                                +12%
-                            </span>
+                        <div className="mt-4 flex items-center gap-2 text-sm">
+                            <span className="text-slate-400">Available for sale</span>
                         </div>
                     </div>
-                    <div className="bg-[#1a2632] border border-[#344d65] rounded-xl p-5 flex flex-col gap-2 shadow-sm">
+
+                    {/* Verified Users (Placeholder stats for now) */}
+                    <div className="group relative overflow-hidden rounded-2xl bg-white dark:bg-surface-dark p-6 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 border border-slate-100 dark:border-slate-800">
                         <div className="flex justify-between items-start">
-                            <p className="text-slate-400 text-sm font-medium">Verified IDs</p>
-                            <ShieldCheck className="w-5 h-5 text-brand-primary" />
+                            <div>
+                                <p className="text-sm font-medium text-slate-400 uppercase tracking-wider">
+                                    Verified
+                                </p>
+                                <p className="mt-1 text-3xl font-bold text-slate-900 dark:text-white font-heading">
+                                    98%
+                                </p>
+                            </div>
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-50 dark:bg-purple-500/10 text-purple-500">
+                                <ShieldCheck className="w-6 h-6" />
+                            </div>
                         </div>
-                        <div className="flex items-end gap-3">
-                            <p className="text-white text-2xl font-bold">9,102</p>
-                            <span className="text-green-500 text-xs font-semibold mb-1 bg-green-500/10 px-1.5 py-0.5 rounded">
-                                +5%
-                            </span>
-                        </div>
-                    </div>
-                    <div className="bg-[#1a2632] border border-[#344d65] rounded-xl p-5 flex flex-col gap-2 shadow-sm">
-                        <div className="flex justify-between items-start">
-                            <p className="text-slate-400 text-sm font-medium">
-                                Active Sellers
-                            </p>
-                            <Store className="w-5 h-5 text-brand-primary" />
-                        </div>
-                        <div className="flex items-end gap-3">
-                            <p className="text-white text-2xl font-bold">3,400</p>
-                            <span className="text-slate-400 text-xs font-medium mb-1">
-                                24% of total
-                            </span>
+                        <div className="mt-4 flex items-center gap-2 text-sm">
+                            <span className="text-slate-400">Trust score</span>
                         </div>
                     </div>
                 </div>
 
-                {/* Toolbar: Search & Filters */}
-                <div className="bg-[#1a2632] border border-[#344d65] rounded-xl p-4 flex flex-col md:flex-row gap-4 justify-between items-center">
-                    {/* Search */}
-                    <div className="w-full md:w-96">
-                        <div className="relative group">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <Search className="w-5 h-5 text-slate-400 group-focus-within:text-brand-primary transition-colors" />
-                            </div>
+                {/* Filters & Table */}
+                <div className="flex flex-col rounded-2xl bg-white dark:bg-surface-dark shadow-sm overflow-hidden border border-slate-100 dark:border-slate-800">
+                    {/* Filters */}
+                    <div className="border-b border-slate-100 dark:border-slate-800 p-5 flex flex-col md:flex-row gap-4 items-center justify-between bg-white dark:bg-surface-dark">
+                        <div className="relative w-full md:max-w-md group">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-brand-primary transition-colors">
+                                <Search className="w-5 h-5" />
+                            </span>
                             <input
-                                className="block w-full pl-10 pr-3 py-2.5 border border-[#344d65] rounded-lg leading-5 bg-[#111921] text-white placeholder-slate-400 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary sm:text-sm transition-all"
+                                className="w-full rounded-xl border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-black/20 py-2.5 pl-10 pr-4 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-brand-primary focus:ring-brand-primary transition-shadow"
                                 placeholder="Search by User ID, Name, or Email"
                                 type="text"
                             />
                         </div>
-                    </div>
-                    {/* Filters & Actions */}
-                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                        <div className="relative">
-                            <select className="appearance-none bg-[#111921] border border-[#344d65] text-white text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary block w-full px-4 py-2.5 pr-8 cursor-pointer hover:border-slate-400 transition-colors">
-                                <option>All Status</option>
-                                <option>Active</option>
-                                <option>Pending</option>
-                                <option>Banned</option>
-                            </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-white">
-                                <ChevronDown className="w-5 h-5" />
+                        <div className="flex flex-wrap gap-3 w-full md:w-auto">
+                            <div className="relative">
+                                <select className="appearance-none cursor-pointer rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark py-2.5 pl-4 pr-10 text-sm font-medium text-slate-700 dark:text-slate-300 hover:border-brand-primary focus:border-brand-primary focus:ring-1 focus:ring-brand-primary transition-all">
+                                    <option>All Status</option>
+                                    <option>Active</option>
+                                    <option>Banned</option>
+                                </select>
+                                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                                    <ChevronDown className="w-5 h-5" />
+                                </div>
                             </div>
+                            <button className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-brand-primary">
+                                <Download className="w-5 h-5" />
+                                <span>Export</span>
+                            </button>
                         </div>
-                        <div className="relative">
-                            <select className="appearance-none bg-[#111921] border border-[#344d65] text-white text-sm rounded-lg focus:ring-brand-primary focus:border-brand-primary block w-full px-4 py-2.5 pr-8 cursor-pointer hover:border-slate-400 transition-colors">
-                                <option>All Roles</option>
-                                <option>Buyer</option>
-                                <option>Seller</option>
-                            </select>
-                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-white">
-                                <ChevronDown className="w-5 h-5" />
-                            </div>
-                        </div>
-                        <button className="flex items-center gap-2 border border-[#344d65] hover:border-slate-400 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ml-auto md:ml-0">
-                            <Download className="w-5 h-5" />
-                            <span>Export</span>
-                        </button>
                     </div>
-                </div>
 
-                {/* Data Table */}
-                <div className="bg-[#1a2632] border border-[#344d65] rounded-xl overflow-hidden shadow-sm">
+                    {/* Data Table */}
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm text-slate-400">
-                            <thead className="bg-[#1e2b38] text-white uppercase tracking-wider text-xs font-semibold border-b border-[#344d65]">
+                            <thead className="bg-slate-50 dark:bg-black/20 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
                                 <tr>
-                                    <th className="p-4 w-4" scope="col">
-                                        <div className="flex items-center">
-                                            <input
-                                                className="w-4 h-4 text-brand-primary bg-[#111921] border-[#344d65] rounded focus:ring-brand-primary focus:ring-2"
-                                                type="checkbox"
-                                            />
-                                        </div>
+                                    <th className="w-14 px-6 py-4">
+                                        <input
+                                            className="h-5 w-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
+                                            type="checkbox"
+                                        />
                                     </th>
-                                    <th className="px-6 py-4" scope="col">
+                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider font-heading">
                                         User
                                     </th>
-                                    <th className="px-6 py-4" scope="col">
+                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider font-heading">
                                         Role
                                     </th>
-                                    <th className="px-6 py-4" scope="col">
-                                        Trust Score
-                                    </th>
-                                    <th className="px-6 py-4" scope="col">
+                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider font-heading">
                                         Status
                                     </th>
-                                    <th className="px-6 py-4" scope="col">
+                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider font-heading">
                                         Joined
                                     </th>
-                                    <th className="px-6 py-4 text-right" scope="col">
+                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider font-heading text-right">
                                         Actions
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-[#344d65]">
-                                {/* Row 1 */}
-                                <tr className="hover:bg-[#1e2b38]/50 transition-colors group">
-                                    <td className="p-4 w-4">
-                                        <div className="flex items-center">
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                {users.map((user) => (
+                                    <tr key={user.id} className="hover:bg-blue-50/50 dark:hover:bg-white/5 transition-colors group">
+                                        <td className="px-6 py-5 align-top">
                                             <input
-                                                className="w-4 h-4 text-brand-primary bg-[#111921] border-[#344d65] rounded focus:ring-brand-primary focus:ring-2"
+                                                className="mt-2 h-5 w-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
                                                 type="checkbox"
                                             />
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="relative w-10 h-10 rounded-full border border-[#344d65] overflow-hidden">
-                                                <Image
-                                                    alt="User Avatar"
-                                                    className="object-cover"
-                                                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuBnT4LVj7vFTv4OLMKZ4w027C41JLy3GjVRnO7LRIeyfmbXHnUibLiL_d5bis-0RQ_ITpCCPOdiRRDlf0Q-F8WTRVUGNCRlAHw9e6HJ92u79wMuQaY01cUGxwO3HfRhGUKBGt6QuXrS_96CRbQiHy_VRUtoexJ6p2cATJ0lxhg42wSN21sFbM39Y5JWuPFT8DZpnV1nrexNuLaTIasuspX9aY17q-DBGO1nYh9cdZ5pK7wWmSRO_949gA11ECbONvsSNbC5BRyb_aM"
-                                                    fill
-                                                />
-                                            </div>
-                                            <div>
-                                                <div className="font-medium text-white">
-                                                    Budi Santoso
+                                        </td>
+                                        <td className="px-6 py-5">
+                                            <div className="flex items-center gap-3">
+                                                <div className="relative h-10 w-10 flex-shrink-0">
+                                                    {user.image ? (
+                                                        <Image
+                                                            alt={user.name}
+                                                            className="rounded-full object-cover border border-slate-200 dark:border-slate-700"
+                                                            src={user.image}
+                                                            fill
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center border border-slate-200 dark:border-slate-700">
+                                                            <span className="font-bold text-slate-400 text-xs">
+                                                                {user.name?.slice(0, 2).toUpperCase() || "??"}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <div className="text-xs">budi.s@example.com</div>
-                                                <div className="text-[10px] text-brand-primary mt-0.5 font-mono">
-                                                    ID: #USR-8821
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="text-white">Seller</div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-1.5 text-white">
-                                            <ShieldCheck className="w-4 h-4 text-green-500" />
-                                            <span>High</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-500 border border-green-500/20">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                            Active
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="text-white">Jan 12, 2025</div>
-                                        <div className="text-xs">10:45 AM</div>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button
-                                                className="p-1.5 hover:bg-[#111921] rounded text-slate-400 hover:text-white"
-                                                title="Reset Password"
-                                            >
-                                                <Lock className="w-5 h-5" />
-                                            </button>
-                                            <button
-                                                className="p-1.5 hover:bg-[#111921] rounded text-slate-400 hover:text-red-400"
-                                                title="Ban User"
-                                            >
-                                                <Ban className="w-5 h-5" />
-                                            </button>
-                                            <button
-                                                className="p-1.5 hover:bg-[#111921] rounded text-slate-400 hover:text-brand-primary"
-                                                title="View Details"
-                                            >
-                                                <ChevronRight className="w-5 h-5" />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {/* Row 2 */}
-                                <tr className="hover:bg-[#1e2b38]/50 transition-colors group">
-                                    <td className="p-4 w-4">
-                                        <div className="flex items-center">
-                                            <input
-                                                className="w-4 h-4 text-brand-primary bg-[#111921] border-[#344d65] rounded focus:ring-brand-primary focus:ring-2"
-                                                type="checkbox"
-                                            />
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full border border-[#344d65] bg-purple-900 flex items-center justify-center text-white font-bold text-sm">
-                                                SL
-                                            </div>
-                                            <div>
-                                                <div className="font-medium text-white">
-                                                    Siti Lestari
-                                                </div>
-                                                <div className="text-xs">siti.lestari@mail.co</div>
-                                                <div className="text-[10px] text-brand-primary mt-0.5 font-mono">
-                                                    ID: #USR-8822
+                                                <div>
+                                                    <div className="font-medium text-slate-900 dark:text-white">
+                                                        {user.name}
+                                                    </div>
+                                                    <div className="text-xs text-slate-500">{user.email}</div>
+                                                    <div className="text-[10px] text-brand-primary mt-0.5 font-mono">
+                                                        ID: {user.id.slice(0, 8)}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="text-white">Buyer</div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-1.5 text-white">
-                                            <ShieldCheck className="w-4 h-4 text-slate-400" />
-                                            <span>Medium</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
-                                            Pending
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="text-white">Mar 04, 2025</div>
-                                        <div className="text-xs">02:30 PM</div>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button
-                                                className="p-1.5 hover:bg-[#111921] rounded text-slate-400 hover:text-white"
-                                                title="Reset Password"
-                                            >
-                                                <Lock className="w-5 h-5" />
-                                            </button>
-                                            <button
-                                                className="p-1.5 hover:bg-[#111921] rounded text-slate-400 hover:text-red-400"
-                                                title="Ban User"
-                                            >
-                                                <Ban className="w-5 h-5" />
-                                            </button>
-                                            <button
-                                                className="p-1.5 hover:bg-[#111921] rounded text-slate-400 hover:text-brand-primary"
-                                                title="View Details"
-                                            >
-                                                <ChevronRight className="w-5 h-5" />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {/* Row 3 - Banned */}
-                                <tr className="hover:bg-[#1e2b38]/50 transition-colors group">
-                                    <td className="p-4 w-4">
-                                        <div className="flex items-center">
-                                            <input
-                                                className="w-4 h-4 text-brand-primary bg-[#111921] border-[#344d65] rounded focus:ring-brand-primary focus:ring-2"
-                                                type="checkbox"
-                                            />
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="relative w-10 h-10 rounded-full border border-[#344d65] overflow-hidden grayscale">
-                                                <Image
-                                                    alt="User Avatar"
-                                                    className="object-cover"
-                                                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuB1eWUNdXNvxirxndrbfUkAboIoalQAiAyvaS6psEZErqlAwBKKOWbXiu0quNaDG_F_G9f9SJyC5A8zMYLuIoWHhDBBI4fLL8gNsRvIhS9VtzHL163BefFJ92P5MQeOLNLEYUS1ZZedrH-lMHgECHGztHPZ5fPNJBeSuxvo-_WW7u3HY6iiW12PxsUeATIRtP2V7gewMqrm3GAx4QwDqVM5f5wCtUzdvnUy6duNsYqdMpqRgPhBNdY0qYdizVmAA-lwP5CHONKuvio"
-                                                    fill
-                                                />
-                                            </div>
-                                            <div>
-                                                <div className="font-medium text-slate-400 line-through">
-                                                    Andi Pratama
+                                        </td>
+                                        <td className="px-6 py-5">
+                                            <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${user.role === "ADMIN" ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"}`}>
+                                                {user.role}
+                                            </span>
+                                            {user.store_name && (
+                                                <div className="mt-1 flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400">
+                                                    <Store className="w-3 h-3" />
+                                                    <span className="font-medium truncate max-w-[100px]">{user.store_name}</span>
                                                 </div>
-                                                <div className="text-xs">andi.p@suspicious.net</div>
-                                                <div className="text-[10px] text-slate-400 mt-0.5 font-mono">
-                                                    ID: #USR-8819
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="text-white">Seller</div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-1.5 text-white">
-                                            <ShieldAlert className="w-4 h-4 text-red-500" />
-                                            <span className="text-red-400">Low</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-500 border border-red-500/20">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                                            Banned
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="text-white">Dec 20, 2022</div>
-                                        <div className="text-xs">09:15 AM</div>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button
-                                                className="p-1.5 hover:bg-[#111921] rounded text-slate-400 hover:text-white"
-                                                title="Unban User"
-                                            >
-                                                <RefreshCcw className="w-5 h-5" />
-                                            </button>
-                                            <button
-                                                className="p-1.5 hover:bg-[#111921] rounded text-slate-400 hover:text-brand-primary"
-                                                title="View Details"
-                                            >
-                                                <ChevronRight className="w-5 h-5" />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-5">
+                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${user.store_status === "BANNED" ? "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400 ring-1 ring-inset ring-red-600/20" : "bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400 ring-1 ring-inset ring-green-600/20"}`}>
+                                                <span className={`w-1.5 h-1.5 rounded-full ${user.store_status === "BANNED" ? "bg-red-600 animate-pulse" : "bg-green-600"}`}></span>
+                                                {user.store_status || "Active"}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-5 text-sm text-slate-500">
+                                            <div>{formatDate(user.created_at)}</div>
+                                            <div className="text-xs text-slate-400">{formatTime(user.created_at)}</div>
+                                        </td>
+                                        <td className="px-6 py-5 text-right">
+                                            <UserActions userId={user.id} isBanned={user.store_status === "BANNED"} />
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>
-                    {/* Pagination */}
-                    <div className="px-6 py-4 border-t border-[#344d65] bg-[#1a2632] flex items-center justify-between">
-                        <div className="text-sm text-slate-400">
-                            Showing <span className="font-medium text-white">1</span> to{" "}
-                            <span className="font-medium text-white">5</span> of{" "}
-                            <span className="font-medium text-white">14,203</span> results
-                        </div>
-                        <div className="flex gap-2">
-                            <button
-                                className="px-3 py-1 rounded border border-[#344d65] text-slate-400 hover:bg-[#111921] hover:text-white disabled:opacity-50 transition-colors"
-                                disabled
-                            >
-                                Previous
-                            </button>
-                            <button className="px-3 py-1 rounded bg-brand-primary text-white border border-brand-primary">
-                                1
-                            </button>
-                            <button className="px-3 py-1 rounded border border-[#344d65] text-slate-400 hover:bg-[#111921] hover:text-white transition-colors">
-                                2
-                            </button>
-                            <button className="px-3 py-1 rounded border border-[#344d65] text-slate-400 hover:bg-[#111921] hover:text-white transition-colors">
-                                3
-                            </button>
-                            <button className="px-3 py-1 rounded border border-[#344d65] text-slate-400 hover:bg-[#111921] hover:text-white transition-colors">
-                                ...
-                            </button>
-                            <button className="px-3 py-1 rounded border border-[#344d65] text-slate-400 hover:bg-[#111921] hover:text-white transition-colors">
-                                Next
-                            </button>
-                        </div>
-                    </div>
                 </div>
             </div>
-        </div>
+        </>
     );
 }

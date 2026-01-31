@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.980.0",
+    "@aws-sdk/s3-request-presigner": "^3.980.0",
     "@uploadthing/react": "^7.3.3",
     "better-auth": "^1.4.7",
     "class-variance-authority": "^0.7.1",

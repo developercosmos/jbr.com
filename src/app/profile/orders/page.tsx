@@ -1,8 +1,86 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Search, Filter, Package, Truck, CheckCircle, Clock } from "lucide-react";
+import { Search, Package, Truck, CheckCircle, Clock, XCircle, CreditCard } from "lucide-react";
+import { getBuyerOrders } from "@/actions/orders";
 
-export default function ProfileOrdersPage() {
+const statusConfig: Record<string, { label: string; icon: React.ReactNode; bg: string; text: string; border: string }> = {
+    PENDING_PAYMENT: {
+        label: "Menunggu Pembayaran",
+        icon: <CreditCard className="w-3 h-3 mr-1" />,
+        bg: "bg-yellow-100 dark:bg-yellow-900/30",
+        text: "text-yellow-800 dark:text-yellow-300",
+        border: "border-yellow-200 dark:border-yellow-700/50"
+    },
+    PAID: {
+        label: "Dibayar",
+        icon: <CheckCircle className="w-3 h-3 mr-1" />,
+        bg: "bg-emerald-100 dark:bg-emerald-900/30",
+        text: "text-emerald-800 dark:text-emerald-300",
+        border: "border-emerald-200 dark:border-emerald-700/50"
+    },
+    PROCESSING: {
+        label: "Diproses",
+        icon: <Package className="w-3 h-3 mr-1" />,
+        bg: "bg-blue-100 dark:bg-blue-900/30",
+        text: "text-blue-800 dark:text-blue-300",
+        border: "border-blue-200 dark:border-blue-700/50"
+    },
+    SHIPPED: {
+        label: "Sedang Dikirim",
+        icon: <Truck className="w-3 h-3 mr-1" />,
+        bg: "bg-blue-100 dark:bg-blue-900/30",
+        text: "text-blue-800 dark:text-blue-300",
+        border: "border-blue-200 dark:border-blue-700/50"
+    },
+    DELIVERED: {
+        label: "Sampai Tujuan",
+        icon: <CheckCircle className="w-3 h-3 mr-1" />,
+        bg: "bg-green-100 dark:bg-green-900/30",
+        text: "text-green-800 dark:text-green-300",
+        border: "border-green-200 dark:border-green-700/50"
+    },
+    COMPLETED: {
+        label: "Selesai",
+        icon: <CheckCircle className="w-3 h-3 mr-1" />,
+        bg: "bg-green-100 dark:bg-green-900/30",
+        text: "text-green-800 dark:text-green-300",
+        border: "border-green-200 dark:border-green-700/50"
+    },
+    CANCELLED: {
+        label: "Dibatalkan",
+        icon: <XCircle className="w-3 h-3 mr-1" />,
+        bg: "bg-red-100 dark:bg-red-900/30",
+        text: "text-red-800 dark:text-red-300",
+        border: "border-red-200 dark:border-red-700/50"
+    },
+    REFUNDED: {
+        label: "Dikembalikan",
+        icon: <Clock className="w-3 h-3 mr-1" />,
+        bg: "bg-slate-100 dark:bg-slate-800/50",
+        text: "text-slate-800 dark:text-slate-300",
+        border: "border-slate-200 dark:border-slate-700/50"
+    },
+};
+
+function formatPrice(price: string) {
+    return new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+        minimumFractionDigits: 0,
+    }).format(parseFloat(price));
+}
+
+function formatDate(date: Date) {
+    return new Intl.DateTimeFormat("id-ID", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+    }).format(date);
+}
+
+export default async function ProfileOrdersPage() {
+    const orders = await getBuyerOrders();
+
     return (
         <div className="flex-1">
             <div className="mb-6">
@@ -12,25 +90,6 @@ export default function ProfileOrdersPage() {
                 <p className="text-slate-500 dark:text-slate-400">
                     Riwayat belanja dan status pesanan Anda.
                 </p>
-            </div>
-
-            {/* Filter Tabs */}
-            <div className="flex overflow-x-auto pb-2 mb-6 gap-2 no-scrollbar">
-                <button className="px-4 py-2 rounded-full bg-brand-primary text-white text-sm font-bold whitespace-nowrap shadow-md shadow-brand-primary/25">
-                    Semua Pesanan
-                </button>
-                <button className="px-4 py-2 rounded-full bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 text-sm font-medium whitespace-nowrap transition-colors">
-                    Menunggu Pembayaran
-                </button>
-                <button className="px-4 py-2 rounded-full bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 text-sm font-medium whitespace-nowrap transition-colors">
-                    Diproses
-                </button>
-                <button className="px-4 py-2 rounded-full bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 text-sm font-medium whitespace-nowrap transition-colors">
-                    Dikirim
-                </button>
-                <button className="px-4 py-2 rounded-full bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 text-sm font-medium whitespace-nowrap transition-colors">
-                    Selesai
-                </button>
             </div>
 
             {/* Search Bar */}
@@ -45,102 +104,114 @@ export default function ProfileOrdersPage() {
                 />
             </div>
 
-            {/* Orders List */}
-            <div className="space-y-6">
-                {/* Order Card 1 */}
-                <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-                    <div className="p-4 border-b border-slate-100 dark:border-slate-800/50 flex flex-wrap items-center justify-between gap-4 bg-slate-50/50 dark:bg-white/5">
-                        <div className="flex items-center gap-4 text-sm">
-                            <span className="font-bold text-slate-900 dark:text-white">19 Des 2025</span>
-                            <span className="text-slate-400">|</span>
-                            <span className="font-mono text-slate-500">ORD-2839</span>
-                            <span className="text-slate-400">|</span>
-                            <span className="text-slate-600 dark:text-slate-300">Agus Sport Store</span>
-                        </div>
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-700/50 uppercase tracking-wide">
-                            <Truck className="w-3 h-3 mr-1" />
-                            Sedang Dikirim
-                        </span>
-                    </div>
-                    <div className="p-4 flex flex-col sm:flex-row gap-4">
-                        <div className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800">
-                            <Image
-                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuAIaF_lSZ7Pxl2d96PA8BCRBrdPH42wW783ImbT7w8ufOm4cteDQpCZAMda9XdBG6RDdX8tDO7X-mF1iBrDebNfjwGQQbdSn4oW_7r3a2KvC6ZgmE6WB2s_YFz5vO2n1Jy4h0QRpg9NH4vIt-9y5oQ9ScsGsrRi1uqxZ8ErOTAeG4i9JIinF9qS6bs7GZdsaY2BIBmDuMAx8_uKaTTy37FIbrdDQdyb8njxQdGNT3NofDa8FOV9p7fTY2HAdVcX3UuQxcP0b-UnqO4"
-                                alt="Product"
-                                fill
-                                className="object-cover"
-                            />
-                        </div>
-                        <div className="flex-1">
-                            <h3 className="font-bold text-slate-900 dark:text-white text-lg mb-1">
-                                Nike Air Jordan Red
-                            </h3>
-                            <p className="text-sm text-slate-500 mb-2">1 x Rp 2.500.000</p>
-                            <div className="flex items-center justify-between mt-4">
-                                <div>
-                                    <p className="text-xs text-slate-500">Total Belanja</p>
-                                    <p className="font-bold text-brand-primary text-lg">Rp 2.520.000</p>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                                        Lacak
-                                    </button>
-                                    <button className="px-4 py-2 rounded-lg bg-brand-primary text-white font-bold text-sm hover:bg-blue-600 transition-colors shadow-lg shadow-brand-primary/20">
-                                        Diterima
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+            {orders.length === 0 ? (
+                <div className="text-center py-16 bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800">
+                    <Package className="w-16 h-16 mx-auto text-slate-300 mb-4" />
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
+                        Belum ada pesanan
+                    </h3>
+                    <p className="text-slate-500 mb-6">
+                        Anda belum melakukan pembelian apapun.
+                    </p>
+                    <Link
+                        href="/"
+                        className="inline-block px-6 py-3 bg-brand-primary text-white font-bold rounded-xl hover:bg-blue-600 transition-colors"
+                    >
+                        Mulai Belanja
+                    </Link>
                 </div>
+            ) : (
+                <div className="space-y-6">
+                    {orders.map((order) => {
+                        const firstItem = order.items[0];
+                        const status = statusConfig[order.status] || statusConfig.PENDING_PAYMENT;
 
-                {/* Order Card 2 */}
-                <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-                    <div className="p-4 border-b border-slate-100 dark:border-slate-800/50 flex flex-wrap items-center justify-between gap-4 bg-slate-50/50 dark:bg-white/5">
-                        <div className="flex items-center gap-4 text-sm">
-                            <span className="font-bold text-slate-900 dark:text-white">10 Des 2025</span>
-                            <span className="text-slate-400">|</span>
-                            <span className="font-mono text-slate-500">ORD-2810</span>
-                            <span className="text-slate-400">|</span>
-                            <span className="text-slate-600 dark:text-slate-300">Pro Shop Indonesia</span>
-                        </div>
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border border-green-200 dark:border-green-700/50 uppercase tracking-wide">
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Selesai
-                        </span>
-                    </div>
-                    <div className="p-4 flex flex-col sm:flex-row gap-4">
-                        <div className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800">
-                            <Image
-                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuAOQy9vRJqIQMmAmWRCB1SGC99BPsLlljsIZ2755XuqU-0grLUuh4vsiJkgUtxxNduBzXhAfSaZ0UeAQY6km0V7iYhiwjE-yfZ66E2ncSSpXM2KQOz40uPBHmQxXD2Z0edwc5Rbv2pinPtLyRfr22CrKr-SKbKEeeqm4bQqGmw3-ZsUnTk1SX14i3bdns3s-gjWtR536hpIJDJ5kgQZpBN7qc3UYqMUca54kPDiBDHXcVMr8oplziatKZjjrisrIGliYLBxSVNggws"
-                                alt="Product"
-                                fill
-                                className="object-cover"
-                            />
-                        </div>
-                        <div className="flex-1">
-                            <h3 className="font-bold text-slate-900 dark:text-white text-lg mb-1">
-                                Nike Air Zoom Pegasus 39
-                            </h3>
-                            <p className="text-sm text-slate-500 mb-2">1 x Rp 1.200.000</p>
-                            <div className="flex items-center justify-between mt-4">
-                                <div>
-                                    <p className="text-xs text-slate-500">Total Belanja</p>
-                                    <p className="font-bold text-brand-primary text-lg">Rp 1.225.000</p>
+                        return (
+                            <div key={order.id} className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                                <div className="p-4 border-b border-slate-100 dark:border-slate-800/50 flex flex-wrap items-center justify-between gap-4 bg-slate-50/50 dark:bg-white/5">
+                                    <div className="flex items-center gap-4 text-sm">
+                                        <span className="font-bold text-slate-900 dark:text-white">
+                                            {formatDate(order.created_at)}
+                                        </span>
+                                        <span className="text-slate-400">|</span>
+                                        <span className="font-mono text-slate-500">{order.order_number}</span>
+                                        <span className="text-slate-400">|</span>
+                                        <span className="text-slate-600 dark:text-slate-300">
+                                            {order.seller?.store_name || order.seller?.name || "Seller"}
+                                        </span>
+                                    </div>
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold ${status.bg} ${status.text} border ${status.border} uppercase tracking-wide`}>
+                                        {status.icon}
+                                        {status.label}
+                                    </span>
                                 </div>
-                                <div className="flex gap-2">
-                                    <button className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                                        Beli Lagi
-                                    </button>
-                                    <button className="px-4 py-2 rounded-lg border border-brand-primary text-brand-primary font-bold text-sm hover:bg-brand-primary/5 transition-colors">
-                                        Ulas
-                                    </button>
+                                <div className="p-4 flex flex-col sm:flex-row gap-4">
+                                    {firstItem && (
+                                        <>
+                                            <div className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800">
+                                                {firstItem.product?.images && firstItem.product.images.length > 0 ? (
+                                                    <Image
+                                                        src={firstItem.product.images[0]}
+                                                        alt={firstItem.product.title}
+                                                        fill
+                                                        className="object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center">
+                                                        <Package className="w-8 h-8 text-slate-400" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex-1">
+                                                <h3 className="font-bold text-slate-900 dark:text-white text-lg mb-1">
+                                                    {firstItem.product?.title || "Produk"}
+                                                </h3>
+                                                <p className="text-sm text-slate-500 mb-2">
+                                                    {firstItem.quantity} x {formatPrice(firstItem.price)}
+                                                    {order.items.length > 1 && (
+                                                        <span className="ml-2 text-brand-primary">
+                                                            +{order.items.length - 1} produk lainnya
+                                                        </span>
+                                                    )}
+                                                </p>
+                                                <div className="flex items-center justify-between mt-4">
+                                                    <div>
+                                                        <p className="text-xs text-slate-500">Total Belanja</p>
+                                                        <p className="font-bold text-brand-primary text-lg">
+                                                            {formatPrice(order.total)}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <Link
+                                                            href={`/profile/orders/${order.id}`}
+                                                            className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-50 dark:hover:bg-white/5 transition-colors"
+                                                        >
+                                                            Detail
+                                                        </Link>
+                                                        {order.status === "SHIPPED" && (
+                                                            <button className="px-4 py-2 rounded-lg bg-brand-primary text-white font-bold text-sm hover:bg-blue-600 transition-colors shadow-lg shadow-brand-primary/20">
+                                                                Diterima
+                                                            </button>
+                                                        )}
+                                                        {order.status === "COMPLETED" && firstItem.product && (
+                                                            <Link
+                                                                href={`/product/${firstItem.product.slug}`}
+                                                                className="px-4 py-2 rounded-lg border border-brand-primary text-brand-primary font-bold text-sm hover:bg-brand-primary/5 transition-colors"
+                                                            >
+                                                                Beli Lagi
+                                                            </Link>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
-                        </div>
-                    </div>
+                        );
+                    })}
                 </div>
-            </div>
+            )}
         </div>
     );
 }
