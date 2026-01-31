@@ -115,6 +115,7 @@ export const categories = pgTable("categories", {
     id: uuid("id").defaultRandom().primaryKey(),
     name: text("name").notNull(),
     slug: text("slug").notNull().unique(),
+    icon: text("icon"), // Icon name (e.g., "Racket", "Shoe", "Bag")
     image: text("image"),
     parent_id: uuid("parent_id"),
     created_at: timestamp("created_at").defaultNow().notNull(),

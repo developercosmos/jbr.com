@@ -1,8 +1,40 @@
 import { getCategories } from "@/actions/categories";
 import { getFilteredProducts, getProductCount } from "@/actions/products";
-import { BrowsePageLayout } from "@/components/browse/BrowsePageLayout";
 import Link from "next/link";
 import { Wrench, Package, ChevronRight } from "lucide-react";
+
+// Icons from react-icons - using verified available icons
+import {
+    GiFeather,        // Shuttlecock
+    GiTennisCourt,    // Raket/Court
+    GiRunningShoe,    // Sepatu
+    GiBackpack,       // Tas
+    GiRolledCloth,    // Grip/wrap
+    GiWireCoil,       // Senar
+} from "react-icons/gi";
+import {
+    IoShirtOutline,   // Pakaian
+    IoExtensionPuzzleOutline, // Aksesoris
+} from "react-icons/io5";
+import { TbPackage } from "react-icons/tb";
+
+// Icon component map for database icon names
+const iconComponents: Record<string, React.ComponentType<{ className?: string }>> = {
+    Target: GiTennisCourt,          // Raket
+    Footprints: GiRunningShoe,      // Sepatu
+    Backpack: GiBackpack,           // Tas
+    Shirt: IoShirtOutline,          // Pakaian
+    Circle: GiFeather,              // Shuttlecock
+    Zap: GiRolledCloth,             // Grip
+    Gauge: GiWireCoil,              // Senar
+    Sparkles: IoExtensionPuzzleOutline, // Aksesoris
+};
+
+// Get icon component by database icon name
+function getIconComponent(iconName: string | null) {
+    if (!iconName) return TbPackage;
+    return iconComponents[iconName] || TbPackage;
+}
 
 // Equipment categories slugs - these are the main equipment categories
 const EQUIPMENT_CATEGORY_SLUGS = [
@@ -13,6 +45,7 @@ const EQUIPMENT_CATEGORY_SLUGS = [
     "shoes",
     "shuttlecocks",
     "accessories",
+    "apparel",
 ];
 
 export default async function EquipmentPage() {
@@ -58,21 +91,22 @@ export default async function EquipmentPage() {
                 <h2 className="text-lg font-bold text-slate-900 mb-4">Kategori Equipment</h2>
 
                 {equipmentCategories.length > 0 ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-8">
-                        {equipmentCategories.map((category) => (
-                            <Link
-                                key={category.id}
-                                href={`/category/${category.slug}`}
-                                className="group bg-white rounded-xl p-4 border border-slate-200 hover:border-brand-primary hover:shadow-md transition-all text-center"
-                            >
-                                <div className="w-12 h-12 mx-auto mb-3 bg-slate-100 rounded-full flex items-center justify-center group-hover:bg-brand-primary/10 transition-colors">
-                                    <Package className="w-6 h-6 text-slate-500 group-hover:text-brand-primary" />
-                                </div>
-                                <h3 className="font-medium text-slate-900 group-hover:text-brand-primary text-sm">
-                                    {category.name}
-                                </h3>
-                            </Link>
-                        ))}
+                    <div className="flex flex-wrap gap-3 mb-8">
+                        {equipmentCategories.map((category) => {
+                            const Icon = getIconComponent(category.icon);
+                            return (
+                                <Link
+                                    key={category.id}
+                                    href={`/category/${category.slug}`}
+                                    className="group flex items-center gap-2 bg-white rounded-full px-4 py-2.5 border border-slate-200 hover:border-brand-primary hover:shadow-md transition-all"
+                                >
+                                    <Icon className="w-5 h-5 text-slate-500 group-hover:text-brand-primary" />
+                                    <span className="font-medium text-slate-900 group-hover:text-brand-primary text-sm whitespace-nowrap">
+                                        {category.name}
+                                    </span>
+                                </Link>
+                            );
+                        })}
                     </div>
                 ) : (
                     <div className="bg-white rounded-xl border border-slate-200 p-8 mb-8 text-center">

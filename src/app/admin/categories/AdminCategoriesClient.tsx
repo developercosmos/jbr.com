@@ -1,13 +1,43 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus, Pencil, Trash2, FolderOpen, Loader2, X, Save } from "lucide-react";
+import {
+    Plus, Pencil, Trash2, FolderOpen, Loader2, X, Save,
+    // Available icons for categories
+    ShoppingBag, Shirt, Footprints, Backpack, Target, Package,
+    Sparkles, Circle, Star, Gauge, Award, Zap, Tag
+} from "lucide-react";
 import { createCategory, updateCategory, deleteCategory } from "@/actions/categories";
+
+// Available icons for category selection
+const availableIcons = [
+    { name: "ShoppingBag", icon: ShoppingBag, label: "Tas Belanja" },
+    { name: "Package", icon: Package, label: "Paket" },
+    { name: "Target", icon: Target, label: "Target/Raket" },
+    { name: "Footprints", icon: Footprints, label: "Sepatu" },
+    { name: "Backpack", icon: Backpack, label: "Tas Ransel" },
+    { name: "Shirt", icon: Shirt, label: "Pakaian" },
+    { name: "Sparkles", icon: Sparkles, label: "Aksesoris" },
+    { name: "Circle", icon: Circle, label: "Shuttlecock" },
+    { name: "Star", icon: Star, label: "Bintang" },
+    { name: "Gauge", icon: Gauge, label: "Senar" },
+    { name: "Award", icon: Award, label: "Premium" },
+    { name: "Zap", icon: Zap, label: "Grip" },
+    { name: "Tag", icon: Tag, label: "Label" },
+    { name: "FolderOpen", icon: FolderOpen, label: "Default" },
+];
+
+// Get icon component by name
+function getIconByName(iconName: string | null) {
+    const found = availableIcons.find(i => i.name === iconName);
+    return found?.icon || FolderOpen;
+}
 
 type Category = {
     id: string;
     name: string;
     slug: string;
+    icon: string | null;
     image: string | null;
     parent_id: string | null;
     created_at: Date;
@@ -23,12 +53,12 @@ export function AdminCategoriesClient({ initialCategories }: AdminCategoriesClie
     const [isPending, startTransition] = useTransition();
     const [showForm, setShowForm] = useState(false);
     const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-    const [formData, setFormData] = useState({ name: "", slug: "", image: "" });
+    const [formData, setFormData] = useState({ name: "", slug: "", icon: "", image: "" });
     const [error, setError] = useState("");
 
     const handleCreate = () => {
         setEditingCategory(null);
-        setFormData({ name: "", slug: "", image: "" });
+        setFormData({ name: "", slug: "", icon: "", image: "" });
         setShowForm(true);
         setError("");
     };
@@ -38,6 +68,7 @@ export function AdminCategoriesClient({ initialCategories }: AdminCategoriesClie
         setFormData({
             name: category.name,
             slug: category.slug,
+            icon: category.icon || "",
             image: category.image || "",
         });
         setShowForm(true);
@@ -81,6 +112,7 @@ export function AdminCategoriesClient({ initialCategories }: AdminCategoriesClie
                         id: editingCategory.id,
                         name: formData.name.trim(),
                         slug: formData.slug.trim(),
+                        icon: formData.icon.trim() || undefined,
                         image: formData.image.trim() || undefined,
                     });
                     setCategories(prev =>
@@ -95,6 +127,7 @@ export function AdminCategoriesClient({ initialCategories }: AdminCategoriesClie
                     const result = await createCategory({
                         name: formData.name.trim(),
                         slug: formData.slug.trim(),
+                        icon: formData.icon.trim() || undefined,
                         image: formData.image.trim() || undefined,
                     });
                     setCategories(prev => [
@@ -143,7 +176,7 @@ export function AdminCategoriesClient({ initialCategories }: AdminCategoriesClie
             {/* Form Modal */}
             {showForm && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl w-full max-w-md p-6">
+                    <div className="bg-white rounded-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
                         <h2 className="text-xl font-bold text-slate-900 mb-4">
                             {editingCategory ? "Edit Kategori" : "Tambah Kategori Baru"}
                         </h2>
@@ -182,6 +215,34 @@ export function AdminCategoriesClient({ initialCategories }: AdminCategoriesClie
                                 <p className="text-xs text-slate-500 mt-1">
                                     URL: /category/{formData.slug || "slug"}
                                 </p>
+                            </div>
+
+                            {/* Icon Selector */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                    Icon Kategori
+                                </label>
+                                <div className="grid grid-cols-5 gap-2">
+                                    {availableIcons.map(({ name, icon: Icon, label }) => (
+                                        <button
+                                            key={name}
+                                            type="button"
+                                            onClick={() => setFormData(prev => ({ ...prev, icon: name }))}
+                                            className={`p-3 rounded-xl border-2 transition-all ${formData.icon === name
+                                                    ? "border-brand-primary bg-blue-50 text-brand-primary"
+                                                    : "border-slate-200 hover:border-slate-300 text-slate-600"
+                                                }`}
+                                            title={label}
+                                        >
+                                            <Icon className="w-5 h-5 mx-auto" />
+                                        </button>
+                                    ))}
+                                </div>
+                                {formData.icon && (
+                                    <p className="text-xs text-slate-500 mt-2">
+                                        Dipilih: {availableIcons.find(i => i.name === formData.icon)?.label}
+                                    </p>
+                                )}
                             </div>
 
                             <div>
@@ -235,6 +296,9 @@ export function AdminCategoriesClient({ initialCategories }: AdminCategoriesClie
                                 Slug
                             </th>
                             <th className="text-center px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                Icon
+                            </th>
+                            <th className="text-center px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                                 Produk
                             </th>
                             <th className="text-right px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -245,62 +309,72 @@ export function AdminCategoriesClient({ initialCategories }: AdminCategoriesClie
                     <tbody className="divide-y divide-slate-100">
                         {categories.length === 0 ? (
                             <tr>
-                                <td colSpan={4} className="px-6 py-12 text-center">
+                                <td colSpan={5} className="px-6 py-12 text-center">
                                     <FolderOpen className="w-12 h-12 text-slate-300 mx-auto mb-3" />
                                     <p className="text-slate-500">Belum ada kategori</p>
                                     <p className="text-sm text-slate-400">Klik "Tambah Kategori" untuk membuat kategori baru</p>
                                 </td>
                             </tr>
                         ) : (
-                            categories.map((category) => (
-                                <tr key={category.id} className="hover:bg-slate-50">
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            {category.image ? (
-                                                <img
-                                                    src={category.image}
-                                                    alt={category.name}
-                                                    className="w-10 h-10 rounded-lg object-cover"
-                                                />
-                                            ) : (
-                                                <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
-                                                    <FolderOpen className="w-5 h-5 text-slate-400" />
+                            categories.map((category) => {
+                                const IconComponent = getIconByName(category.icon);
+                                return (
+                                    <tr key={category.id} className="hover:bg-slate-50">
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-3">
+                                                {category.image ? (
+                                                    <img
+                                                        src={category.image}
+                                                        alt={category.name}
+                                                        className="w-10 h-10 rounded-lg object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                                                        <IconComponent className="w-5 h-5 text-slate-400" />
+                                                    </div>
+                                                )}
+                                                <span className="font-medium text-slate-900">{category.name}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <code className="text-sm text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                                                {category.slug}
+                                            </code>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <div className="flex justify-center">
+                                                <div className="p-2 bg-slate-100 rounded-lg">
+                                                    <IconComponent className="w-4 h-4 text-slate-600" />
                                                 </div>
-                                            )}
-                                            <span className="font-medium text-slate-900">{category.name}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <code className="text-sm text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                                            {category.slug}
-                                        </code>
-                                    </td>
-                                    <td className="px-6 py-4 text-center">
-                                        <span className="inline-flex items-center justify-center min-w-[24px] h-6 px-2 bg-slate-100 text-slate-700 text-sm font-medium rounded-full">
-                                            {category.productCount}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <button
-                                                onClick={() => handleEdit(category)}
-                                                className="p-2 text-slate-500 hover:text-brand-primary hover:bg-slate-100 rounded-lg transition-colors"
-                                                title="Edit"
-                                            >
-                                                <Pencil className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDelete(category)}
-                                                disabled={isPending}
-                                                className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                                                title="Hapus"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <span className="inline-flex items-center justify-center min-w-[24px] h-6 px-2 bg-slate-100 text-slate-700 text-sm font-medium rounded-full">
+                                                {category.productCount}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                    onClick={() => handleEdit(category)}
+                                                    className="p-2 text-slate-500 hover:text-brand-primary hover:bg-slate-100 rounded-lg transition-colors"
+                                                    title="Edit"
+                                                >
+                                                    <Pencil className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(category)}
+                                                    disabled={isPending}
+                                                    className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                                                    title="Hapus"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })
                         )}
                     </tbody>
                 </table>

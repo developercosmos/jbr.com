@@ -62,7 +62,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             </div>
 
             {/* Similar Items Section */}
-            <SimilarProducts />
+            <SimilarProducts currentProductId={product.id} />
         </main>
     );
 }

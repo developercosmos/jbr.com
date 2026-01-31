@@ -2,26 +2,38 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { getCategories } from "@/actions/categories";
 
-// Icon mapping for categories (fallback to default)
-const categoryIcons: Record<string, string> = {
-    rackets: "🏸",
-    shoes: "👟",
-    bags: "🎒",
-    shuttlecocks: "🪶",
-    apparel: "👕",
-    grips: "🧵",
-    strings: "🎯",
-    accessories: "⚡",
-    // Sports
-    olahraga: "🏸",
-    sepakbola: "⚽",
-    basketball: "🏀",
-    tennis: "🎾",
-    running: "🏃",
-    gym: "🏋️",
-    swimming: "🏊",
-    cycling: "🚴",
+// Icons from react-icons - using verified available icons
+import {
+    GiFeather,        // Shuttlecock
+    GiTennisCourt,    // Raket/Court
+    GiRunningShoe,    // Sepatu
+    GiBackpack,       // Tas
+    GiRolledCloth,    // Grip/wrap
+    GiWireCoil,       // Senar
+} from "react-icons/gi";
+import {
+    IoShirtOutline,   // Pakaian
+    IoExtensionPuzzleOutline, // Aksesoris
+} from "react-icons/io5";
+import { TbPackage } from "react-icons/tb";
+
+// Icon component map for database icon names
+const iconComponents: Record<string, React.ComponentType<{ className?: string }>> = {
+    Target: GiTennisCourt,          // Raket
+    Footprints: GiRunningShoe,      // Sepatu
+    Backpack: GiBackpack,           // Tas
+    Shirt: IoShirtOutline,          // Pakaian
+    Circle: GiFeather,              // Shuttlecock
+    Zap: GiRolledCloth,             // Grip
+    Gauge: GiWireCoil,              // Senar
+    Sparkles: IoExtensionPuzzleOutline, // Aksesoris
 };
+
+// Get icon component by database icon name
+function getIconComponent(iconName: string | null) {
+    if (!iconName) return TbPackage;
+    return iconComponents[iconName] || TbPackage;
+}
 
 export async function Categories() {
     const categories = await getCategories();
@@ -63,7 +75,7 @@ export async function Categories() {
             </div>
             <div className="flex gap-3 overflow-x-auto no-scrollbar py-2 -mx-4 px-4 md:mx-0 md:px-0">
                 {categories.map((category, index) => {
-                    const icon = categoryIcons[category.slug] || "📦";
+                    const Icon = getIconComponent(category.icon);
                     return (
                         <Link
                             key={category.id}
@@ -73,7 +85,7 @@ export async function Categories() {
                                 : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-slate-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
                                 }`}
                         >
-                            <span className="text-lg">{icon}</span>
+                            <Icon className="w-5 h-5" />
                             <span className={`text-sm whitespace-nowrap ${index === 0 ? "font-bold" : "font-medium"}`}>
                                 {category.name}
                             </span>

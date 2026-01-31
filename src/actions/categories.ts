@@ -44,6 +44,7 @@ export async function getCategoriesWithCount() {
             id: categories.id,
             name: categories.name,
             slug: categories.slug,
+            icon: categories.icon,
             image: categories.image,
             parent_id: categories.parent_id,
             created_at: categories.created_at,
@@ -71,6 +72,7 @@ export async function getCategoryBySlug(slug: string) {
 type CreateCategoryInput = {
     name: string;
     slug: string;
+    icon?: string;
     image?: string;
     parent_id?: string;
 };
@@ -92,6 +94,7 @@ export async function createCategory(input: CreateCategoryInput) {
         .values({
             name: input.name,
             slug: input.slug,
+            icon: input.icon || null,
             image: input.image || null,
             parent_id: input.parent_id || null,
         })
@@ -106,6 +109,7 @@ type UpdateCategoryInput = {
     id: string;
     name?: string;
     slug?: string;
+    icon?: string;
     image?: string;
     parent_id?: string | null;
 };
