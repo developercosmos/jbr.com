@@ -4,7 +4,7 @@ config({ path: ".env.local" });
 import { db } from "./index";
 import { users, categories, products, accounts, conversations, messages } from "./schema";
 import { eq } from "drizzle-orm";
-import * as bcrypt from "bcryptjs";
+import bcrypt from "bcryptjs";
 
 // ============================================
 // DEMO CREDENTIALS
