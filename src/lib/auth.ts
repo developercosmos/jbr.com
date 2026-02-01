@@ -4,6 +4,8 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 
 export const auth = betterAuth({
+    // Provide secret - use fallback during build time
+    secret: process.env.BETTER_AUTH_SECRET || 'build-time-placeholder-secret-min-32-chars',
     database: drizzleAdapter(db, {
         provider: "pg",
         schema: {
