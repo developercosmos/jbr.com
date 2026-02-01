@@ -398,9 +398,10 @@ export async function seedDatabase() {
                 const [newUser] = await db
                     .insert(users)
                     .values({
+                        id: crypto.randomUUID(),
                         name: seller.name,
                         email: seller.email,
-                        emailVerified: true,
+                        email_verified: true,
                         role: "USER",
                         store_name: seller.store_name,
                         store_slug: seller.store_slug,
