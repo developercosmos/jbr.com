@@ -2,10 +2,12 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
 
-const connectionString = process.env.DATABASE_URL;
+// Use fallback for build time - actual connection happens at runtime
+const connectionString = process.env.DATABASE_URL || 'postgresql://build:build@localhost:5432/build';
 
-if (!connectionString) {
-    throw new Error("DATABASE_URL is not defined in the environment variables. Please check your .env.local file.");
+// Only warn in development if DATABASE_URL is missing at runtime
+if (!process.env.DATABASE_URL && typeof window === 'undefined') {
+    console.warn("DATABASE_URL is not defined - using placeholder for build");
 }
 
 // For query purposes
