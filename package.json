@@ -11,7 +11,6 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.980.0",
     "@aws-sdk/s3-request-presigner": "^3.980.0",
-    "@uploadthing/react": "^7.3.3",
     "better-auth": "^1.4.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -25,7 +24,6 @@
     "resend": "^6.9.1",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
-    "uploadthing": "^7.7.4",
     "xendit-node": "^7.0.0",
     "zod": "^4.2.1"
   },
