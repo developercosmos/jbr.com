@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { handleXenditWebhook } from "@/actions/payments";
 import crypto from "crypto";
 
+export const dynamic = 'force-dynamic';
+
 // Verify Xendit webhook signature
 function verifyWebhookSignature(body: string, signature: string): boolean {
     const webhookToken = process.env.XENDIT_WEBHOOK_TOKEN;
