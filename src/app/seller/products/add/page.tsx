@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { Home, ChevronRight, X, Image as ImageIcon, ChevronDown, CheckCircle, Clock, Info, Save, AlertTriangle, Loader2 } from "lucide-react";
-import { ProductImageUploader } from "@/components/Uploadthing";
+import { Upload } from "lucide-react";
 import { createProduct } from "@/actions/products";
 
 export default function AddProductPage() {
@@ -25,8 +25,42 @@ export default function AddProductPage() {
     const [price, setPrice] = useState("");
     const [images, setImages] = useState<string[]>([]);
 
-    const handleImageUpload = (urls: string[]) => {
-        setImages((prev) => [...prev, ...urls]);
+    const [uploading, setUploading] = useState(false);
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+
+        setUploading(true);
+        setError("");
+
+        try {
+            const uploadPromises = Array.from(files).map(async (file) => {
+                const formData = new FormData();
+                formData.append("file", file);
+                formData.append("folder", "products");
+
+                const response = await fetch("/api/upload", {
+                    method: "POST",
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    throw new Error("Upload gagal");
+                }
+
+                const data = await response.json();
+                return data.url;
+            });
+
+            const urls = await Promise.all(uploadPromises);
+            setImages((prev) => [...prev, ...urls]);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Upload gagal");
+        } finally {
+            setUploading(false);
+            e.target.value = "";
+        }
     };
 
     const removeImage = (index: number) => {
@@ -134,11 +168,30 @@ export default function AddProductPage() {
                             </span>
                         </div>
 
-                        {/* UploadThing Dropzone */}
-                        <ProductImageUploader
-                            onUploadComplete={handleImageUpload}
-                            onUploadError={(err) => setError(err.message)}
-                        />
+                        {/* Image Upload */}
+                        <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-black/20 cursor-pointer hover:border-brand-primary transition-colors">
+                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                {uploading ? (
+                                    <Loader2 className="w-10 h-10 text-brand-primary animate-spin" />
+                                ) : (
+                                    <Upload className="w-10 h-10 text-slate-400 mb-3" />
+                                )}
+                                <p className="text-sm text-slate-500 dark:text-slate-400">
+                                    {uploading ? "Mengupload..." : "Klik untuk upload foto produk"}
+                                </p>
+                                <p className="text-xs text-slate-400 mt-1">
+                                    PNG, JPG, WEBP (Maks 4MB, Maks 10 foto)
+                                </p>
+                            </div>
+                            <input
+                                type="file"
+                                className="hidden"
+                                accept="image/*"
+                                multiple
+                                disabled={uploading || images.length >= 10}
+                                onChange={handleFileChange}
+                            />
+                        </label>
 
                         {/* Thumbnails Preview */}
                         {images.length > 0 && (
