@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ProductGallery } from "@/components/product/ProductGallery";
 import { ProductInfo } from "@/components/product/ProductInfo";
 import { SimilarProducts } from "@/components/product/SimilarProducts";
+import { ProductReviews } from "@/components/product/ProductReviews";
 import { getProductBySlug } from "@/actions/products";
 
 interface ProductPageProps {
@@ -60,6 +61,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     }} />
                 </div>
             </div>
+
+            {/* Product Reviews */}
+            <ProductReviews productId={product.id} />
 
             {/* Similar Items Section */}
             <SimilarProducts currentProductId={product.id} />

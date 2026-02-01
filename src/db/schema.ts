@@ -31,6 +31,22 @@ export const orderStatusEnum = pgEnum("order_status", [
     "REFUNDED",
 ]);
 export const genderEnum = pgEnum("gender", ["UNISEX", "MEN", "WOMEN"]);
+export const paymentStatusEnum = pgEnum("payment_status", [
+    "PENDING",
+    "PAID",
+    "EXPIRED",
+    "FAILED",
+]);
+export const notificationTypeEnum = pgEnum("notification_type", [
+    "ORDER_CREATED",
+    "PAYMENT_SUCCESS",
+    "ORDER_SHIPPED",
+    "ORDER_DELIVERED",
+    "NEW_MESSAGE",
+    "NEW_REVIEW",
+    "REVIEW_REPLY",
+    "SYSTEM",
+]);
 
 
 // ============================================
@@ -143,6 +159,7 @@ export const products = pgTable(
         condition_notes: text("condition_notes"),
         weight_grams: integer("weight_grams"),
         stock: integer("stock").default(1).notNull(),
+        views: integer("views").default(0),
         status: productStatusEnum("status").default("DRAFT").notNull(),
         images: jsonb("images").$type<string[]>().default([]),
         created_at: timestamp("created_at").defaultNow().notNull(),
@@ -153,6 +170,32 @@ export const products = pgTable(
         seller_id_idx: index("idx_products_seller_id").on(table.seller_id),
         category_id_idx: index("idx_products_category_id").on(table.category_id),
         status_idx: index("idx_products_status").on(table.status),
+    })
+);
+
+// ============================================
+// PRODUCT_VARIANTS TABLE
+// ============================================
+export const product_variants = pgTable(
+    "product_variants",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        product_id: uuid("product_id")
+            .notNull()
+            .references(() => products.id, { onDelete: "cascade" }),
+        name: text("name").notNull(), // e.g., "4U G5", "Size 42", "Red"
+        variant_type: text("variant_type").notNull(), // "size", "color", "grip_size", etc.
+        sku: text("sku"),
+        price: decimal("price", { precision: 12, scale: 2 }), // Override product price if set
+        stock: integer("stock").default(1).notNull(),
+        images: jsonb("images").$type<string[]>().default([]),
+        is_available: boolean("is_available").default(true).notNull(),
+        sort_order: integer("sort_order").default(0),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+        updated_at: timestamp("updated_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        product_id_idx: index("idx_product_variants_product_id").on(table.product_id),
     })
 );
 
@@ -240,6 +283,11 @@ export const orders = pgTable(
         shipping_cost: decimal("shipping_cost", { precision: 12, scale: 2 }).default("0"),
         total: decimal("total", { precision: 12, scale: 2 }).notNull(),
         notes: text("notes"),
+        // Shipping tracking fields
+        tracking_number: text("tracking_number"),
+        shipping_provider: text("shipping_provider"),
+        shipped_at: timestamp("shipped_at"),
+        estimated_delivery: timestamp("estimated_delivery"),
         created_at: timestamp("created_at").defaultNow().notNull(),
         updated_at: timestamp("updated_at").defaultNow().notNull(),
     },
@@ -443,3 +491,130 @@ export const accountsRelations = relations(accounts, ({ one }) => ({
     }),
 }));
 
+// ============================================
+// PAYMENTS TABLE
+// ============================================
+export const payments = pgTable(
+    "payments",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        order_id: uuid("order_id")
+            .notNull()
+            .references(() => orders.id, { onDelete: "cascade" }),
+        xendit_invoice_id: text("xendit_invoice_id"),
+        xendit_invoice_url: text("xendit_invoice_url"),
+        amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+        status: paymentStatusEnum("status").default("PENDING").notNull(),
+        payment_method: text("payment_method"),
+        paid_at: timestamp("paid_at"),
+        expires_at: timestamp("expires_at"),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+        updated_at: timestamp("updated_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        order_id_idx: index("idx_payments_order_id").on(table.order_id),
+        xendit_invoice_idx: index("idx_payments_xendit_invoice").on(table.xendit_invoice_id),
+    })
+);
+
+// ============================================
+// NOTIFICATIONS TABLE
+// ============================================
+export const notifications = pgTable(
+    "notifications",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        user_id: text("user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        type: notificationTypeEnum("type").notNull(),
+        title: text("title").notNull(),
+        message: text("message").notNull(),
+        data: jsonb("data"), // Additional data like order_id, product_id, etc.
+        read: boolean("read").default(false).notNull(),
+        read_at: timestamp("read_at"),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        user_id_idx: index("idx_notifications_user_id").on(table.user_id),
+        user_read_idx: index("idx_notifications_user_read").on(table.user_id, table.read),
+    })
+);
+
+// ============================================
+// REVIEWS TABLE
+// ============================================
+export const reviews = pgTable(
+    "reviews",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        order_item_id: uuid("order_item_id")
+            .notNull()
+            .references(() => order_items.id, { onDelete: "cascade" }),
+        buyer_id: text("buyer_id")
+            .notNull()
+            .references(() => users.id),
+        product_id: uuid("product_id")
+            .notNull()
+            .references(() => products.id),
+        seller_id: text("seller_id")
+            .notNull()
+            .references(() => users.id),
+        rating: integer("rating").notNull(), // 1-5
+        comment: text("comment"),
+        images: jsonb("images").$type<string[]>().default([]),
+        seller_reply: text("seller_reply"),
+        seller_reply_at: timestamp("seller_reply_at"),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        product_id_idx: index("idx_reviews_product_id").on(table.product_id),
+        seller_id_idx: index("idx_reviews_seller_id").on(table.seller_id),
+        order_item_idx: uniqueIndex("idx_reviews_order_item").on(table.order_item_id),
+    })
+);
+
+// ============================================
+// NEW RELATIONS
+// ============================================
+export const paymentsRelations = relations(payments, ({ one }) => ({
+    order: one(orders, {
+        fields: [payments.order_id],
+        references: [orders.id],
+    }),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+    user: one(users, {
+        fields: [notifications.user_id],
+        references: [users.id],
+    }),
+}));
+
+export const reviewsRelations = relations(reviews, ({ one }) => ({
+    order_item: one(order_items, {
+        fields: [reviews.order_item_id],
+        references: [order_items.id],
+    }),
+    buyer: one(users, {
+        fields: [reviews.buyer_id],
+        references: [users.id],
+        relationName: "buyer_reviews",
+    }),
+    product: one(products, {
+        fields: [reviews.product_id],
+        references: [products.id],
+    }),
+    seller: one(users, {
+        fields: [reviews.seller_id],
+        references: [users.id],
+        relationName: "seller_reviews",
+    }),
+}));
+
+export const productVariantsRelations = relations(product_variants, ({ one }) => ({
+    product: one(products, {
+        fields: [product_variants.product_id],
+        references: [products.id],
+    }),
+}));

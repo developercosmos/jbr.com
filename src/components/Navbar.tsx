@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Search, Bell, Zap, Tag, Menu } from "lucide-react";
+import { Search, Zap, Tag, Menu } from "lucide-react";
 import { NavbarUserArea } from "./NavbarClient";
 import { ChatBadge } from "./ChatBadge";
 import { CartBadge } from "./CartBadge";
+import { NotificationBell } from "./NotificationBell";
 
 export function Navbar() {
     return (
@@ -16,7 +17,7 @@ export function Navbar() {
                         <div className="size-8 bg-brand-primary rounded-lg flex items-center justify-center shadow-sm">
                             <Zap className="text-white w-5 h-5 fill-current" />
                         </div>
-                        <span className="text-brand-primary text-lg font-bold tracking-tight font-heading">JUALBELIRAKET.COM</span>
+                        <span className="text-brand-primary text-lg font-bold tracking-tight font-heading">JUALBELI RAKET.COM</span>
                     </Link>
 
                     {/* Search Bar Section (Dominant) */}
@@ -48,10 +49,7 @@ export function Navbar() {
                             {/* Chat */}
                             <ChatBadge />
                             {/* Notifications */}
-                            <button className="relative p-2 rounded-full text-slate-500 hover:text-brand-primary hover:bg-slate-50 transition-all">
-                                <Bell className="w-5 h-5" />
-                                <span className="absolute top-2 right-2.5 size-1.5 bg-orange-500 rounded-full border border-white"></span>
-                            </button>
+                            <NotificationBell />
                             {/* Cart */}
                             <CartBadge />
                         </div>
