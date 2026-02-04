@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ShieldCheck, Package, Users, BarChart3, LifeBuoy, LogOut, Gavel, ShoppingBag, Zap, FolderOpen } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, Package, Users, BarChart3, LifeBuoy, LogOut, Gavel, ShoppingBag, Zap, FolderOpen, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -54,6 +54,11 @@ const toolItems = [
         label: "Support",
         href: "/admin/support",
         icon: LifeBuoy,
+    },
+    {
+        label: "Settings",
+        href: "/admin/settings",
+        icon: Settings,
     },
 ];
 

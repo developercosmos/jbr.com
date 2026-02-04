@@ -772,3 +772,26 @@ export const supportMessagesRelations = relations(support_messages, ({ one }) =>
         references: [users.id],
     }),
 }));
+
+// ============================================
+// INTEGRATION SETTINGS TABLE
+// ============================================
+export const integration_settings = pgTable(
+    "integration_settings",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        key: text("key").notNull().unique(), // e.g. "xendit", "smtp", "rajaongkir"
+        name: text("name").notNull(), // Display name
+        description: text("description"), // Description of the integration
+        category: text("category").notNull(), // "payment", "email", "shipping"
+        enabled: boolean("enabled").default(false).notNull(),
+        credentials: jsonb("credentials").$type<Record<string, string>>(), // API keys, secrets (should be encrypted in production)
+        config: jsonb("config").$type<Record<string, unknown>>(), // Additional configuration
+        created_at: timestamp("created_at").defaultNow().notNull(),
+        updated_at: timestamp("updated_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        key_idx: uniqueIndex("idx_integration_settings_key").on(table.key),
+        category_idx: index("idx_integration_settings_category").on(table.category),
+    })
+);
