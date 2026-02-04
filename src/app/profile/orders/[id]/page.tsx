@@ -277,6 +277,15 @@ export default async function OrderDetailPage({ params }: PageProps) {
                                     {formatPrice(order.total)}
                                 </span>
                             </div>
+                            {order.status === "PENDING_PAYMENT" && (
+                                <Link
+                                    href={`/payment/${order.id}`}
+                                    className="mt-4 w-full flex items-center justify-center gap-2 px-6 py-3 bg-brand-primary hover:bg-blue-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-brand-primary/25"
+                                >
+                                    <CreditCard className="w-5 h-5" />
+                                    Bayar Sekarang
+                                </Link>
+                            )}
                         </div>
                     </div>
 
