@@ -1,6 +1,38 @@
-import { TrendingUp, Users, ShoppingBag, DollarSign, ArrowUpRight, ArrowDownRight, Calendar, Activity } from "lucide-react";
+import { TrendingUp, Users, ShoppingBag, DollarSign, ArrowUpRight, Calendar, Activity, Package } from "lucide-react";
+import { getAnalyticsStats } from "@/actions/admin";
 
-export default function AdminAnalyticsPage() {
+// Format currency
+function formatCurrency(value: string | number) {
+    const num = typeof value === "string" ? parseFloat(value) : value;
+    if (num >= 1_000_000_000) return `Rp ${(num / 1_000_000_000).toFixed(1)}B`;
+    if (num >= 1_000_000) return `Rp ${(num / 1_000_000).toFixed(1)}M`;
+    if (num >= 1_000) return `Rp ${(num / 1_000).toFixed(1)}K`;
+    return `Rp ${num.toLocaleString("id-ID")}`;
+}
+
+// Color palette for categories
+const COLORS = [
+    "bg-brand-primary",
+    "bg-orange-500",
+    "bg-purple-500",
+    "bg-green-500",
+    "bg-pink-500",
+    "bg-yellow-500",
+    "bg-cyan-500",
+    "bg-red-500",
+];
+
+export default async function AdminAnalyticsPage() {
+    const stats = await getAnalyticsStats();
+
+    // Calculate category percentages
+    const totalProducts = stats.categoryDistribution.reduce((sum, cat) => sum + cat.count, 0);
+    const categoryWithPercentage = stats.categoryDistribution.map((cat, index) => ({
+        ...cat,
+        percentage: totalProducts > 0 ? Math.round((cat.count / totalProducts) * 100) : 0,
+        color: COLORS[index % COLORS.length],
+    }));
+
     return (
         <div className="flex-1 p-8 scroll-smooth">
             <div className="max-w-7xl mx-auto space-y-8">
@@ -15,10 +47,10 @@ export default function AdminAnalyticsPage() {
                         </p>
                     </div>
                     <div className="flex items-center gap-3">
-                        <button className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors text-sm font-medium">
+                        <span className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-lg text-slate-600 dark:text-slate-300 text-sm font-medium">
                             <Calendar className="w-4 h-4" />
-                            Bulan Ini
-                        </button>
+                            30 Hari Terakhir
+                        </span>
                     </div>
                 </div>
 
@@ -31,117 +63,129 @@ export default function AdminAnalyticsPage() {
                                 <DollarSign className="w-5 h-5" />
                             </div>
                             <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 dark:bg-green-900/10 px-2 py-1 rounded-full">
-                                <ArrowUpRight className="w-3 h-3" />
-                                +15.3%
+                                <TrendingUp className="w-3 h-3" />
+                                Live
                             </span>
                         </div>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Total GMV</p>
-                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">Rp 1.2M</h3>
+                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
+                            {formatCurrency(stats.gmv)}
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-1">Dari {stats.completedOrders} transaksi selesai</p>
                     </div>
+
                     {/* Active Users */}
                     <div className="bg-white dark:bg-surface-dark rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
                         <div className="flex items-center justify-between mb-4">
                             <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg text-blue-600 dark:text-blue-400">
                                 <Users className="w-5 h-5" />
                             </div>
-                            <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 dark:bg-green-900/10 px-2 py-1 rounded-full">
+                            <span className="flex items-center gap-1 text-xs font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/10 px-2 py-1 rounded-full">
                                 <ArrowUpRight className="w-3 h-3" />
-                                +5.4%
+                                Active
                             </span>
                         </div>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">User Aktif</p>
-                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">15,420</h3>
+                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
+                            {stats.activeUsers.toLocaleString("id-ID")}
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-1">Dalam 30 hari terakhir</p>
                     </div>
+
                     {/* Transactions */}
                     <div className="bg-white dark:bg-surface-dark rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
                         <div className="flex items-center justify-between mb-4">
                             <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg text-purple-600 dark:text-purple-400">
                                 <ShoppingBag className="w-5 h-5" />
                             </div>
-                            <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 dark:bg-green-900/10 px-2 py-1 rounded-full">
-                                <ArrowUpRight className="w-3 h-3" />
-                                +8.1%
+                            <span className="flex items-center gap-1 text-xs font-bold text-purple-600 bg-purple-50 dark:bg-purple-900/10 px-2 py-1 rounded-full">
+                                Completed
                             </span>
                         </div>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Transaksi Sukses</p>
-                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">3,890</h3>
+                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
+                            {stats.completedOrders.toLocaleString("id-ID")}
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-1">{stats.pendingOrders} menunggu pembayaran</p>
                     </div>
-                    {/* Server Load */}
+
+                    {/* Products */}
                     <div className="bg-white dark:bg-surface-dark rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
                         <div className="flex items-center justify-between mb-4">
                             <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded-lg text-orange-600 dark:text-orange-400">
-                                <Activity className="w-5 h-5" />
+                                <Package className="w-5 h-5" />
                             </div>
-                            <span className="flex items-center gap-1 text-xs font-bold text-slate-500 bg-slate-50 dark:bg-slate-900/10 px-2 py-1 rounded-full">
-                                Stabil
+                            <span className="flex items-center gap-1 text-xs font-bold text-orange-600 bg-orange-50 dark:bg-orange-900/10 px-2 py-1 rounded-full">
+                                Published
                             </span>
                         </div>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Server Uptime</p>
-                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">99.9%</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Total Produk</p>
+                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
+                            {totalProducts.toLocaleString("id-ID")}
+                        </h3>
+                        <p className="text-xs text-slate-400 mt-1">Produk aktif di marketplace</p>
                     </div>
                 </div>
 
                 {/* Charts Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* User Growth */}
+                    {/* Server Status Placeholder */}
                     <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">Pertumbuhan User</h3>
-                        <div className="h-64 flex items-end justify-between gap-2 w-full px-2">
-                            {[30, 40, 35, 50, 45, 60, 55, 70, 65, 80, 75, 90].map((height, i) => (
-                                <div key={i} className="flex flex-col items-center gap-2 w-full group">
-                                    <div className="w-full bg-blue-100 dark:bg-blue-900/20 rounded-t-sm relative h-56 group-hover:bg-blue-200 dark:group-hover:bg-blue-900/30 transition-colors">
-                                        <div
-                                            className="absolute bottom-0 w-full bg-blue-500 rounded-t-sm transition-all duration-500 group-hover:bg-blue-600"
-                                            style={{ height: `${height}%` }}
-                                        ></div>
-                                    </div>
-                                    <span className="text-xs text-slate-400">{i + 1}</span>
-                                </div>
-                            ))}
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">Status Server</h3>
+                            <span className="flex items-center gap-2 text-sm text-green-600 font-medium">
+                                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                                Semua Sistem Operasional
+                            </span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="text-center p-4 bg-green-50 dark:bg-green-900/10 rounded-lg">
+                                <Activity className="w-6 h-6 text-green-600 mx-auto mb-2" />
+                                <p className="text-2xl font-bold text-green-600">99.9%</p>
+                                <p className="text-xs text-slate-500">Uptime</p>
+                            </div>
+                            <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/10 rounded-lg">
+                                <TrendingUp className="w-6 h-6 text-blue-600 mx-auto mb-2" />
+                                <p className="text-2xl font-bold text-blue-600">45ms</p>
+                                <p className="text-xs text-slate-500">Response</p>
+                            </div>
+                            <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/10 rounded-lg">
+                                <Users className="w-6 h-6 text-purple-600 mx-auto mb-2" />
+                                <p className="text-2xl font-bold text-purple-600">OK</p>
+                                <p className="text-xs text-slate-500">Database</p>
+                            </div>
                         </div>
                     </div>
 
                     {/* Category Distribution */}
                     <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-6">Distribusi Kategori</h3>
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-sm">
-                                    <span className="font-medium text-slate-700 dark:text-slate-300">Raket Badminton</span>
-                                    <span className="font-bold text-slate-900 dark:text-white">45%</span>
-                                </div>
-                                <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                    <div className="h-full bg-brand-primary w-[45%]"></div>
-                                </div>
+                        {categoryWithPercentage.length === 0 ? (
+                            <div className="text-center py-8 text-slate-500">
+                                Belum ada produk di marketplace
                             </div>
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-sm">
-                                    <span className="font-medium text-slate-700 dark:text-slate-300">Sepatu Olahraga</span>
-                                    <span className="font-bold text-slate-900 dark:text-white">25%</span>
-                                </div>
-                                <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                    <div className="h-full bg-orange-500 w-[25%]"></div>
-                                </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {categoryWithPercentage.slice(0, 6).map((cat) => (
+                                    <div key={cat.categoryName} className="space-y-2">
+                                        <div className="flex justify-between text-sm">
+                                            <span className="font-medium text-slate-700 dark:text-slate-300">
+                                                {cat.categoryName || "Tanpa Kategori"}
+                                            </span>
+                                            <span className="font-bold text-slate-900 dark:text-white">
+                                                {cat.percentage}% ({cat.count})
+                                            </span>
+                                        </div>
+                                        <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full ${cat.color} transition-all duration-500`}
+                                                style={{ width: `${cat.percentage}%` }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-sm">
-                                    <span className="font-medium text-slate-700 dark:text-slate-300">Pakaian & Jersey</span>
-                                    <span className="font-bold text-slate-900 dark:text-white">20%</span>
-                                </div>
-                                <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                    <div className="h-full bg-purple-500 w-[20%]"></div>
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-sm">
-                                    <span className="font-medium text-slate-700 dark:text-slate-300">Aksesoris</span>
-                                    <span className="font-bold text-slate-900 dark:text-white">10%</span>
-                                </div>
-                                <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                    <div className="h-full bg-green-500 w-[10%]"></div>
-                                </div>
-                            </div>
-                        </div>
+                        )}
                     </div>
                 </div>
             </div>

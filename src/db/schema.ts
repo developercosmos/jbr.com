@@ -575,6 +575,124 @@ export const reviews = pgTable(
 );
 
 // ============================================
+// DISPUTES TABLE
+// ============================================
+export const disputeTypeEnum = pgEnum("dispute_type", [
+    "ITEM_NOT_AS_DESCRIBED",
+    "ITEM_NOT_RECEIVED",
+    "REFUND_REQUEST",
+    "SELLER_NOT_RESPONSIVE",
+    "OTHER",
+]);
+
+export const disputePriorityEnum = pgEnum("dispute_priority", [
+    "LOW",
+    "NORMAL",
+    "HIGH",
+    "URGENT",
+]);
+
+export const disputeStatusEnum = pgEnum("dispute_status", [
+    "OPEN",
+    "IN_PROGRESS",
+    "AWAITING_RESPONSE",
+    "RESOLVED",
+    "CLOSED",
+]);
+
+export const disputes = pgTable(
+    "disputes",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        order_id: uuid("order_id").references(() => orders.id, { onDelete: "cascade" }),
+        reporter_id: text("reporter_id")
+            .notNull()
+            .references(() => users.id),
+        reported_id: text("reported_id")
+            .notNull()
+            .references(() => users.id),
+        dispute_number: text("dispute_number").notNull().unique(),
+        type: disputeTypeEnum("type").notNull(),
+        priority: disputePriorityEnum("priority").default("NORMAL").notNull(),
+        status: disputeStatusEnum("status").default("OPEN").notNull(),
+        title: text("title").notNull(),
+        description: text("description"),
+        amount: decimal("amount", { precision: 12, scale: 2 }),
+        evidence_images: jsonb("evidence_images").$type<string[]>().default([]),
+        resolution: text("resolution"),
+        resolved_at: timestamp("resolved_at"),
+        resolved_by: text("resolved_by"),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+        updated_at: timestamp("updated_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        order_id_idx: index("idx_disputes_order_id").on(table.order_id),
+        reporter_id_idx: index("idx_disputes_reporter_id").on(table.reporter_id),
+        status_idx: index("idx_disputes_status").on(table.status),
+    })
+);
+
+// ============================================
+// SUPPORT TICKETS TABLE
+// ============================================
+export const ticketCategoryEnum = pgEnum("ticket_category", [
+    "ACCOUNT",
+    "PAYMENT",
+    "SHIPPING",
+    "VERIFICATION",
+    "SECURITY",
+    "TECHNICAL",
+    "OTHER",
+]);
+
+export const ticketStatusEnum = pgEnum("ticket_status", [
+    "OPEN",
+    "PENDING",
+    "IN_PROGRESS",
+    "CLOSED",
+]);
+
+export const support_tickets = pgTable(
+    "support_tickets",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        user_id: text("user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        ticket_number: text("ticket_number").notNull().unique(),
+        category: ticketCategoryEnum("category").notNull(),
+        status: ticketStatusEnum("status").default("OPEN").notNull(),
+        priority: disputePriorityEnum("priority").default("NORMAL").notNull(),
+        subject: text("subject").notNull(),
+        assigned_to: text("assigned_to"),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+        updated_at: timestamp("updated_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        user_id_idx: index("idx_support_tickets_user_id").on(table.user_id),
+        status_idx: index("idx_support_tickets_status").on(table.status),
+    })
+);
+
+export const support_messages = pgTable(
+    "support_messages",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        ticket_id: uuid("ticket_id")
+            .notNull()
+            .references(() => support_tickets.id, { onDelete: "cascade" }),
+        sender_id: text("sender_id").references(() => users.id),
+        is_admin: boolean("is_admin").default(false).notNull(),
+        message: text("message").notNull(),
+        attachments: jsonb("attachments").$type<string[]>().default([]),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        ticket_id_idx: index("idx_support_messages_ticket_id").on(table.ticket_id),
+    })
+);
+
+// ============================================
 // NEW RELATIONS
 // ============================================
 export const paymentsRelations = relations(payments, ({ one }) => ({
@@ -616,5 +734,41 @@ export const productVariantsRelations = relations(product_variants, ({ one }) =>
     product: one(products, {
         fields: [product_variants.product_id],
         references: [products.id],
+    }),
+}));
+
+export const disputesRelations = relations(disputes, ({ one }) => ({
+    order: one(orders, {
+        fields: [disputes.order_id],
+        references: [orders.id],
+    }),
+    reporter: one(users, {
+        fields: [disputes.reporter_id],
+        references: [users.id],
+        relationName: "disputes_reported",
+    }),
+    reported: one(users, {
+        fields: [disputes.reported_id],
+        references: [users.id],
+        relationName: "disputes_against",
+    }),
+}));
+
+export const supportTicketsRelations = relations(support_tickets, ({ one, many }) => ({
+    user: one(users, {
+        fields: [support_tickets.user_id],
+        references: [users.id],
+    }),
+    messages: many(support_messages),
+}));
+
+export const supportMessagesRelations = relations(support_messages, ({ one }) => ({
+    ticket: one(support_tickets, {
+        fields: [support_messages.ticket_id],
+        references: [support_tickets.id],
+    }),
+    sender: one(users, {
+        fields: [support_messages.sender_id],
+        references: [users.id],
     }),
 }));
