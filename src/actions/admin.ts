@@ -294,7 +294,63 @@ export async function unbanUser(userId: string) {
         .set({ store_status: "ACTIVE", updated_at: new Date() })
         .where(eq(users.id, userId));
 
+    revalidatePath("/admin/users");
     return { success: true };
+}
+
+export async function createUser(data: {
+    name: string;
+    email: string;
+    password: string;
+    role: "USER" | "ADMIN";
+}) {
+    await getCurrentAdmin();
+
+    // Check if email already exists
+    const existingUser = await db.query.users.findFirst({
+        where: eq(users.email, data.email),
+    });
+
+    if (existingUser) {
+        return { success: false, error: "Email sudah terdaftar" };
+    }
+
+    // Hash password using bcryptjs (same as Better Auth config)
+    const bcrypt = await import("bcryptjs");
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+
+    // Generate UUIDs
+    const userId = crypto.randomUUID();
+    const accountId = crypto.randomUUID();
+
+    // Create user
+    const [newUser] = await db
+        .insert(users)
+        .values({
+            id: userId,
+            name: data.name,
+            email: data.email,
+            role: data.role,
+            email_verified: true,
+            created_at: new Date(),
+            updated_at: new Date(),
+        })
+        .returning();
+
+    // Create account with password
+    const { accounts } = await import("@/db/schema");
+    await db.insert(accounts).values({
+        id: accountId,
+        user_id: newUser.id,
+        account_id: newUser.id,
+        provider_id: "credential",
+        password: hashedPassword,
+        created_at: new Date(),
+        updated_at: new Date(),
+    });
+
+    revalidatePath("/admin/users");
+    return { success: true, userId: newUser.id };
 }
 
 // ============================================

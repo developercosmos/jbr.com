@@ -1,8 +1,10 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, Users, UserPlus, ShieldCheck, Store, Search, ChevronDown, Download, Lock, Ban, ChevronRight, ShieldAlert, RefreshCcw, Package } from "lucide-react";
+import { Users, UserPlus, ShieldCheck, Store, Search, ChevronDown, Package } from "lucide-react";
 import { getAdminUsers, getAdminDashboardStats } from "@/actions/admin";
 import { UserActions } from "./UserActions";
+import { AddUserButton } from "./AddUserButton";
+import { ExportUsersButton } from "./ExportUsersButton";
 
 function formatDate(date: Date) {
     return new Intl.DateTimeFormat("en-US", {
@@ -59,10 +61,7 @@ export default async function UserManagementPage() {
                             Manage user accounts, verify identities, and monitor trust scores.
                         </p>
                     </div>
-                    <button className="flex items-center gap-2 bg-brand-primary hover:bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold shadow-lg shadow-brand-primary/25 transition-all active:scale-95">
-                        <Plus className="w-5 h-5" />
-                        <span>Add New User</span>
-                    </button>
+                    <AddUserButton />
                 </div>
 
                 {/* Stats Cards */}
@@ -178,10 +177,7 @@ export default async function UserManagementPage() {
                                     <ChevronDown className="w-5 h-5" />
                                 </div>
                             </div>
-                            <button className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-brand-primary">
-                                <Download className="w-5 h-5" />
-                                <span>Export</span>
-                            </button>
+                            <ExportUsersButton users={users} />
                         </div>
                     </div>
 
