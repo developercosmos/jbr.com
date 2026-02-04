@@ -6,6 +6,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AddProductForm } from "./AddProductForm";
 
+export const dynamic = "force-dynamic";
+
 export default async function AddProductPage() {
     // Verify seller is logged in
     const session = await auth.api.getSession({
@@ -16,25 +18,35 @@ export default async function AddProductPage() {
         redirect("/auth/login");
     }
 
-    // Fetch categories from database
-    const categories = await getCategories();
-
-    // Fetch brands for dropdown
-    const brandsData = await getBrands();
-    const brands = brandsData.map(b => b.name);
-
-    // Check if seller has pickup address
-    type AddressType = Awaited<ReturnType<typeof getUserAddresses>>;
-    let addresses: AddressType = [];
+    // Fetch categories from database with error handling
+    let categories: { id: string; name: string; slug: string }[] = [];
     try {
-        addresses = await getUserAddresses();
-    } catch {
-        addresses = [];
+        const cats = await getCategories();
+        categories = cats.map(c => ({ id: c.id, name: c.name, slug: c.slug }));
+    } catch (err) {
+        console.error("Error fetching categories:", err);
+        categories = [];
     }
 
-    const hasPickupAddress = addresses.some(
-        (addr) => addr.is_default_pickup
-    ) || addresses.length > 0;
+    // Fetch brands for dropdown with error handling
+    let brands: string[] = [];
+    try {
+        const brandsData = await getBrands();
+        brands = brandsData.map(b => b.name);
+    } catch (err) {
+        console.error("Error fetching brands:", err);
+        brands = [];
+    }
+
+    // Check if seller has pickup address
+    let hasPickupAddress = false;
+    try {
+        const addresses = await getUserAddresses();
+        hasPickupAddress = addresses.some((addr) => addr.is_default_pickup) || addresses.length > 0;
+    } catch (err) {
+        console.error("Error fetching addresses:", err);
+        hasPickupAddress = false;
+    }
 
     return (
         <AddProductForm
