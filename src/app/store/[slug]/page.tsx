@@ -104,7 +104,7 @@ export default async function StorePage({ params }: Props) {
                                     <Calendar className="w-4 h-4" />
                                     <span>
                                         Bergabung{" "}
-                                        {new Date(seller.createdAt).toLocaleDateString("id-ID", {
+                                        {new Date(seller.created_at).toLocaleDateString("id-ID", {
                                             month: "long",
                                             year: "numeric",
                                         })}

@@ -2,8 +2,8 @@
 
 import { Resend } from "resend";
 
-// Initialize Resend with API key
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Initialize Resend with API key (use dummy key for build if not set)
+const resend = new Resend(process.env.RESEND_API_KEY || "re_dummy_key_for_build");
 
 const FROM_EMAIL = process.env.FROM_EMAIL || "JBR Marketplace <noreply@jbr.com>";
 
