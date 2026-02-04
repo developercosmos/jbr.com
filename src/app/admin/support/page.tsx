@@ -83,11 +83,34 @@ interface PageProps {
 
 export default async function AdminSupportPage({ searchParams }: PageProps) {
     const params = await searchParams;
-    const tickets = await getSupportTickets({
-        search: params.search,
-        status: params.status,
-        category: params.category,
-    });
+
+    let tickets: Awaited<ReturnType<typeof getSupportTickets>> = [];
+    let error: string | null = null;
+
+    try {
+        tickets = await getSupportTickets({
+            search: params.search,
+            status: params.status,
+            category: params.category,
+        });
+    } catch (e) {
+        console.error("Failed to fetch support tickets:", e);
+        error = "Tabel support_tickets belum tersedia. Silakan jalankan migration: npx drizzle-kit push";
+    }
+
+    if (error) {
+        return (
+            <div className="flex-1 p-8 scroll-smooth">
+                <div className="max-w-7xl mx-auto">
+                    <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-xl p-6 text-center">
+                        <HelpCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+                        <h2 className="text-lg font-bold text-yellow-800 dark:text-yellow-200 mb-2">Database Migration Required</h2>
+                        <p className="text-yellow-700 dark:text-yellow-300">{error}</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     // Count by status
     const openCount = tickets.filter((t) => t.status === "OPEN").length;
