@@ -84,6 +84,20 @@ export async function getAdminDashboardStats() {
     };
 }
 
+// Get pending products count for sidebar badge (lightweight check)
+export async function getPendingProductsCount(): Promise<number> {
+    try {
+        const [result] = await db
+            .select({ count: count() })
+            .from(products)
+            .where(eq(products.status, "DRAFT"));
+        return result?.count || 0;
+    } catch {
+        return 0;
+    }
+}
+
+
 // ============================================
 // MODERATION QUEUE
 // ============================================

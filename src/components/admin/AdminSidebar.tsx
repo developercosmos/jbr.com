@@ -2,10 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ShieldCheck, Package, Users, BarChart3, LifeBuoy, LogOut, Gavel, ShoppingBag, Zap, FolderOpen, Settings } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, Package, Users, BarChart3, LifeBuoy, Gavel, ShoppingBag, Zap, FolderOpen, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const navItems = [
+interface AdminSidebarProps {
+    pendingModerationCount?: number;
+}
+
+const getNavItems = (pendingCount: number) => [
     {
         label: "Dashboard",
         href: "/admin",
@@ -15,7 +19,7 @@ const navItems = [
         label: "Moderation",
         href: "/admin/moderation",
         icon: ShieldCheck,
-        badge: 12,
+        badge: pendingCount > 0 ? pendingCount : undefined,
     },
     {
         label: "Users",
@@ -62,8 +66,9 @@ const toolItems = [
     },
 ];
 
-export function AdminSidebar() {
+export function AdminSidebar({ pendingModerationCount = 0 }: AdminSidebarProps) {
     const pathname = usePathname();
+    const navItems = getNavItems(pendingModerationCount);
 
     return (
         <aside className="hidden w-72 flex-col bg-white border-r border-slate-200 lg:flex z-10 shadow-sm h-[calc(100vh-65px)] sticky top-[65px]">
@@ -97,8 +102,8 @@ export function AdminSidebar() {
                                 <item.icon className={cn("w-5 h-5", isActive && "fill-current")} />
                                 {item.label}
                                 {item.badge && (
-                                    <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-brand-primary text-[10px] font-bold text-white">
-                                        {item.badge}
+                                    <span className="ml-auto flex h-5 min-w-5 px-1 items-center justify-center rounded-full bg-brand-primary text-[10px] font-bold text-white">
+                                        {item.badge > 99 ? "99+" : item.badge}
                                     </span>
                                 )}
                             </Link>

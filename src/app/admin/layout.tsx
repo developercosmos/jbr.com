@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { getPendingProductsCount } from "@/actions/admin";
 
 // Force dynamic rendering for admin routes (requires auth headers)
 export const dynamic = 'force-dynamic';
@@ -54,12 +55,16 @@ export default async function AdminLayout({
         redirect("/");
     }
 
+    // Fetch pending products count for sidebar badge
+    const pendingCount = await getPendingProductsCount();
+
     return (
         <div className="flex min-h-screen bg-[#F8F9FB] dark:bg-background-dark font-sans">
-            <AdminSidebar />
+            <AdminSidebar pendingModerationCount={pendingCount} />
             <main className="flex-1 flex flex-col relative">
                 {children}
             </main>
         </div>
     );
 }
+
