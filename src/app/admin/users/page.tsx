@@ -269,7 +269,15 @@ export default async function UserManagementPage() {
                                             <div className="text-xs text-slate-400">{formatTime(user.created_at)}</div>
                                         </td>
                                         <td className="px-6 py-5 text-right">
-                                            <UserActions userId={user.id} isBanned={user.store_status === "BANNED"} />
+                                            <UserActions
+                                                user={{
+                                                    id: user.id,
+                                                    name: user.name,
+                                                    email: user.email,
+                                                    role: user.role,
+                                                }}
+                                                isBanned={user.store_status === "BANNED"}
+                                            />
                                         </td>
                                     </tr>
                                 ))}

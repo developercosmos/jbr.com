@@ -312,6 +312,47 @@ export async function unbanUser(userId: string) {
     return { success: true };
 }
 
+export async function updateUserRole(userId: string, role: "USER" | "ADMIN") {
+    const admin = await getCurrentAdmin();
+
+    // Prevent admin from demoting themselves
+    if (admin.id === userId && role === "USER") {
+        throw new Error("You cannot demote yourself");
+    }
+
+    await db
+        .update(users)
+        .set({ role, updated_at: new Date() })
+        .where(eq(users.id, userId));
+
+    revalidatePath("/admin/users");
+    return { success: true };
+}
+
+export async function updateUser(userId: string, data: {
+    name?: string;
+    email?: string;
+    role?: "USER" | "ADMIN";
+}) {
+    const admin = await getCurrentAdmin();
+
+    // Prevent admin from demoting themselves
+    if (admin.id === userId && data.role === "USER") {
+        throw new Error("You cannot demote yourself");
+    }
+
+    await db
+        .update(users)
+        .set({
+            ...data,
+            updated_at: new Date()
+        })
+        .where(eq(users.id, userId));
+
+    revalidatePath("/admin/users");
+    return { success: true };
+}
+
 export async function createUser(data: {
     name: string;
     email: string;

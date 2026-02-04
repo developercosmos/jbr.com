@@ -1,361 +1,588 @@
-"use server";
+import nodemailer from "nodemailer";
 
-import { Resend } from "resend";
+// Create reusable transporter using Postfix
+const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || "localhost",
+    port: parseInt(process.env.SMTP_PORT || "25"),
+    secure: false,
+    tls: {
+        rejectUnauthorized: false,
+    },
+});
 
-// Initialize Resend with API key (use dummy key for build if not set)
-const resend = new Resend(process.env.RESEND_API_KEY || "re_dummy_key_for_build");
-
-const FROM_EMAIL = process.env.FROM_EMAIL || "JBR Marketplace <noreply@jbr.com>";
+const FROM_EMAIL = process.env.EMAIL_FROM || "noreply@jualbeliraket.com";
+const APP_NAME = "JualBeliRaket";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://jualbeliraket.com";
 
 // ============================================
 // EMAIL TEMPLATES
 // ============================================
 
-interface OrderEmailData {
+function getBaseTemplate(content: string): string {
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${APP_NAME}</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; margin: 0; padding: 0; background-color: #f1f5f9; }
+        .container { max-width: 600px; margin: 0 auto; padding: 40px 20px; }
+        .card { background: #ffffff; border-radius: 16px; padding: 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .logo { text-align: center; margin-bottom: 30px; }
+        .logo h1 { color: #0066FF; font-size: 24px; margin: 0; font-weight: 700; }
+        .button { display: inline-block; background: #0066FF; color: #ffffff !important; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; margin: 20px 0; }
+        .button:hover { background: #0052cc; }
+        .footer { text-align: center; margin-top: 30px; color: #64748b; font-size: 14px; }
+        .footer a { color: #0066FF; text-decoration: none; }
+        .divider { border-top: 1px solid #e2e8f0; margin: 30px 0; }
+        h2 { color: #1e293b; font-size: 22px; margin: 0 0 20px 0; }
+        p { margin: 0 0 16px 0; color: #475569; }
+        .highlight { background: #f8fafc; padding: 20px; border-radius: 8px; border-left: 4px solid #0066FF; }
+        .order-item { display: flex; padding: 15px 0; border-bottom: 1px solid #e2e8f0; }
+        .price { font-weight: 700; color: #0066FF; font-size: 18px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="logo">
+                <h1>🏸 ${APP_NAME}</h1>
+            </div>
+            ${content}
+        </div>
+        <div class="footer">
+            <p>Email ini dikirim oleh ${APP_NAME}</p>
+            <p><a href="${APP_URL}">${APP_URL}</a></p>
+            <p style="margin-top: 15px; font-size: 12px;">
+                Jika Anda tidak merasa melakukan aksi ini, abaikan email ini.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
+    `.trim();
+}
+
+// ============================================
+// EMAIL FUNCTIONS
+// ============================================
+
+export interface SendEmailOptions {
+    to: string;
+    subject: string;
+    html: string;
+}
+
+async function sendEmail(options: SendEmailOptions): Promise<boolean> {
+    try {
+        await transporter.sendMail({
+            from: `"${APP_NAME}" <${FROM_EMAIL}>`,
+            to: options.to,
+            subject: options.subject,
+            html: options.html,
+        });
+        console.log(`Email sent successfully to ${options.to}`);
+        return true;
+    } catch (error) {
+        console.error("Failed to send email:", error);
+        return false;
+    }
+}
+
+// ============================================
+// PASSWORD RESET
+// ============================================
+
+export async function sendPasswordResetEmail(
+    email: string,
+    resetToken: string,
+    userName?: string
+): Promise<boolean> {
+    const resetUrl = `${APP_URL}/auth/reset-password?token=${resetToken}`;
+
+    const content = `
+        <h2>Reset Password</h2>
+        <p>Halo${userName ? ` ${userName}` : ""},</p>
+        <p>Kami menerima permintaan untuk mereset password akun Anda di ${APP_NAME}.</p>
+        <p>Klik tombol di bawah untuk membuat password baru:</p>
+        <p style="text-align: center;">
+            <a href="${resetUrl}" class="button">Reset Password</a>
+        </p>
+        <div class="highlight">
+            <p style="margin: 0;"><strong>⏰ Link ini akan kedaluwarsa dalam 1 jam.</strong></p>
+        </div>
+        <p style="margin-top: 20px; font-size: 14px; color: #64748b;">
+            Jika Anda tidak meminta reset password, abaikan email ini. Password Anda tidak akan berubah.
+        </p>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: `Reset Password - ${APP_NAME}`,
+        html: getBaseTemplate(content),
+    });
+}
+
+// ============================================
+// REGISTRATION / WELCOME
+// ============================================
+
+export async function sendWelcomeEmail(
+    email: string,
+    userName: string
+): Promise<boolean> {
+    const content = `
+        <h2>Selamat Datang di ${APP_NAME}! 🎉</h2>
+        <p>Halo ${userName},</p>
+        <p>Terima kasih telah mendaftar di ${APP_NAME} - marketplace raket badminton terpercaya di Indonesia!</p>
+        <div class="highlight">
+            <p style="margin: 0;"><strong>Apa yang bisa Anda lakukan sekarang?</strong></p>
+            <ul style="margin: 10px 0 0 0; padding-left: 20px;">
+                <li>Jelajahi koleksi raket dari berbagai brand</li>
+                <li>Mulai jual raket Anda sendiri</li>
+                <li>Dapatkan penawaran terbaik dari seller terpercaya</li>
+            </ul>
+        </div>
+        <p style="text-align: center;">
+            <a href="${APP_URL}" class="button">Mulai Belanja</a>
+        </p>
+        <p>Jika ada pertanyaan, jangan ragu untuk menghubungi kami.</p>
+        <p>Selamat berbelanja! 🏸</p>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: `Selamat Datang di ${APP_NAME}! 🏸`,
+        html: getBaseTemplate(content),
+    });
+}
+
+// ============================================
+// EMAIL VERIFICATION
+// ============================================
+
+export async function sendVerificationEmail(
+    email: string,
+    verifyToken: string,
+    userName?: string
+): Promise<boolean> {
+    const verifyUrl = `${APP_URL}/auth/verify-email?token=${verifyToken}`;
+
+    const content = `
+        <h2>Verifikasi Email Anda</h2>
+        <p>Halo${userName ? ` ${userName}` : ""},</p>
+        <p>Terima kasih telah mendaftar di ${APP_NAME}!</p>
+        <p>Silakan verifikasi email Anda dengan mengklik tombol di bawah:</p>
+        <p style="text-align: center;">
+            <a href="${verifyUrl}" class="button">Verifikasi Email</a>
+        </p>
+        <p style="font-size: 14px; color: #64748b;">
+            Atau copy link berikut ke browser: <br>
+            <a href="${verifyUrl}" style="color: #0066FF;">${verifyUrl}</a>
+        </p>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: `Verifikasi Email - ${APP_NAME}`,
+        html: getBaseTemplate(content),
+    });
+}
+
+// ============================================
+// ORDER NOTIFICATIONS
+// ============================================
+
+interface OrderItem {
+    name: string;
+    quantity: number;
+    price: number;
+    image?: string;
+}
+
+interface OrderDetails {
+    orderId: string;
+    items: OrderItem[];
+    total: number;
+    shippingAddress: string;
+    paymentMethod: string;
+}
+
+function formatCurrency(amount: number): string {
+    return new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+        minimumFractionDigits: 0,
+    }).format(amount);
+}
+
+function renderOrderItems(items: OrderItem[]): string {
+    return items.map(item => `
+        <div style="display: flex; padding: 15px 0; border-bottom: 1px solid #e2e8f0;">
+            <div style="flex: 1;">
+                <p style="margin: 0; font-weight: 600;">${item.name}</p>
+                <p style="margin: 5px 0 0 0; font-size: 14px; color: #64748b;">Qty: ${item.quantity}</p>
+            </div>
+            <div style="text-align: right;">
+                <p style="margin: 0; font-weight: 600;">${formatCurrency(item.price * item.quantity)}</p>
+            </div>
+        </div>
+    `).join("");
+}
+
+// Object-based params that matches existing payments.ts usage
+interface OrderConfirmationParams {
     orderNumber: string;
-    buyerName: string;
+    buyerName: string | null;
     buyerEmail: string;
-    items: Array<{
-        title: string;
-        quantity: number;
-        price: string;
-    }>;
+    items: Array<{ title: string; quantity: number; price: string }>;
     subtotal: string;
     shippingCost: string;
     total: string;
 }
 
-export async function sendOrderConfirmationEmail(data: OrderEmailData) {
-    const itemsHtml = data.items
-        .map(
-            (item) => `
-            <tr>
-                <td style="padding: 12px; border-bottom: 1px solid #e2e8f0;">${item.title}</td>
-                <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; text-align: center;">${item.quantity}</td>
-                <td style="padding: 12px; border-bottom: 1px solid #e2e8f0; text-align: right;">${item.price}</td>
-            </tr>
-        `
-        )
-        .join("");
-
-    const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-    <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px;">
-        <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <!-- Header -->
-            <div style="background: linear-gradient(135deg, #2563eb, #1d4ed8); padding: 32px; text-align: center;">
-                <h1 style="color: white; margin: 0; font-size: 24px;">Pesanan Berhasil Dibuat! 🎉</h1>
+export async function sendOrderConfirmationEmail(params: OrderConfirmationParams): Promise<boolean> {
+    const itemsHtml = params.items.map(item => `
+        <div style="display: flex; padding: 15px 0; border-bottom: 1px solid #e2e8f0;">
+            <div style="flex: 1;">
+                <p style="margin: 0; font-weight: 600;">${item.title}</p>
+                <p style="margin: 5px 0 0 0; font-size: 14px; color: #64748b;">Qty: ${item.quantity}</p>
             </div>
-            
-            <!-- Content -->
-            <div style="padding: 32px;">
-                <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">
-                    Halo <strong>${data.buyerName}</strong>,
-                </p>
-                <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">
-                    Terima kasih telah berbelanja di JBR Marketplace. Pesanan Anda telah berhasil dibuat dengan nomor order:
-                </p>
-                
-                <div style="background: #f1f5f9; border-radius: 12px; padding: 16px; text-align: center; margin-bottom: 24px;">
-                    <span style="font-size: 24px; font-weight: bold; color: #1e293b;">${data.orderNumber}</span>
-                </div>
-                
-                <!-- Order Items -->
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
-                    <thead>
-                        <tr style="background: #f8fafc;">
-                            <th style="padding: 12px; text-align: left; color: #64748b; font-size: 12px; text-transform: uppercase;">Produk</th>
-                            <th style="padding: 12px; text-align: center; color: #64748b; font-size: 12px; text-transform: uppercase;">Qty</th>
-                            <th style="padding: 12px; text-align: right; color: #64748b; font-size: 12px; text-transform: uppercase;">Harga</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${itemsHtml}
-                    </tbody>
-                </table>
-                
-                <!-- Totals -->
-                <div style="border-top: 2px solid #e2e8f0; padding-top: 16px;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span style="color: #64748b;">Subtotal</span>
-                        <span style="color: #1e293b;">${data.subtotal}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-                        <span style="color: #64748b;">Ongkos Kirim</span>
-                        <span style="color: #1e293b;">${data.shippingCost}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; margin-top: 16px; padding-top: 16px; border-top: 2px solid #e2e8f0;">
-                        <span style="color: #1e293b;">Total</span>
-                        <span style="color: #2563eb;">${data.total}</span>
-                    </div>
-                </div>
-                
-                <p style="color: #64748b; font-size: 14px; margin-top: 24px;">
-                    Silakan selesaikan pembayaran Anda untuk memproses pesanan.
-                </p>
-            </div>
-            
-            <!-- Footer -->
-            <div style="background: #f8fafc; padding: 24px; text-align: center;">
-                <p style="color: #94a3b8; font-size: 12px; margin: 0;">
-                    © 2026 JBR Marketplace. All rights reserved.
-                </p>
+            <div style="text-align: right;">
+                <p style="margin: 0; font-weight: 600;">${item.price}</p>
             </div>
         </div>
-    </body>
-    </html>
+    `).join("");
+
+    const content = `
+        <h2>Pesanan Dikonfirmasi! ✅</h2>
+        <p>Halo ${params.buyerName || "Pelanggan"},</p>
+        <p>Terima kasih atas pesanan Anda! Berikut detail pesanan:</p>
+        
+        <div class="highlight">
+            <p style="margin: 0;"><strong>Order:</strong> #${params.orderNumber}</p>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <h3 style="font-size: 16px; margin-bottom: 10px;">Item Pesanan</h3>
+        ${itemsHtml}
+        
+        <div style="padding: 15px 0;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span style="color: #64748b;">Subtotal</span>
+                <span>${params.subtotal}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span style="color: #64748b;">Ongkir</span>
+                <span>${params.shippingCost}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-weight: 700; font-size: 18px; color: #0066FF;">
+                <span>Total</span>
+                <span>${params.total}</span>
+            </div>
+        </div>
+        
+        <p style="text-align: center; margin-top: 30px;">
+            <a href="${APP_URL}/profile/orders" class="button">Lihat Pesanan</a>
+        </p>
     `;
 
-    try {
-        const result = await resend.emails.send({
-            from: FROM_EMAIL,
-            to: data.buyerEmail,
-            subject: `Pesanan ${data.orderNumber} - Menunggu Pembayaran`,
-            html,
-        });
-        return { success: true, id: result.data?.id };
-    } catch (error) {
-        console.error("Failed to send order confirmation email:", error);
-        return { success: false, error };
-    }
+    return sendEmail({
+        to: params.buyerEmail,
+        subject: `Pesanan #${params.orderNumber} Dikonfirmasi - ${APP_NAME}`,
+        html: getBaseTemplate(content),
+    });
 }
 
-interface PaymentSuccessEmailData {
+export async function sendOrderShippedEmail(
+    email: string,
+    userName: string,
+    orderId: string,
+    trackingNumber: string,
+    courierName: string
+): Promise<boolean> {
+    const content = `
+        <h2>Pesanan Dikirim! 🚚</h2>
+        <p>Halo ${userName},</p>
+        <p>Kabar baik! Pesanan Anda sudah dalam perjalanan.</p>
+        
+        <div class="highlight">
+            <p style="margin: 0 0 10px 0;"><strong>Order ID:</strong> #${orderId}</p>
+            <p style="margin: 0 0 10px 0;"><strong>Kurir:</strong> ${courierName}</p>
+            <p style="margin: 0;"><strong>No. Resi:</strong> ${trackingNumber}</p>
+        </div>
+        
+        <p style="text-align: center; margin-top: 30px;">
+            <a href="${APP_URL}/profile/orders/${orderId}" class="button">Lacak Pesanan</a>
+        </p>
+        
+        <p style="font-size: 14px; color: #64748b;">
+            Estimasi pengiriman tergantung lokasi dan jasa pengiriman yang digunakan.
+        </p>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: `Pesanan #${orderId} Dikirim - ${APP_NAME}`,
+        html: getBaseTemplate(content),
+    });
+}
+
+export async function sendOrderDeliveredEmail(
+    email: string,
+    userName: string,
+    orderId: string
+): Promise<boolean> {
+    const content = `
+        <h2>Pesanan Sampai! 🎉</h2>
+        <p>Halo ${userName},</p>
+        <p>Pesanan Anda #${orderId} sudah sampai di tujuan!</p>
+        
+        <p>Kami harap Anda puas dengan pembelian Anda. Jangan lupa untuk memberikan ulasan 
+        agar seller dan pembeli lain dapat terbantu.</p>
+        
+        <p style="text-align: center;">
+            <a href="${APP_URL}/profile/orders/${orderId}" class="button">Beri Ulasan</a>
+        </p>
+        
+        <p style="font-size: 14px; color: #64748b;">
+            Ada masalah dengan pesanan? <a href="${APP_URL}/help" style="color: #0066FF;">Hubungi kami</a>
+        </p>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: `Pesanan #${orderId} Sudah Sampai - ${APP_NAME}`,
+        html: getBaseTemplate(content),
+    });
+}
+
+// ============================================
+// SELLER NOTIFICATIONS
+// ============================================
+
+export async function sendNewOrderNotificationToSeller(
+    email: string,
+    sellerName: string,
+    orderId: string,
+    buyerName: string,
+    items: OrderItem[],
+    total: number
+): Promise<boolean> {
+    const content = `
+        <h2>Pesanan Baru! 🛎️</h2>
+        <p>Halo ${sellerName},</p>
+        <p>Anda menerima pesanan baru dari <strong>${buyerName}</strong>!</p>
+        
+        <div class="highlight">
+            <p style="margin: 0;"><strong>Order ID:</strong> #${orderId}</p>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <h3 style="font-size: 16px; margin-bottom: 10px;">Item Pesanan</h3>
+        ${renderOrderItems(items)}
+        
+        <div style="padding: 15px 0; text-align: right;">
+            <p style="margin: 0; font-size: 14px; color: #64748b;">Total</p>
+            <p class="price" style="margin: 5px 0 0 0;">${formatCurrency(total)}</p>
+        </div>
+        
+        <p style="text-align: center; margin-top: 30px;">
+            <a href="${APP_URL}/seller/orders/${orderId}" class="button">Proses Pesanan</a>
+        </p>
+        
+        <p style="font-size: 14px; color: #64748b;">
+            ⏰ Harap proses pesanan dalam 2x24 jam untuk menjaga rating toko Anda.
+        </p>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: `🛎️ Pesanan Baru #${orderId} - ${APP_NAME}`,
+        html: getBaseTemplate(content),
+    });
+}
+
+export async function sendProductApprovedEmail(
+    email: string,
+    sellerName: string,
+    productName: string,
+    productSlug: string
+): Promise<boolean> {
+    const content = `
+        <h2>Produk Disetujui! ✅</h2>
+        <p>Halo ${sellerName},</p>
+        <p>Selamat! Produk Anda telah disetujui dan sekarang sudah live di marketplace.</p>
+        
+        <div class="highlight">
+            <p style="margin: 0;"><strong>Produk:</strong> ${productName}</p>
+        </div>
+        
+        <p style="text-align: center;">
+            <a href="${APP_URL}/product/${productSlug}" class="button">Lihat Produk</a>
+        </p>
+        
+        <p style="font-size: 14px; color: #64748b;">
+            Tips: Promosikan produk di media sosial untuk meningkatkan penjualan! 🚀
+        </p>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: `Produk "${productName}" Disetujui - ${APP_NAME}`,
+        html: getBaseTemplate(content),
+    });
+}
+
+export async function sendProductRejectedEmail(
+    email: string,
+    sellerName: string,
+    productName: string,
+    reason: string
+): Promise<boolean> {
+    const content = `
+        <h2>Produk Perlu Perbaikan</h2>
+        <p>Halo ${sellerName},</p>
+        <p>Mohon maaf, produk Anda belum dapat ditampilkan di marketplace.</p>
+        
+        <div class="highlight">
+            <p style="margin: 0 0 10px 0;"><strong>Produk:</strong> ${productName}</p>
+            <p style="margin: 0;"><strong>Alasan:</strong> ${reason}</p>
+        </div>
+        
+        <p>Silakan perbaiki dan ajukan kembali produk Anda.</p>
+        
+        <p style="text-align: center;">
+            <a href="${APP_URL}/seller/products" class="button">Kelola Produk</a>
+        </p>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: `Produk "${productName}" Perlu Perbaikan - ${APP_NAME}`,
+        html: getBaseTemplate(content),
+    });
+}
+
+// ============================================
+// PAYMENT NOTIFICATIONS
+// ============================================
+
+interface PaymentSuccessParams {
     orderNumber: string;
-    buyerName: string;
+    buyerName: string | null;
     buyerEmail: string;
     paymentMethod: string;
     amount: string;
     paidAt: string;
 }
 
-export async function sendPaymentSuccessEmail(data: PaymentSuccessEmailData) {
-    const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-    <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px;">
-        <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <!-- Header -->
-            <div style="background: linear-gradient(135deg, #22c55e, #16a34a); padding: 32px; text-align: center;">
-                <h1 style="color: white; margin: 0; font-size: 24px;">Pembayaran Berhasil! ✅</h1>
-            </div>
-            
-            <!-- Content -->
-            <div style="padding: 32px;">
-                <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">
-                    Halo <strong>${data.buyerName}</strong>,
-                </p>
-                <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">
-                    Pembayaran Anda untuk pesanan <strong>${data.orderNumber}</strong> telah berhasil diterima.
-                </p>
-                
-                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
-                    <table style="width: 100%;">
-                        <tr>
-                            <td style="color: #64748b; padding: 8px 0;">Metode Pembayaran</td>
-                            <td style="color: #1e293b; text-align: right; font-weight: 600;">${data.paymentMethod}</td>
-                        </tr>
-                        <tr>
-                            <td style="color: #64748b; padding: 8px 0;">Jumlah</td>
-                            <td style="color: #22c55e; text-align: right; font-weight: 600; font-size: 18px;">${data.amount}</td>
-                        </tr>
-                        <tr>
-                            <td style="color: #64748b; padding: 8px 0;">Waktu Pembayaran</td>
-                            <td style="color: #1e293b; text-align: right;">${data.paidAt}</td>
-                        </tr>
-                    </table>
-                </div>
-                
-                <p style="color: #475569; font-size: 16px;">
-                    Pesanan Anda sedang diproses oleh penjual. Kami akan mengirimkan notifikasi setelah pesanan dikirim.
-                </p>
-                
-                <a href="${process.env.NEXT_PUBLIC_APP_URL}/profile/orders" style="display: inline-block; background: #2563eb; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; margin-top: 16px;">
-                    Lihat Status Pesanan
-                </a>
-            </div>
-            
-            <!-- Footer -->
-            <div style="background: #f8fafc; padding: 24px; text-align: center;">
-                <p style="color: #94a3b8; font-size: 12px; margin: 0;">
-                    © 2026 JBR Marketplace. All rights reserved.
-                </p>
-            </div>
+export async function sendPaymentSuccessEmail(params: PaymentSuccessParams): Promise<boolean> {
+    const content = `
+        <h2>Pembayaran Berhasil! 💳</h2>
+        <p>Halo ${params.buyerName || "Pelanggan"},</p>
+        <p>Terima kasih! Pembayaran Anda telah berhasil diproses.</p>
+        
+        <div class="highlight">
+            <p style="margin: 0 0 10px 0;"><strong>Order:</strong> #${params.orderNumber}</p>
+            <p style="margin: 0 0 10px 0;"><strong>Jumlah:</strong> ${params.amount}</p>
+            <p style="margin: 0 0 10px 0;"><strong>Metode:</strong> ${params.paymentMethod}</p>
+            <p style="margin: 0;"><strong>Waktu:</strong> ${params.paidAt}</p>
         </div>
-    </body>
-    </html>
+        
+        <p>Pesanan Anda sedang diproses oleh seller. Kami akan kabari Anda saat pesanan dikirim.</p>
+        
+        <p style="text-align: center;">
+            <a href="${APP_URL}/profile/orders" class="button">Lihat Pesanan</a>
+        </p>
     `;
 
-    try {
-        const result = await resend.emails.send({
-            from: FROM_EMAIL,
-            to: data.buyerEmail,
-            subject: `Pembayaran Berhasil - ${data.orderNumber}`,
-            html,
-        });
-        return { success: true, id: result.data?.id };
-    } catch (error) {
-        console.error("Failed to send payment success email:", error);
-        return { success: false, error };
-    }
+    return sendEmail({
+        to: params.buyerEmail,
+        subject: `Pembayaran Berhasil #${params.orderNumber} - ${APP_NAME}`,
+        html: getBaseTemplate(content),
+    });
 }
 
-interface ShippingEmailData {
+export async function sendPaymentReminderEmail(
+    email: string,
+    userName: string,
+    orderId: string,
+    amount: number,
+    expiresAt: Date
+): Promise<boolean> {
+    const expiryTime = new Intl.DateTimeFormat("id-ID", {
+        dateStyle: "long",
+        timeStyle: "short",
+    }).format(expiresAt);
+
+    const content = `
+        <h2>Jangan Lupa Bayar! ⏰</h2>
+        <p>Halo ${userName},</p>
+        <p>Pesanan Anda belum dibayar. Segera selesaikan pembayaran agar tidak kedaluwarsa.</p>
+        
+        <div class="highlight">
+            <p style="margin: 0 0 10px 0;"><strong>Order ID:</strong> #${orderId}</p>
+            <p style="margin: 0 0 10px 0;"><strong>Total:</strong> ${formatCurrency(amount)}</p>
+            <p style="margin: 0; color: #dc2626;"><strong>⏰ Batas waktu:</strong> ${expiryTime}</p>
+        </div>
+        
+        <p style="text-align: center;">
+            <a href="${APP_URL}/payment/${orderId}" class="button">Bayar Sekarang</a>
+        </p>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: `⏰ Segera Bayar Pesanan #${orderId} - ${APP_NAME}`,
+        html: getBaseTemplate(content),
+    });
+}
+
+// ============================================
+// SHIPPING NOTIFICATION (for shipping.ts)
+// ============================================
+
+interface ShippingNotificationParams {
     orderNumber: string;
-    buyerName: string;
+    buyerName: string | null;
     buyerEmail: string;
     trackingNumber: string;
     shippingProvider: string;
-    trackingUrl?: string;
-    estimatedDelivery?: string;
+    trackingUrl: string;
 }
 
-export async function sendShippingNotificationEmail(data: ShippingEmailData) {
-    const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-    <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px;">
-        <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <!-- Header -->
-            <div style="background: linear-gradient(135deg, #f59e0b, #d97706); padding: 32px; text-align: center;">
-                <h1 style="color: white; margin: 0; font-size: 24px;">Pesanan Dalam Pengiriman! 📦</h1>
-            </div>
-            
-            <!-- Content -->
-            <div style="padding: 32px;">
-                <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">
-                    Halo <strong>${data.buyerName}</strong>,
-                </p>
-                <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">
-                    Pesanan <strong>${data.orderNumber}</strong> telah dikirim! Berikut adalah informasi pengiriman Anda:
-                </p>
-                
-                <div style="background: #fefce8; border: 1px solid #fef08a; border-radius: 12px; padding: 24px; margin-bottom: 24px;">
-                    <table style="width: 100%;">
-                        <tr>
-                            <td style="color: #64748b; padding: 8px 0;">Kurir</td>
-                            <td style="color: #1e293b; text-align: right; font-weight: 600;">${data.shippingProvider}</td>
-                        </tr>
-                        <tr>
-                            <td style="color: #64748b; padding: 8px 0;">Nomor Resi</td>
-                            <td style="color: #f59e0b; text-align: right; font-weight: 600; font-size: 18px;">${data.trackingNumber}</td>
-                        </tr>
-                        ${data.estimatedDelivery ? `
-                        <tr>
-                            <td style="color: #64748b; padding: 8px 0;">Estimasi Tiba</td>
-                            <td style="color: #1e293b; text-align: right;">${data.estimatedDelivery}</td>
-                        </tr>
-                        ` : ''}
-                    </table>
-                </div>
-                
-                <p style="color: #64748b; font-size: 14px;">
-                    Anda dapat melacak pengiriman melalui website kurir dengan nomor resi di atas.
-                </p>
-            </div>
-            
-            <!-- Footer -->
-            <div style="background: #f8fafc; padding: 24px; text-align: center;">
-                <p style="color: #94a3b8; font-size: 12px; margin: 0;">
-                    © 2026 JBR Marketplace. All rights reserved.
-                </p>
-            </div>
+export async function sendShippingNotificationEmail(params: ShippingNotificationParams): Promise<boolean> {
+    const content = `
+        <h2>Pesanan Dikirim! 🚚</h2>
+        <p>Halo ${params.buyerName || "Pelanggan"},</p>
+        <p>Kabar baik! Pesanan Anda sudah dalam perjalanan.</p>
+        
+        <div class="highlight">
+            <p style="margin: 0 0 10px 0;"><strong>Order:</strong> #${params.orderNumber}</p>
+            <p style="margin: 0 0 10px 0;"><strong>Kurir:</strong> ${params.shippingProvider}</p>
+            <p style="margin: 0;"><strong>No. Resi:</strong> ${params.trackingNumber}</p>
         </div>
-    </body>
-    </html>
+        
+        <p style="text-align: center; margin-top: 30px;">
+            <a href="${params.trackingUrl}" class="button">Lacak Pengiriman</a>
+        </p>
+        
+        <p style="font-size: 14px; color: #64748b;">
+            Estimasi pengiriman tergantung lokasi dan jasa pengiriman yang digunakan.
+        </p>
     `;
 
-    try {
-        const result = await resend.emails.send({
-            from: FROM_EMAIL,
-            to: data.buyerEmail,
-            subject: `Pesanan Dikirim - ${data.orderNumber}`,
-            html,
-        });
-        return { success: true, id: result.data?.id };
-    } catch (error) {
-        console.error("Failed to send shipping notification email:", error);
-        return { success: false, error };
-    }
+    return sendEmail({
+        to: params.buyerEmail,
+        subject: `Pesanan #${params.orderNumber} Dikirim - ${APP_NAME}`,
+        html: getBaseTemplate(content),
+    });
 }
 
-interface NewMessageEmailData {
-    recipientName: string;
-    recipientEmail: string;
-    senderName: string;
-    messagePreview: string;
-    conversationUrl: string;
-}
-
-export async function sendNewMessageEmail(data: NewMessageEmailData) {
-    const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
-    <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px;">
-        <div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <!-- Header -->
-            <div style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); padding: 32px; text-align: center;">
-                <h1 style="color: white; margin: 0; font-size: 24px;">Pesan Baru 💬</h1>
-            </div>
-            
-            <!-- Content -->
-            <div style="padding: 32px;">
-                <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">
-                    Halo <strong>${data.recipientName}</strong>,
-                </p>
-                <p style="color: #475569; font-size: 16px; margin-bottom: 24px;">
-                    Anda mendapat pesan baru dari <strong>${data.senderName}</strong>:
-                </p>
-                
-                <div style="background: #f5f3ff; border-left: 4px solid #8b5cf6; border-radius: 0 12px 12px 0; padding: 16px 24px; margin-bottom: 24px;">
-                    <p style="color: #1e293b; font-size: 16px; margin: 0; font-style: italic;">
-                        "${data.messagePreview}"
-                    </p>
-                </div>
-                
-                <a href="${data.conversationUrl}" style="display: inline-block; background: #8b5cf6; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 600;">
-                    Balas Pesan
-                </a>
-            </div>
-            
-            <!-- Footer -->
-            <div style="background: #f8fafc; padding: 24px; text-align: center;">
-                <p style="color: #94a3b8; font-size: 12px; margin: 0;">
-                    © 2026 JBR Marketplace. All rights reserved.
-                </p>
-            </div>
-        </div>
-    </body>
-    </html>
-    `;
-
-    try {
-        const result = await resend.emails.send({
-            from: FROM_EMAIL,
-            to: data.recipientEmail,
-            subject: `Pesan baru dari ${data.senderName}`,
-            html,
-        });
-        return { success: true, id: result.data?.id };
-    } catch (error) {
-        console.error("Failed to send new message email:", error);
-        return { success: false, error };
-    }
-}
+// Export transporter for testing
+export { transporter };

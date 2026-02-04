@@ -1,33 +1,35 @@
 "use client";
 
-import { Lock, Ban, ChevronRight, RefreshCcw } from "lucide-react";
+import { Ban, RefreshCcw } from "lucide-react";
 import { useTransition } from "react";
 import { banUser, unbanUser } from "@/actions/admin";
+import { EditUserButton } from "./EditUserButton";
 
-export function UserActions({ userId, isBanned }: { userId: string; isBanned: boolean }) {
+interface UserData {
+    id: string;
+    name: string | null;
+    email: string;
+    role: "USER" | "ADMIN";
+}
+
+export function UserActions({ user, isBanned }: { user: UserData; isBanned: boolean }) {
     const [isPending, startTransition] = useTransition();
 
     const handleBan = () => {
         startTransition(async () => {
-            await banUser(userId);
+            await banUser(user.id);
         });
     };
 
     const handleUnban = () => {
         startTransition(async () => {
-            await unbanUser(userId);
+            await unbanUser(user.id);
         });
     };
 
     return (
         <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-                className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors disabled:opacity-50"
-                title="Reset Password"
-                disabled={isPending}
-            >
-                <Lock className="w-4 h-4" />
-            </button>
+            <EditUserButton user={user} />
             {isBanned ? (
                 <button
                     onClick={handleUnban}
@@ -47,12 +49,6 @@ export function UserActions({ userId, isBanned }: { userId: string; isBanned: bo
                     <Ban className="w-4 h-4" />
                 </button>
             )}
-            <button
-                className="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-primary transition-colors"
-                title="View Details"
-            >
-                <ChevronRight className="w-4 h-4" />
-            </button>
         </div>
     );
 }
