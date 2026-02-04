@@ -1,7 +1,55 @@
 import Link from "next/link";
 import { Search, Bell, Plus, TrendingUp, ShoppingBag, Package, Star, ArrowRight, Truck, MessageCircle, AlertTriangle, ChevronRight } from "lucide-react";
+import { getSellerStats, getRecentSellerOrders } from "@/actions/orders";
+import Image from "next/image";
 
-export default function SellerDashboardPage() {
+function formatPrice(amount: number) {
+    return new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+        minimumFractionDigits: 0,
+    }).format(amount);
+}
+
+function formatDate(date: Date) {
+    return new Intl.DateTimeFormat("id-ID", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+    }).format(date);
+}
+
+const statusConfig: Record<string, { label: string; className: string }> = {
+    PENDING_PAYMENT: {
+        label: "Menunggu Pembayaran",
+        className: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300 border border-orange-200 dark:border-orange-700/50",
+    },
+    PROCESSING: {
+        label: "Perlu Dikirim",
+        className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-700/50",
+    },
+    SHIPPED: {
+        label: "Dalam Pengiriman",
+        className: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+    },
+    DELIVERED: {
+        label: "Sampai Tujuan",
+        className: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
+    },
+    COMPLETED: {
+        label: "Selesai",
+        className: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+    },
+    CANCELLED: {
+        label: "Dibatalkan",
+        className: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+    },
+};
+
+export default async function SellerDashboardPage() {
+    const stats = await getSellerStats();
+    const recentOrders = await getRecentSellerOrders(5);
+
     return (
         <>
             {/* Header / Search Bar */}
@@ -22,7 +70,9 @@ export default function SellerDashboardPage() {
                 <div className="flex items-center gap-4 ml-6">
                     <button className="relative p-2 text-slate-400 hover:text-brand-primary transition-colors rounded-full hover:bg-slate-100 dark:hover:bg-white/5">
                         <Bell className="w-6 h-6" />
-                        <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-orange-500"></span>
+                        {stats.pendingShipment > 0 && (
+                            <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-orange-500"></span>
+                        )}
                     </button>
                     <Link
                         href="/seller/products/add"
@@ -46,7 +96,7 @@ export default function SellerDashboardPage() {
                             <p className="text-slate-500 dark:text-slate-400">
                                 Ringkasan performa toko Anda hari ini,{" "}
                                 <span className="text-slate-700 dark:text-slate-300 font-medium">
-                                    19 Desember 2025
+                                    {formatDate(new Date())}
                                 </span>
                                 .
                             </p>
@@ -82,13 +132,10 @@ export default function SellerDashboardPage() {
                                 </div>
                                 <div>
                                     <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mb-1">
-                                        Rp 15.500.000
+                                        {formatPrice(stats.totalRevenue)}
                                     </h3>
-                                    <p className="text-xs font-medium text-green-500 flex items-center gap-1">
-                                        +12%{" "}
-                                        <span className="text-slate-400 font-normal">
-                                            dari kemarin
-                                        </span>
+                                    <p className="text-xs font-medium text-slate-400">
+                                        Hari ini: {formatPrice(stats.todayRevenue)}
                                     </p>
                                 </div>
                             </div>
@@ -109,13 +156,10 @@ export default function SellerDashboardPage() {
                                 </div>
                                 <div>
                                     <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mb-1">
-                                        12
+                                        {stats.newOrdersCount}
                                     </h3>
-                                    <p className="text-xs font-medium text-green-500 flex items-center gap-1">
-                                        +5%{" "}
-                                        <span className="text-slate-400 font-normal">
-                                            dari kemarin
-                                        </span>
+                                    <p className="text-xs font-medium text-slate-400">
+                                        Hari ini
                                     </p>
                                 </div>
                             </div>
@@ -136,13 +180,10 @@ export default function SellerDashboardPage() {
                                 </div>
                                 <div>
                                     <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mb-1">
-                                        45
+                                        {stats.totalItemsSold}
                                     </h3>
-                                    <p className="text-xs font-medium text-green-500 flex items-center gap-1">
-                                        +2%{" "}
-                                        <span className="text-slate-400 font-normal">
-                                            dari kemarin
-                                        </span>
+                                    <p className="text-xs font-medium text-slate-400">
+                                        Total produk
                                     </p>
                                 </div>
                             </div>
@@ -163,16 +204,13 @@ export default function SellerDashboardPage() {
                                 </div>
                                 <div>
                                     <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mb-1">
-                                        4.8{" "}
+                                        {stats.rating}{" "}
                                         <span className="text-sm text-slate-400 font-normal">
                                             / 5.0
                                         </span>
                                     </h3>
-                                    <p className="text-xs font-medium text-green-500 flex items-center gap-1">
-                                        +0.1%{" "}
-                                        <span className="text-slate-400 font-normal">
-                                            dari bulan lalu
-                                        </span>
+                                    <p className="text-xs font-medium text-slate-400">
+                                        {stats.productCount} produk aktif
                                     </p>
                                 </div>
                             </div>
@@ -181,89 +219,21 @@ export default function SellerDashboardPage() {
 
                     {/* Main Section Grid */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* Chart Section */}
+                        {/* Chart Section - Placeholder for now */}
                         <div className="lg:col-span-2 bg-white dark:bg-surface-dark rounded-2xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
                             <div className="flex items-center justify-between mb-6">
                                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                                     Statistik Pendapatan
                                 </h3>
-                                <button className="text-brand-primary text-sm font-medium hover:underline">
+                                <Link href="/seller/analytics" className="text-brand-primary text-sm font-medium hover:underline">
                                     Lihat Detail
-                                </button>
+                                </Link>
                             </div>
-                            {/* CSS-only Bar Chart visualization */}
-                            <div className="h-64 flex items-end justify-between gap-2 sm:gap-4 w-full">
-                                {/* Bar 1 */}
-                                <div className="flex flex-col items-center gap-2 w-full group">
-                                    <div className="w-full bg-brand-primary/10 dark:bg-brand-primary/20 rounded-t-lg relative h-32 group-hover:bg-brand-primary/30 transition-colors">
-                                        <div
-                                            className="absolute bottom-0 w-full bg-brand-primary rounded-t-lg transition-all duration-500"
-                                            style={{ height: "45%" }}
-                                        ></div>
-                                    </div>
-                                    <span className="text-xs text-slate-500">Sn</span>
-                                </div>
-                                {/* Bar 2 */}
-                                <div className="flex flex-col items-center gap-2 w-full group">
-                                    <div className="w-full bg-brand-primary/10 dark:bg-brand-primary/20 rounded-t-lg relative h-32 group-hover:bg-brand-primary/30 transition-colors">
-                                        <div
-                                            className="absolute bottom-0 w-full bg-brand-primary rounded-t-lg transition-all duration-500"
-                                            style={{ height: "65%" }}
-                                        ></div>
-                                    </div>
-                                    <span className="text-xs text-slate-500">Sl</span>
-                                </div>
-                                {/* Bar 3 */}
-                                <div className="flex flex-col items-center gap-2 w-full group">
-                                    <div className="w-full bg-brand-primary/10 dark:bg-brand-primary/20 rounded-t-lg relative h-32 group-hover:bg-brand-primary/30 transition-colors">
-                                        <div
-                                            className="absolute bottom-0 w-full bg-brand-primary rounded-t-lg transition-all duration-500"
-                                            style={{ height: "35%" }}
-                                        ></div>
-                                    </div>
-                                    <span className="text-xs text-slate-500">Rb</span>
-                                </div>
-                                {/* Bar 4 */}
-                                <div className="flex flex-col items-center gap-2 w-full group">
-                                    <div className="w-full bg-brand-primary/10 dark:bg-brand-primary/20 rounded-t-lg relative h-32 group-hover:bg-brand-primary/30 transition-colors">
-                                        <div
-                                            className="absolute bottom-0 w-full bg-brand-primary rounded-t-lg transition-all duration-500"
-                                            style={{ height: "85%" }}
-                                        ></div>
-                                    </div>
-                                    <span className="text-xs text-slate-500">Km</span>
-                                </div>
-                                {/* Bar 5 */}
-                                <div className="flex flex-col items-center gap-2 w-full group">
-                                    <div className="w-full bg-brand-primary/10 dark:bg-brand-primary/20 rounded-t-lg relative h-32 group-hover:bg-brand-primary/30 transition-colors">
-                                        <div
-                                            className="absolute bottom-0 w-full bg-brand-primary rounded-t-lg transition-all duration-500"
-                                            style={{ height: "55%" }}
-                                        ></div>
-                                    </div>
-                                    <span className="text-xs text-slate-500">Jm</span>
-                                </div>
-                                {/* Bar 6 */}
-                                <div className="flex flex-col items-center gap-2 w-full group">
-                                    <div className="w-full bg-brand-primary/10 dark:bg-brand-primary/20 rounded-t-lg relative h-32 group-hover:bg-brand-primary/30 transition-colors">
-                                        <div
-                                            className="absolute bottom-0 w-full bg-brand-primary rounded-t-lg transition-all duration-500"
-                                            style={{ height: "90%" }}
-                                        ></div>
-                                    </div>
-                                    <span className="text-xs text-slate-500">Sb</span>
-                                </div>
-                                {/* Bar 7 */}
-                                <div className="flex flex-col items-center gap-2 w-full group">
-                                    <div className="w-full bg-brand-primary/10 dark:bg-brand-primary/20 rounded-t-lg relative h-32 group-hover:bg-brand-primary/30 transition-colors">
-                                        <div
-                                            className="absolute bottom-0 w-full bg-brand-primary rounded-t-lg transition-all duration-500"
-                                            style={{ height: "70%" }}
-                                        ></div>
-                                    </div>
-                                    <span className="text-xs font-bold text-brand-primary">
-                                        Mg
-                                    </span>
+                            {/* Simple placeholder chart */}
+                            <div className="h-64 flex items-end justify-center text-center">
+                                <div className="text-slate-400">
+                                    <TrendingUp className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                                    <p className="text-sm">Grafik pendapatan akan tampil setelah ada data penjualan</p>
                                 </div>
                             </div>
                         </div>
@@ -277,51 +247,44 @@ export default function SellerDashboardPage() {
                                 </h3>
                             </div>
                             <div className="p-4 flex flex-col gap-3 overflow-y-auto">
-                                {/* Action Item 1 */}
-                                <div className="flex items-center gap-4 p-3 rounded-xl bg-slate-50 dark:bg-black/20 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors cursor-pointer border border-slate-100 dark:border-slate-800/50">
-                                    <div className="flex-shrink-0 h-10 w-10 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-500">
-                                        <Truck className="w-5 h-5" />
+                                {stats.pendingShipment > 0 && (
+                                    <Link href="/seller/orders?status=PROCESSING" className="flex items-center gap-4 p-3 rounded-xl bg-slate-50 dark:bg-black/20 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors border border-slate-100 dark:border-slate-800/50">
+                                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-500">
+                                            <Truck className="w-5 h-5" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                                                {stats.pendingShipment} Pesanan perlu dikirim
+                                            </p>
+                                            <p className="text-xs text-slate-500 truncate">
+                                                Segera proses pengiriman
+                                            </p>
+                                        </div>
+                                        <ChevronRight className="w-4 h-4 text-slate-400" />
+                                    </Link>
+                                )}
+                                {stats.lowStockCount > 0 && (
+                                    <Link href="/seller/products" className="flex items-center gap-4 p-3 rounded-xl bg-slate-50 dark:bg-black/20 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors border border-slate-100 dark:border-slate-800/50">
+                                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500">
+                                            <Package className="w-5 h-5" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+                                                {stats.lowStockCount} Stok Produk Menipis
+                                            </p>
+                                            <p className="text-xs text-slate-500 truncate">
+                                                Segera tambah stok
+                                            </p>
+                                        </div>
+                                        <ChevronRight className="w-4 h-4 text-slate-400" />
+                                    </Link>
+                                )}
+                                {stats.pendingShipment === 0 && stats.lowStockCount === 0 && (
+                                    <div className="text-center py-8 text-slate-400">
+                                        <Package className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                                        <p className="text-sm">Semua terkelola dengan baik!</p>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-                                            5 Pesanan perlu dikirim
-                                        </p>
-                                        <p className="text-xs text-slate-500 truncate">
-                                            Segera proses sebelum pkl 16.00
-                                        </p>
-                                    </div>
-                                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                                </div>
-                                {/* Action Item 2 */}
-                                <div className="flex items-center gap-4 p-3 rounded-xl bg-slate-50 dark:bg-black/20 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors cursor-pointer border border-slate-100 dark:border-slate-800/50">
-                                    <div className="flex-shrink-0 h-10 w-10 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500">
-                                        <MessageCircle className="w-5 h-5" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-                                            2 Diskusi Produk Baru
-                                        </p>
-                                        <p className="text-xs text-slate-500 truncate">
-                                            Balas pertanyaan calon pembeli
-                                        </p>
-                                    </div>
-                                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                                </div>
-                                {/* Action Item 3 */}
-                                <div className="flex items-center gap-4 p-3 rounded-xl bg-slate-50 dark:bg-black/20 hover:bg-slate-100 dark:hover:bg-white/5 transition-colors cursor-pointer border border-slate-100 dark:border-slate-800/50">
-                                    <div className="flex-shrink-0 h-10 w-10 rounded-full bg-red-500/10 flex items-center justify-center text-red-500">
-                                        <Package className="w-5 h-5" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-                                            1 Stok Produk Menipis
-                                        </p>
-                                        <p className="text-xs text-slate-500 truncate">
-                                            Nike Air Zoom Pegasus 38
-                                        </p>
-                                    </div>
-                                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                                </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -340,104 +303,94 @@ export default function SellerDashboardPage() {
                                 <ArrowRight className="w-4 h-4" />
                             </Link>
                         </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-50 dark:bg-black/20 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
-                                        <th className="px-6 py-4 font-semibold">Produk</th>
-                                        <th className="px-6 py-4 font-semibold">ID Pesanan</th>
-                                        <th className="px-6 py-4 font-semibold">Pembeli</th>
-                                        <th className="px-6 py-4 font-semibold">Kondisi</th>
-                                        <th className="px-6 py-4 font-semibold text-right">
-                                            Total
-                                        </th>
-                                        <th className="px-6 py-4 font-semibold text-center">
-                                            Status
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                                    {/* Row 1 */}
-                                    <tr className="group hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <div
-                                                    className="h-10 w-10 rounded-lg bg-slate-200 dark:bg-slate-700 bg-center bg-cover"
-                                                    style={{
-                                                        backgroundImage:
-                                                            "url('https://lh3.googleusercontent.com/aida-public/AB6AXuAIaF_lSZ7Pxl2d96PA8BCRBrdPH42wW783ImbT7w8ufOm4cteDQpCZAMda9XdBG6RDdX8tDO7X-mF1iBrDebNfjwGQQbdSn4oW_7r3a2KvC6ZgmE6WB2s_YFz5vO2n1Jy4h0QRpg9NH4vIt-9y5oQ9ScsGsrRi1uqxZ8ErOTAeG4i9JIinF9qS6bs7GZdsaY2BIBmDuMAx8_uKaTTy37FIbrdDQdyb8njxQdGNT3NofDa8FOV9p7fTY2HAdVcX3UuQxcP0b-UnqO4')",
-                                                    }}
-                                                ></div>
-                                                <div className="font-medium text-slate-900 dark:text-white">
-                                                    Nike Air Jordan Red
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-sm font-mono text-slate-500">
-                                            #ORD-2839
-                                        </td>
-                                        <td className="px-6 py-4 text-sm text-slate-300">
-                                            Budi Santoso
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                                                Baru
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-sm font-medium text-right text-slate-900 dark:text-white">
-                                            Rp 2.500.000
-                                        </td>
-                                        <td className="px-6 py-4 text-center">
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-700/50">
-                                                Perlu Dikirim
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    {/* Row 2 */}
-                                    <tr className="group hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
-                                        <td className="px-6 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <div
-                                                    className="h-10 w-10 rounded-lg bg-slate-200 dark:bg-slate-700 bg-center bg-cover"
-                                                    style={{
-                                                        backgroundImage:
-                                                            "url('https://lh3.googleusercontent.com/aida-public/AB6AXuBs0GkRmYjsiWzaO4wQT9HcN9T65beA7GTvR4zLZ-W9QBG-e4Pr01t6w8CSIFe-oRNjOp7WF1CVwYqcmg7iX2KwiMoxcchp6CkhwpqgMGxI_LpKmJ_9Os6wjS4lGkaIA__q1G7tlWuLzzjBsI3yqTTCJMSYo3IKMET1w7KM26K_1Je4_hfa_v3f-O0UQeWCsOvwMAE2KSdPP7ABBffZGB9dXZ8fBNh6scx6TrZj5Zsf6zt7CR5aEq1shkwtrocFKq2uER0srdH0kow')",
-                                                    }}
-                                                ></div>
-                                                <div className="font-medium text-slate-900 dark:text-white">
-                                                    Wilson Tennis Racket
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 text-sm font-mono text-slate-500">
-                                            #ORD-2838
-                                        </td>
-                                        <td className="px-6 py-4 text-sm text-slate-300">
-                                            Siti Aminah
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300">
-                                                Pre-loved
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-sm font-medium text-right text-slate-900 dark:text-white">
-                                            Rp 850.000
-                                        </td>
-                                        <td className="px-6 py-4 text-center">
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-700/50">
-                                                Perlu Dikirim
-                                            </span>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                        {recentOrders.length === 0 ? (
+                            <div className="p-12 text-center text-slate-400">
+                                <ShoppingBag className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                                <p>Belum ada pesanan</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-slate-50 dark:bg-black/20 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
+                                            <th className="px-6 py-4 font-semibold">Produk</th>
+                                            <th className="px-6 py-4 font-semibold">ID Pesanan</th>
+                                            <th className="px-6 py-4 font-semibold">Pembeli</th>
+                                            <th className="px-6 py-4 font-semibold">Kondisi</th>
+                                            <th className="px-6 py-4 font-semibold text-right">
+                                                Total
+                                            </th>
+                                            <th className="px-6 py-4 font-semibold text-center">
+                                                Status
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                                        {recentOrders.map((order) => {
+                                            const firstItem = order.items[0];
+                                            const product = firstItem?.product;
+                                            const status = statusConfig[order.status] || statusConfig.PENDING_PAYMENT;
+
+                                            return (
+                                                <tr key={order.id} className="group hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="h-10 w-10 rounded-lg bg-slate-200 dark:bg-slate-700 overflow-hidden relative">
+                                                                {product?.images?.[0] ? (
+                                                                    <Image
+                                                                        src={product.images[0]}
+                                                                        alt={product.title || "Product"}
+                                                                        fill
+                                                                        className="object-cover"
+                                                                    />
+                                                                ) : (
+                                                                    <div className="flex items-center justify-center w-full h-full">
+                                                                        <Package className="w-5 h-5 text-slate-400" />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="font-medium text-slate-900 dark:text-white truncate max-w-[200px]">
+                                                                {product?.title || "Produk"}
+                                                                {order.items.length > 1 && (
+                                                                    <span className="text-slate-400 text-xs ml-1">
+                                                                        +{order.items.length - 1} lainnya
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm font-mono text-slate-500">
+                                                        {order.order_number}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm text-slate-500">
+                                                        {order.buyer?.name || "Pembeli"}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-300">
+                                                            {product?.condition === "NEW" ? "Baru" : "Pre-loved"}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-sm font-medium text-right text-slate-900 dark:text-white">
+                                                        {formatPrice(parseFloat(order.total))}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${status.className}`}>
+                                                            {status.label}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
                 </div>
                 <footer className="mt-12 text-center text-slate-500 text-sm py-4 border-t border-slate-200 dark:border-slate-800">
                     © 2025 JualBeliRaket.com. All rights reserved.
                 </footer>
-            </div >
+            </div>
         </>
     );
 }

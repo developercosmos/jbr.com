@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { orders, order_items, carts, products } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql, gte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -241,3 +241,108 @@ export async function getOrderById(orderId: string) {
 
     return order;
 }
+
+// ============================================
+// SELLER DASHBOARD STATS
+// ============================================
+
+export async function getSellerStats() {
+    const user = await getCurrentUser();
+
+    // Get today's date range
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Get all seller orders
+    const allOrders = await db.query.orders.findMany({
+        where: eq(orders.seller_id, user.id),
+        with: {
+            items: true,
+        },
+    });
+
+    // Calculate stats
+    const totalRevenue = allOrders.reduce((sum, order) => {
+        if (order.status !== "CANCELLED") {
+            return sum + parseFloat(order.total);
+        }
+        return sum;
+    }, 0);
+
+    const todayOrders = allOrders.filter(order => {
+        const orderDate = new Date(order.created_at);
+        return orderDate >= today;
+    });
+
+    const newOrdersCount = todayOrders.length;
+    const todayRevenue = todayOrders.reduce((sum, order) => {
+        if (order.status !== "CANCELLED") {
+            return sum + parseFloat(order.total);
+        }
+        return sum;
+    }, 0);
+
+    const pendingShipment = allOrders.filter(order =>
+        order.status === "PROCESSING" || order.status === "PENDING_PAYMENT"
+    ).length;
+
+    const totalItemsSold = allOrders.reduce((sum, order) => {
+        if (order.status !== "CANCELLED") {
+            return sum + order.items.reduce((itemSum, item) => itemSum + item.quantity, 0);
+        }
+        return sum;
+    }, 0);
+
+    // Get seller's products count
+    const sellerProducts = await db.query.products.findMany({
+        where: eq(products.seller_id, user.id),
+    });
+
+    const productCount = sellerProducts.length;
+    const lowStockCount = sellerProducts.filter(p => p.stock <= 5).length;
+
+    return {
+        totalRevenue,
+        todayRevenue,
+        newOrdersCount,
+        pendingShipment,
+        totalItemsSold,
+        productCount,
+        lowStockCount,
+        rating: 4.8, // TODO: Calculate from reviews when available
+    };
+}
+
+export async function getRecentSellerOrders(limit = 5) {
+    const user = await getCurrentUser();
+
+    const recentOrders = await db.query.orders.findMany({
+        where: eq(orders.seller_id, user.id),
+        orderBy: [desc(orders.created_at)],
+        limit,
+        with: {
+            buyer: {
+                columns: {
+                    id: true,
+                    name: true,
+                    email: true,
+                },
+            },
+            items: {
+                with: {
+                    product: {
+                        columns: {
+                            id: true,
+                            title: true,
+                            images: true,
+                            condition: true,
+                        },
+                    },
+                },
+            },
+        },
+    });
+
+    return recentOrders;
+}
+

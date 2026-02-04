@@ -1,7 +1,20 @@
 import { Save, Upload, MapPin, Store } from "lucide-react";
 import Image from "next/image";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
-export default function SellerSettingsPage() {
+export default async function SellerSettingsPage() {
+    const session = await auth.api.getSession({
+        headers: await headers(),
+    });
+
+    if (!session?.user) {
+        redirect("/auth/login");
+    }
+
+    const user = session.user;
+
     return (
         <div className="flex-1 p-8 scroll-smooth">
             <div className="max-w-4xl mx-auto space-y-8">
@@ -30,20 +43,25 @@ export default function SellerSettingsPage() {
                                 Branding Toko
                             </label>
                             <div className="relative h-48 rounded-xl bg-slate-100 dark:bg-black/20 border-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group overflow-hidden">
-                                <div className="absolute inset-0 bg-cover bg-center opacity-50 group-hover:opacity-40 transition-opacity" style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuBCqzW94LamUg0EVwj6vOdTtlWWGHYCBgF4Df7V5vZA8VIIwW3fU6S0qk_Hoq3InI7gNnkp4o1lWUzXxDbx8WjBaxaNkmS5mUBgXiXwA0eHoKh7W3xoDiiA-4CiSRf9HU2PoQsIwaULrc0U9TzrPqi9_mJ1_UGKSxgfJ_ZzwrLV2hlG-KKW5KM_j43klFZmnCtA3FKJA8eW5-KYvm2dUG163tuNoegO2C_IauPlQxWLDhyEIAJYyyBAk-gSO5hlwLsomNl9vHmI9X4')" }}></div>
                                 <div className="relative z-10 flex flex-col items-center gap-2 text-slate-500 dark:text-slate-400">
                                     <Upload className="w-8 h-8" />
-                                    <span className="text-sm font-medium">Klik untuk ganti banner</span>
+                                    <span className="text-sm font-medium">Klik untuk upload banner</span>
                                 </div>
                                 {/* Logo Overlay */}
                                 <div className="absolute -bottom-6 left-6">
-                                    <div className="h-24 w-24 rounded-full border-4 border-white dark:border-surface-dark bg-white dark:bg-surface-dark overflow-hidden relative group/logo cursor-pointer">
-                                        <Image
-                                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuBCqzW94LamUg0EVwj6vOdTtlWWGHYCBgF4Df7V5vZA8VIIwW3fU6S0qk_Hoq3InI7gNnkp4o1lWUzXxDbx8WjBaxaNkmS5mUBgXiXwA0eHoKh7W3xoDiiA-4CiSRf9HU2PoQsIwaULrc0U9TzrPqi9_mJ1_UGKSxgfJ_ZzwrLV2hlG-KKW5KM_j43klFZmnCtA3FKJA8eW5-KYvm2dUG163tuNoegO2C_IauPlQxWLDhyEIAJYyyBAk-gSO5hlwLsomNl9vHmI9X4"
-                                            alt="Store Logo"
-                                            fill
-                                            className="object-cover"
-                                        />
+                                    <div className="h-24 w-24 rounded-full border-4 border-white dark:border-surface-dark bg-brand-primary/10 overflow-hidden relative group/logo cursor-pointer flex items-center justify-center">
+                                        {user.image ? (
+                                            <Image
+                                                src={user.image}
+                                                alt="Store Logo"
+                                                fill
+                                                className="object-cover"
+                                            />
+                                        ) : (
+                                            <span className="text-2xl font-bold text-brand-primary">
+                                                {(user.name || "").slice(0, 2).toUpperCase() || "??"}
+                                            </span>
+                                        )}
                                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover/logo:opacity-100 transition-opacity">
                                             <Upload className="w-6 h-6 text-white" />
                                         </div>
@@ -59,7 +77,8 @@ export default function SellerSettingsPage() {
                                 </label>
                                 <input
                                     type="text"
-                                    defaultValue="Agus Sport Store"
+                                    defaultValue={user.name || ""}
+                                    placeholder="Masukkan nama toko"
                                     className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm"
                                 />
                             </div>
@@ -69,7 +88,7 @@ export default function SellerSettingsPage() {
                                 </label>
                                 <input
                                     type="text"
-                                    defaultValue="Best Gear for Best Player"
+                                    placeholder="Contoh: Best Gear for Best Player"
                                     className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm"
                                 />
                             </div>
@@ -79,7 +98,7 @@ export default function SellerSettingsPage() {
                                 </label>
                                 <textarea
                                     rows={4}
-                                    defaultValue="Menjual berbagai macam perlengkapan olahraga original dan berkualitas. Melayani pengiriman ke seluruh Indonesia."
+                                    placeholder="Jelaskan tentang toko Anda..."
                                     className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm resize-none"
                                 />
                             </div>
@@ -103,7 +122,7 @@ export default function SellerSettingsPage() {
                                 </label>
                                 <textarea
                                     rows={3}
-                                    defaultValue="Jl. Olahraga No. 123, Komplek Stadion Utama"
+                                    placeholder="Jl. Olahraga No. 123, Komplek Stadion Utama"
                                     className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm resize-none"
                                 />
                             </div>
@@ -112,6 +131,7 @@ export default function SellerSettingsPage() {
                                     Kota / Kabupaten
                                 </label>
                                 <select className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm">
+                                    <option value="">Pilih kota</option>
                                     <option>Jakarta Selatan</option>
                                     <option>Bandung</option>
                                     <option>Surabaya</option>
@@ -123,7 +143,7 @@ export default function SellerSettingsPage() {
                                 </label>
                                 <input
                                     type="text"
-                                    defaultValue="12345"
+                                    placeholder="12345"
                                     className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm"
                                 />
                             </div>
