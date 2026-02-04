@@ -456,8 +456,7 @@ async function testOrders() {
             order_id: order.id,
             product_id: product.id,
             quantity: 1,
-            price: product.price,
-            subtotal: product.price
+            price: product.price
         });
 
         logTest("Create order", !!order);
