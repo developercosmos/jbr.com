@@ -42,10 +42,13 @@ export async function getIntegrationSettings() {
         ...setting,
         credentials: setting.credentials
             ? Object.fromEntries(
-                Object.entries(setting.credentials).map(([key, value]) => [
-                    key,
-                    value ? `${value.slice(0, 4)}${"*".repeat(Math.max(0, value.length - 8))}${value.slice(-4)}` : "",
-                ])
+                Object.entries(setting.credentials).map(([key, val]) => {
+                    const value = String(val || "");
+                    if (value.length <= 8) {
+                        return [key, value ? "****" : ""];
+                    }
+                    return [key, `${value.slice(0, 4)}${"*".repeat(Math.max(0, value.length - 8))}${value.slice(-4)}`];
+                })
             )
             : null,
     }));
