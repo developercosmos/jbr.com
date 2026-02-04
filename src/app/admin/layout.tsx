@@ -6,6 +6,9 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
+// Force dynamic rendering for admin routes (requires auth headers)
+export const dynamic = 'force-dynamic';
+
 export default async function AdminLayout({
     children,
 }: {
