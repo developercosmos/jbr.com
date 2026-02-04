@@ -19,7 +19,7 @@ type Conversation = {
         title: string;
         price: string;
         images: string[] | null;
-        condition: string;
+        condition: string | null;
         condition_rating: number | null;
         slug: string;
     } | null;
@@ -29,7 +29,7 @@ type Conversation = {
         isFromMe: boolean;
         isRead: boolean;
     } | null;
-    lastMessageAt: Date;
+    lastMessageAt: Date | null;
 };
 
 type Message = {

@@ -48,7 +48,7 @@ export async function getAdminDashboardStats() {
     const [newUsersResult] = await db
         .select({ count: count() })
         .from(users)
-        .where(gte(users.created_at, weekAgo));
+        .where(gte(users.createdAt, weekAgo));
 
     // Get sellers count (users with store_name)
     const [sellersResult] = await db
@@ -101,7 +101,7 @@ export async function getModerationQueue() {
                     name: true,
                     store_name: true,
                     image: true,
-                    created_at: true,
+                    createdAt: true,
                 },
             },
             category: true,
@@ -141,7 +141,7 @@ export async function getAdminUsers() {
     await getCurrentAdmin();
 
     const allUsers = await db.query.users.findMany({
-        orderBy: [desc(users.created_at)],
+        orderBy: [desc(users.createdAt)],
         limit: 100,
     });
 
@@ -153,7 +153,7 @@ export async function banUser(userId: string) {
 
     await db
         .update(users)
-        .set({ store_status: "BANNED", updated_at: new Date() })
+        .set({ store_status: "BANNED", updatedAt: new Date() })
         .where(eq(users.id, userId));
 
     return { success: true };
@@ -164,7 +164,7 @@ export async function unbanUser(userId: string) {
 
     await db
         .update(users)
-        .set({ store_status: "ACTIVE", updated_at: new Date() })
+        .set({ store_status: "ACTIVE", updatedAt: new Date() })
         .where(eq(users.id, userId));
 
     return { success: true };

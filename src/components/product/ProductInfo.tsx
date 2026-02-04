@@ -7,6 +7,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addToCart } from "@/actions/cart";
 import { startConversation } from "@/actions/chat";
+import { addToWishlist } from "@/actions/wishlist";
 
 interface ProductSeller {
     id: string;
@@ -42,7 +43,10 @@ export function ProductInfo({ product }: ProductInfoProps) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [isChatPending, startChatTransition] = useTransition();
+    const [isWishlistPending, startWishlistTransition] = useTransition();
     const [added, setAdded] = useState(false);
+    const [wishlisted, setWishlisted] = useState(false);
+    const [shared, setShared] = useState(false);
 
     const formatPrice = (price: string) => {
         return new Intl.NumberFormat("id-ID", {
@@ -61,7 +65,20 @@ export function ProductInfo({ product }: ProductInfoProps) {
     const handleAddToCart = () => {
         startTransition(async () => {
             try {
-                await addToCart(product.id);
+                const result = await addToCart(product.id);
+
+                // Check for error response
+                if (!result.success && result.error) {
+                    if (result.error === "unauthorized") {
+                        router.push(`/auth/login?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
+                    } else if (result.error === "own_product") {
+                        alert("Anda tidak dapat menambahkan produk sendiri ke keranjang");
+                    } else if (result.error === "product_not_available") {
+                        alert("Produk tidak tersedia");
+                    }
+                    return;
+                }
+
                 setAdded(true);
                 setTimeout(() => setAdded(false), 2000);
             } catch (error) {
@@ -76,16 +93,79 @@ export function ProductInfo({ product }: ProductInfoProps) {
         startChatTransition(async () => {
             try {
                 const result = await startConversation(product.seller!.id, product.id);
-                router.push(`/chat?conversation=${result.conversationId}`);
-            } catch (error: any) {
-                // If unauthorized, redirect to login
-                if (error.message === "Unauthorized") {
-                    router.push("/auth/login");
-                } else {
-                    console.error("Failed to start conversation:", error);
+
+                // Check for error response (unauthorized, etc.)
+                if (result.error) {
+                    if (result.error === "unauthorized") {
+                        // Redirect to login with return URL
+                        router.push(`/auth/login?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
+                    } else if (result.error === "cannot_message_self") {
+                        alert("Anda tidak dapat mengirim pesan ke diri sendiri");
+                    }
+                    return;
                 }
+
+                // Success - navigate to chat
+                if (result.conversationId) {
+                    router.push(`/chat?conversation=${result.conversationId}`);
+                }
+            } catch (error) {
+                console.error("Failed to start conversation:", error);
             }
         });
+    };
+
+    const handleAddToWishlist = () => {
+        startWishlistTransition(async () => {
+            try {
+                const result = await addToWishlist(product.id);
+
+                if (!result.success && result.error) {
+                    if (result.error === "unauthorized") {
+                        router.push(`/auth/login?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
+                    } else if (result.error === "own_product") {
+                        alert("Anda tidak dapat menambahkan produk sendiri ke wishlist");
+                    }
+                    return;
+                }
+
+                setWishlisted(true);
+                setTimeout(() => setWishlisted(false), 2000);
+            } catch (error) {
+                console.error("Failed to add to wishlist:", error);
+            }
+        });
+    };
+
+    const handleShare = async () => {
+        const shareUrl = window.location.href;
+        const shareTitle = product.title;
+        const shareText = `Lihat ${product.title} di Jual Beli Raket!`;
+
+        try {
+            // Try Web Share API first (mobile/modern browsers)
+            if (navigator.share) {
+                await navigator.share({
+                    title: shareTitle,
+                    text: shareText,
+                    url: shareUrl,
+                });
+            } else {
+                // Fallback: copy to clipboard
+                await navigator.clipboard.writeText(shareUrl);
+                setShared(true);
+                setTimeout(() => setShared(false), 2000);
+            }
+        } catch (error) {
+            // If share was cancelled or failed, try clipboard
+            try {
+                await navigator.clipboard.writeText(shareUrl);
+                setShared(true);
+                setTimeout(() => setShared(false), 2000);
+            } catch {
+                console.error("Failed to share:", error);
+            }
+        }
     };
 
     return (
@@ -189,11 +269,40 @@ export function ProductInfo({ product }: ProductInfoProps) {
                     </button>
                 </div>
                 <div className="flex gap-3">
-                    <button className="flex-1 flex items-center justify-center gap-2 text-slate-600 hover:text-red-500 py-2.5 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium">
-                        <Heart className="w-4 h-4" /> Add to Wishlist
+                    <button
+                        onClick={handleAddToWishlist}
+                        disabled={isWishlistPending}
+                        className="flex-1 flex items-center justify-center gap-2 text-slate-600 hover:text-red-500 py-2.5 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium disabled:opacity-50"
+                    >
+                        {isWishlistPending ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : wishlisted ? (
+                            <>
+                                <Heart className="w-4 h-4 fill-red-500 text-red-500" />
+                                Ditambahkan!
+                            </>
+                        ) : (
+                            <>
+                                <Heart className="w-4 h-4" />
+                                Add to Wishlist
+                            </>
+                        )}
                     </button>
-                    <button className="flex-1 flex items-center justify-center gap-2 text-slate-600 hover:text-brand-primary py-2.5 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium">
-                        <Share2 className="w-4 h-4" /> Share
+                    <button
+                        onClick={handleShare}
+                        className="flex-1 flex items-center justify-center gap-2 text-slate-600 hover:text-brand-primary py-2.5 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
+                    >
+                        {shared ? (
+                            <>
+                                <Share2 className="w-4 h-4" />
+                                Link Disalin!
+                            </>
+                        ) : (
+                            <>
+                                <Share2 className="w-4 h-4" />
+                                Share
+                            </>
+                        )}
                     </button>
                 </div>
             </div>

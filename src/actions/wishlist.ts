@@ -23,7 +23,16 @@ async function getCurrentUser() {
 // ============================================
 
 export async function addToWishlist(productId: string) {
-    const user = await getCurrentUser();
+    // Check auth without throwing
+    const session = await auth.api.getSession({
+        headers: await headers(),
+    });
+
+    if (!session?.user) {
+        return { success: false, error: "unauthorized" };
+    }
+
+    const user = session.user;
 
     // Check if product exists
     const product = await db.query.products.findFirst({
@@ -31,11 +40,11 @@ export async function addToWishlist(productId: string) {
     });
 
     if (!product || product.status !== "PUBLISHED") {
-        throw new Error("Product not available");
+        return { success: false, error: "product_not_available" };
     }
 
     if (product.seller_id === user.id) {
-        throw new Error("Cannot add your own product to wishlist");
+        return { success: false, error: "own_product" };
     }
 
     // Check if already in wishlist
@@ -44,7 +53,7 @@ export async function addToWishlist(productId: string) {
     });
 
     if (existing) {
-        return { success: true, message: "Already in wishlist" };
+        return { success: true, message: "Already in wishlist", alreadyExists: true };
     }
 
     // Add to wishlist

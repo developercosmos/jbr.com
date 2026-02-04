@@ -23,7 +23,16 @@ async function getCurrentUser() {
 // ============================================
 
 export async function addToCart(productId: string, quantity = 1) {
-    const user = await getCurrentUser();
+    // Check auth without throwing
+    const session = await auth.api.getSession({
+        headers: await headers(),
+    });
+
+    if (!session?.user) {
+        return { success: false, error: "unauthorized" };
+    }
+
+    const user = session.user;
 
     // Check if product exists and is available
     const product = await db.query.products.findFirst({
@@ -31,11 +40,11 @@ export async function addToCart(productId: string, quantity = 1) {
     });
 
     if (!product || product.status !== "PUBLISHED") {
-        throw new Error("Product not available");
+        return { success: false, error: "product_not_available" };
     }
 
     if (product.seller_id === user.id) {
-        throw new Error("Cannot add your own product to cart");
+        return { success: false, error: "own_product" };
     }
 
     // Check if already in cart

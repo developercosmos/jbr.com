@@ -256,10 +256,19 @@ export async function sendMessage(conversationId: string, content: string, attac
 // START A NEW CONVERSATION (or get existing)
 // ============================================
 export async function startConversation(sellerId: string, productId?: string) {
-    const user = await getCurrentUser();
+    // Check auth without throwing
+    const session = await auth.api.getSession({
+        headers: await headers(),
+    });
+
+    if (!session?.user) {
+        return { error: "unauthorized", conversationId: null, isNew: false };
+    }
+
+    const user = session.user;
 
     if (user.id === sellerId) {
-        throw new Error("Cannot start a conversation with yourself");
+        return { error: "cannot_message_self", conversationId: null, isNew: false };
     }
 
     // Check if conversation already exists

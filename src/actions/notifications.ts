@@ -38,14 +38,20 @@ export async function getNotifications(limit = 20, offset = 0) {
 // GET UNREAD COUNT
 // ============================================
 export async function getUnreadNotificationCount(): Promise<number> {
-    const user = await getCurrentUser();
+    // For unauthenticated users, return 0 (don't throw)
+    const session = await auth.api.getSession({
+        headers: await headers(),
+    });
+    if (!session?.user) {
+        return 0;
+    }
 
     const result = await db
         .select({ count: count() })
         .from(notifications)
         .where(
             and(
-                eq(notifications.user_id, user.id),
+                eq(notifications.user_id, session.user.id),
                 eq(notifications.read, false)
             )
         );
