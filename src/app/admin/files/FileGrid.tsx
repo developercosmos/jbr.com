@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Image from "next/image";
 import { Image as ImageIcon, Video, Music, FileText, File, Trash2, Copy, ExternalLink, Check, Eye, EyeOff } from "lucide-react";
-import { deleteAdminFile, updateFileMetadata, formatFileSize } from "@/actions/files";
+import { deleteAdminFile, updateFileMetadata } from "@/actions/files";
+import { formatFileSize } from "@/lib/file-utils";
 import { useRouter } from "next/navigation";
 
 interface FileData {
@@ -127,8 +128,8 @@ export function FileGrid({ files, total }: FileGridProps) {
                                 {/* Public/Private Badge */}
                                 <div className="absolute top-2 left-2">
                                     <span className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold ${file.is_public
-                                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                                            : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                        : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
                                         }`}>
                                         {file.is_public ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
                                         {file.is_public ? "Public" : "Private"}

@@ -1,7 +1,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { FileImage, Upload, HardDrive, Image, Video, Music, FileText } from "lucide-react";
-import { getAdminFiles, getFileStats, getFileFolders, formatFileSize } from "@/actions/files";
+import { getAdminFiles, getFileStats, getFileFolders } from "@/actions/files";
+import { formatFileSize } from "@/lib/file-utils";
 import { FileGrid } from "./FileGrid";
 import { FileFilters } from "./FileFilters";
 import { UploadButton } from "./UploadButton";

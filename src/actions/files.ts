@@ -6,7 +6,8 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { eq, desc, and, ilike, sql, count } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { uploadFile as uploadToStorage, deleteFile as deleteFromStorage, getStorageType } from "@/lib/storage";
+import { uploadFile as uploadToStorage, deleteFile as deleteFromStorage } from "@/lib/storage";
+import { getFileTypeFromMime } from "@/lib/file-utils";
 
 // Helper to verify admin access
 async function requireAdmin() {
@@ -26,31 +27,6 @@ async function requireAdmin() {
     }
 
     return user;
-}
-
-// Determine file type from MIME type
-function getFileTypeFromMime(mimeType: string): "image" | "video" | "audio" | "document" | "other" {
-    if (mimeType.startsWith("image/")) return "image";
-    if (mimeType.startsWith("video/")) return "video";
-    if (mimeType.startsWith("audio/")) return "audio";
-    if (
-        mimeType.includes("pdf") ||
-        mimeType.includes("document") ||
-        mimeType.includes("word") ||
-        mimeType.includes("excel") ||
-        mimeType.includes("spreadsheet") ||
-        mimeType.startsWith("text/")
-    ) {
-        return "document";
-    }
-    return "other";
-}
-
-// Format file size for display
-export function formatFileSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 // ============================================
