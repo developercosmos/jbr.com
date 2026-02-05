@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Search, Filter, Download, Eye, MoreHorizontal, ArrowUpDown, ChevronLeft, ChevronRight, CheckCircle, XCircle, AlertCircle, Package } from "lucide-react";
+import { Search, Filter, Download, ArrowUpDown, AlertCircle, Package } from "lucide-react";
 import { getAdminOrders } from "@/actions/admin";
+import { OrderActions } from "./OrderActions";
 
 function formatPrice(price: string) {
     const num = parseFloat(price);
@@ -187,7 +188,7 @@ export default async function AdminOrdersPage() {
                                                     {formatDate(order.created_at)}
                                                 </td>
                                                 <td className="px-6 py-5 text-sm font-bold text-right text-slate-900 dark:text-white font-heading">
-                                                    {formatPrice(String(order.total_amount))}
+                                                    {formatPrice(String(order.total))}
                                                 </td>
                                                 <td className="px-6 py-5 text-center">
                                                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${status.bg} ${status.text} ring-1 ring-inset ${status.ring}`}>
@@ -195,14 +196,7 @@ export default async function AdminOrdersPage() {
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-5 text-center">
-                                                    <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button className="p-2 text-slate-400 hover:text-brand-primary hover:bg-brand-primary/10 rounded-lg transition-colors" title="View Details">
-                                                            <Eye className="w-4 h-4" />
-                                                        </button>
-                                                        <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg transition-colors">
-                                                            <MoreHorizontal className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
+                                                    <OrderActions order={order} />
                                                 </td>
                                             </tr>
                                         );
