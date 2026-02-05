@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ShieldCheck, Package, Users, BarChart3, LifeBuoy, Gavel, ShoppingBag, Zap, FolderOpen, Settings, FileImage } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, Package, Users, BarChart3, LifeBuoy, Gavel, ShoppingBag, FolderOpen, Settings, FileImage } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AdminSidebarProps {
@@ -77,15 +77,6 @@ export function AdminSidebar({ pendingModerationCount = 0 }: AdminSidebarProps) 
 
     return (
         <aside className="hidden w-72 flex-col bg-white border-r border-slate-200 lg:flex z-10 shadow-sm h-[calc(100vh-65px)] sticky top-[65px]">
-            <div className="flex h-20 items-center gap-3 px-8 border-b border-slate-100">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-primary text-white shadow-sm">
-                    <Zap className="w-5 h-5 fill-current" />
-                </div>
-                <h1 className="text-lg font-bold tracking-tight text-slate-900 uppercase font-heading">
-                    JUALBELIRAKET
-                </h1>
-            </div>
-
             <div className="flex flex-1 flex-col overflow-y-auto px-6 py-6 gap-8">
                 <div className="flex flex-col gap-1.5">
                     <p className="px-3 text-xs font-bold uppercase tracking-widest text-slate-400 mb-2 font-heading">
