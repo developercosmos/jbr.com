@@ -359,7 +359,7 @@ export async function deleteUser(userId: string) {
         await db.execute(sql`DELETE FROM addresses WHERE user_id = ${userId}`);
 
         // 12. Delete disputes
-        await db.execute(sql`DELETE FROM disputes WHERE opened_by_id = ${userId}`);
+        await db.execute(sql`DELETE FROM disputes WHERE reporter_id = ${userId} OR reported_id = ${userId}`);
 
         // 13. Delete support tickets
         await db.execute(sql`DELETE FROM support_tickets WHERE user_id = ${userId}`);
