@@ -130,12 +130,11 @@ export default async function SellerSettingsPage() {
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                                     Kota / Kabupaten
                                 </label>
-                                <select className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm">
-                                    <option value="">Pilih kota</option>
-                                    <option>Jakarta Selatan</option>
-                                    <option>Bandung</option>
-                                    <option>Surabaya</option>
-                                </select>
+                                <input
+                                    type="text"
+                                    placeholder="Contoh: Jakarta Selatan, Bandung, Surabaya"
+                                    className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm"
+                                />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
