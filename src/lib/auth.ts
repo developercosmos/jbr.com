@@ -78,8 +78,15 @@ export const auth = betterAuth({
         },
     },
     trustedOrigins: [
+        // Production domains
+        "https://jualbeliraket.com",
+        "https://www.jualbeliraket.com",
+        // Environment-specific URL
         process.env.BETTER_AUTH_URL || "http://localhost:3000",
-    ],
+        process.env.NEXT_PUBLIC_APP_URL || "",
+        // Development
+        "http://localhost:3000",
+    ].filter(Boolean),
 });
 
 export type Session = typeof auth.$Infer.Session;
