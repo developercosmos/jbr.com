@@ -36,11 +36,12 @@ export function StoreActionButtons({
         try {
             const result = await startConversation(sellerId);
             if (result.error === "unauthorized") {
-                router.push("/auth/login?redirect=/chat");
+                router.push("/auth/login?redirect=/messages");
                 return;
             }
             if (result.conversationId) {
-                router.push(`/chat?conversation=${result.conversationId}`);
+                // Use /messages with short param 'c' to bypass Cloudflare WAF
+                router.push(`/messages?c=${result.conversationId}`);
             }
         } catch (error) {
             console.error("Failed to start chat:", error);
