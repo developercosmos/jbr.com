@@ -2,10 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, PackagePlus, ShoppingBag, BarChart3, LogOut, Zap, Store } from "lucide-react";
+import { LayoutDashboard, PackagePlus, ShoppingBag, BarChart3, Zap, Store } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
 
-const navItems = [
+interface NavItem {
+    label: string;
+    href: string;
+    icon: typeof LayoutDashboard;
+    badge?: number;
+}
+
+const baseNavItems: NavItem[] = [
     {
         label: "Overview",
         href: "/seller",
@@ -20,7 +28,7 @@ const navItems = [
         label: "Orders",
         href: "/seller/orders",
         icon: ShoppingBag,
-        badge: 3,
+        // Badge will be fetched dynamically
     },
     {
         label: "Analytics",
@@ -36,6 +44,31 @@ const navItems = [
 
 export function SellerSidebar() {
     const pathname = usePathname();
+    const [pendingOrdersCount, setPendingOrdersCount] = useState<number>(0);
+
+    // Fetch pending orders count
+    useEffect(() => {
+        async function fetchPendingOrders() {
+            try {
+                const res = await fetch("/api/seller/pending-orders-count");
+                if (res.ok) {
+                    const data = await res.json();
+                    setPendingOrdersCount(data.count || 0);
+                }
+            } catch (error) {
+                console.error("Failed to fetch pending orders count:", error);
+            }
+        }
+        fetchPendingOrders();
+    }, []);
+
+    // Build nav items with dynamic badge
+    const navItems = baseNavItems.map((item) => {
+        if (item.href === "/seller/orders" && pendingOrdersCount > 0) {
+            return { ...item, badge: pendingOrdersCount };
+        }
+        return item;
+    });
 
     return (
         <aside className="hidden w-72 flex-col bg-white border-r border-slate-200 lg:flex z-10 shadow-sm h-[calc(100vh-65px)] sticky top-[65px]">
@@ -68,9 +101,9 @@ export function SellerSidebar() {
                             >
                                 <item.icon className={cn("w-5 h-5", isActive && "fill-current")} />
                                 {item.label}
-                                {item.badge && (
+                                {item.badge && item.badge > 0 && (
                                     <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
-                                        {item.badge}
+                                        {item.badge > 9 ? "9+" : item.badge}
                                     </span>
                                 )}
                             </Link>
