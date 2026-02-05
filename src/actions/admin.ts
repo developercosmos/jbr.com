@@ -323,39 +323,48 @@ export async function deleteUser(userId: string) {
 
     try {
         // Delete related data in correct order to avoid FK constraints
-        // Start with tables that reference users.id without cascade
+        // Order matters: delete child tables before parent tables
 
-        // 1. Delete user's products first (this will cascade to product_images, variants, etc.)
-        await db.delete(products).where(eq(products.seller_id, userId));
+        // 1. Delete messages where user is sender (before conversations)
+        await db.execute(sql`DELETE FROM messages WHERE sender_id = ${userId}`);
 
         // 2. Delete conversations where user is buyer or seller
         await db.execute(sql`DELETE FROM conversations WHERE buyer_id = ${userId} OR seller_id = ${userId}`);
 
-        // 3. Delete orders where user is buyer or seller  
+        // 3. Delete reviews (before order_items and products) - uses buyer_id, not reviewer_id
+        await db.execute(sql`DELETE FROM reviews WHERE buyer_id = ${userId} OR seller_id = ${userId}`);
+
+        // 4. Delete order_items for user's orders (before orders)
+        await db.execute(sql`DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE buyer_id = ${userId} OR seller_id = ${userId})`);
+
+        // 5. Delete orders where user is buyer or seller
         await db.execute(sql`DELETE FROM orders WHERE buyer_id = ${userId} OR seller_id = ${userId}`);
 
-        // 4. Delete reviews by user
-        await db.execute(sql`DELETE FROM reviews WHERE reviewer_id = ${userId} OR seller_id = ${userId}`);
+        // 6. Delete user's products (this will cascade to product_images, variants, etc.)
+        await db.delete(products).where(eq(products.seller_id, userId));
 
-        // 5. Delete notifications
+        // 7. Delete notifications
         await db.execute(sql`DELETE FROM notifications WHERE user_id = ${userId}`);
 
-        // 6. Delete cart items
+        // 8. Delete cart items
         await db.execute(sql`DELETE FROM cart_items WHERE user_id = ${userId}`);
 
-        // 7. Delete wishlist items  
+        // 9. Delete wishlist items
         await db.execute(sql`DELETE FROM wishlist_items WHERE user_id = ${userId}`);
 
-        // 8. Delete follows
+        // 10. Delete follows
         await db.execute(sql`DELETE FROM follows WHERE follower_id = ${userId} OR following_id = ${userId}`);
 
-        // 9. Delete addresses
+        // 11. Delete addresses
         await db.execute(sql`DELETE FROM addresses WHERE user_id = ${userId}`);
 
-        // 10. Delete disputes
+        // 12. Delete disputes
         await db.execute(sql`DELETE FROM disputes WHERE opened_by_id = ${userId}`);
 
-        // 11. Finally delete the user (sessions, accounts, verifications should cascade)
+        // 13. Delete support tickets
+        await db.execute(sql`DELETE FROM support_tickets WHERE user_id = ${userId}`);
+
+        // 14. Finally delete the user (sessions, accounts, verifications should cascade)
         await db.delete(users).where(eq(users.id, userId));
 
         revalidatePath("/admin/users");
