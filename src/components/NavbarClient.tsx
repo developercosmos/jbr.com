@@ -2,14 +2,16 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState, useRef, useEffect } from "react";
-import { ChevronDown, LogIn, User, LogOut, Settings, Store, ShieldCheck } from "lucide-react";
-import { useSession, signOut } from "@/lib/auth-client";
+import { useState, useRef, useEffect, useTransition } from "react";
+import { ChevronDown, LogIn, User, LogOut, Settings, Store, ShieldCheck, Loader2 } from "lucide-react";
+import { useSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
+import { serverSignOut } from "@/actions/auth";
 
 export function NavbarUserArea() {
     const { data: session, isPending } = useSession();
     const [isOpen, setIsOpen] = useState(false);
+    const [isLoggingOut, startLogout] = useTransition();
     const dropdownRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
 
@@ -24,11 +26,13 @@ export function NavbarUserArea() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const handleLogout = async () => {
-        await signOut();
-        setIsOpen(false);
-        router.push("/");
-        router.refresh();
+    const handleLogout = () => {
+        startLogout(async () => {
+            await serverSignOut();
+            setIsOpen(false);
+            router.push("/");
+            router.refresh();
+        });
     };
 
     if (isPending) {
@@ -134,10 +138,15 @@ export function NavbarUserArea() {
                     <div className="border-t border-slate-100 pt-1">
                         <button
                             onClick={handleLogout}
-                            className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                            disabled={isLoggingOut}
+                            className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
                         >
-                            <LogOut className="w-4 h-4" />
-                            Keluar
+                            {isLoggingOut ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <LogOut className="w-4 h-4" />
+                            )}
+                            {isLoggingOut ? "Keluar..." : "Keluar"}
                         </button>
                     </div>
                 </div>
