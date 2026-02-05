@@ -1,7 +1,9 @@
 import { Settings, CreditCard, Mail, Truck, Globe } from "lucide-react";
 import { getIntegrationSettings, seedDefaultIntegrations } from "@/actions/settings";
+import { getEnvSettings } from "@/actions/env-settings";
 import { IntegrationCard } from "./IntegrationCard";
 import { SeedButton } from "./SeedButton";
+import { SystemSettings } from "./SystemSettings";
 
 const categoryIcons: Record<string, React.ReactNode> = {
     general: <Globe className="w-5 h-5" />,
@@ -18,7 +20,10 @@ const categoryLabels: Record<string, string> = {
 };
 
 export default async function AdminSettingsPage() {
-    let integrations = await getIntegrationSettings();
+    const [integrations, envSettings] = await Promise.all([
+        getIntegrationSettings(),
+        getEnvSettings(),
+    ]);
 
     // Group by category
     const groupedIntegrations = integrations.reduce((acc, integration) => {
@@ -39,13 +44,16 @@ export default async function AdminSettingsPage() {
                     <div>
                         <h1 className="text-2xl sm:text-3xl font-heading font-bold tracking-tight text-slate-900 dark:text-white mb-2 uppercase flex items-center gap-3">
                             <Settings className="w-8 h-8 text-brand-primary" />
-                            Pengaturan Integrasi
+                            Pengaturan
                         </h1>
                         <p className="text-slate-500 dark:text-slate-400">
-                            Kelola integrasi dengan payment gateway, email service, dan shipping aggregator.
+                            Kelola pengaturan sistem, integrasi payment, email, dan shipping.
                         </p>
                     </div>
                 </div>
+
+                {/* System Settings (Environment Variables) */}
+                <SystemSettings initialSettings={envSettings} />
 
                 {/* Seed Button if no integrations */}
                 {hasNoIntegrations && (

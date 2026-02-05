@@ -78,15 +78,12 @@ export const auth = betterAuth({
         },
     },
     trustedOrigins: [
-        // Production domains
-        "https://jualbeliraket.com",
-        "https://www.jualbeliraket.com",
-        // Environment-specific URL
-        process.env.BETTER_AUTH_URL || "http://localhost:3000",
-        process.env.NEXT_PUBLIC_APP_URL || "",
-        // Development
+        // Dynamic from environment variables
+        process.env.BETTER_AUTH_URL,
+        process.env.NEXT_PUBLIC_APP_URL,
+        // Development fallback
         "http://localhost:3000",
-    ].filter(Boolean),
+    ].filter((origin): origin is string => Boolean(origin)),
 });
 
 export type Session = typeof auth.$Infer.Session;
