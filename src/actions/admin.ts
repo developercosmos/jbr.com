@@ -346,11 +346,11 @@ export async function deleteUser(userId: string) {
         // 7. Delete notifications
         await db.execute(sql`DELETE FROM notifications WHERE user_id = ${userId}`);
 
-        // 8. Delete cart items
-        await db.execute(sql`DELETE FROM cart_items WHERE user_id = ${userId}`);
+        // 8. Delete carts
+        await db.execute(sql`DELETE FROM carts WHERE user_id = ${userId}`);
 
-        // 9. Delete wishlist items
-        await db.execute(sql`DELETE FROM wishlist_items WHERE user_id = ${userId}`);
+        // 9. Delete wishlists
+        await db.execute(sql`DELETE FROM wishlists WHERE user_id = ${userId}`);
 
         // 10. Delete follows
         await db.execute(sql`DELETE FROM follows WHERE follower_id = ${userId} OR following_id = ${userId}`);
