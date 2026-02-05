@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { getSiteConfig } from "@/actions/settings";
 
 // Determine transport type - use sendmail on Linux, SMTP on Windows
 const isLinux = process.platform === "linux";
@@ -25,21 +26,27 @@ const transporter = isLinux
     });
 
 const FROM_EMAIL = process.env.EMAIL_FROM || "noreply@jualbeliraket.com";
-const APP_NAME = "JualBeliRaket";
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://jualbeliraket.com";
+
+// Default values (will be overridden by database values when available)
+const DEFAULT_APP_NAME = "JualBeliRaket";
+const DEFAULT_APP_URL = "https://jualbeliraket.com";
+
+// Keep APP_NAME and APP_URL for backward compatibility with other email functions
+const APP_NAME = DEFAULT_APP_NAME;
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || DEFAULT_APP_URL;
 
 // ============================================
 // EMAIL TEMPLATES
 // ============================================
 
-function getBaseTemplate(content: string): string {
+function getBaseTemplate(content: string, appName: string = APP_NAME, appUrl: string = APP_URL): string {
     return `
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${APP_NAME}</title>
+    <title>${appName}</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1e293b; margin: 0; padding: 0; background-color: #f1f5f9; }
         .container { max-width: 600px; margin: 0 auto; padding: 40px 20px; }
@@ -62,13 +69,13 @@ function getBaseTemplate(content: string): string {
     <div class="container">
         <div class="card">
             <div class="logo">
-                <h1>🏸 ${APP_NAME}</h1>
+                <h1>🏸 ${appName}</h1>
             </div>
             ${content}
         </div>
         <div class="footer">
-            <p>Email ini dikirim oleh ${APP_NAME}</p>
-            <p><a href="${APP_URL}">${APP_URL}</a></p>
+            <p>Email ini dikirim oleh ${appName}</p>
+            <p><a href="${appUrl}">${appUrl}</a></p>
             <p style="margin-top: 15px; font-size: 12px;">
                 Jika Anda tidak merasa melakukan aksi ini, abaikan email ini.
             </p>
@@ -182,12 +189,17 @@ export async function sendVerificationEmail(
     verifyToken: string,
     userName?: string
 ): Promise<boolean> {
-    const verifyUrl = `${APP_URL}/auth/verify-email?token=${verifyToken}`;
+    // Get dynamic config from database
+    const config = await getSiteConfig();
+    const appUrl = config.app_url;
+    const appName = config.app_name;
+
+    const verifyUrl = `${appUrl}/auth/verify-email?token=${verifyToken}`;
 
     const content = `
         <h2>Verifikasi Email Anda</h2>
         <p>Halo${userName ? ` ${userName}` : ""},</p>
-        <p>Terima kasih telah mendaftar di ${APP_NAME}!</p>
+        <p>Terima kasih telah mendaftar di ${appName}!</p>
         <p>Silakan verifikasi email Anda dengan mengklik tombol di bawah:</p>
         <p style="text-align: center;">
             <a href="${verifyUrl}" class="button">Verifikasi Email</a>
@@ -200,8 +212,8 @@ export async function sendVerificationEmail(
 
     return sendEmail({
         to: email,
-        subject: `Verifikasi Email - ${APP_NAME}`,
-        html: getBaseTemplate(content),
+        subject: `Verifikasi Email - ${appName}`,
+        html: getBaseTemplate(content, appName, appUrl),
     });
 }
 

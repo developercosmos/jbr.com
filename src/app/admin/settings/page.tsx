@@ -1,15 +1,17 @@
-import { Settings, CreditCard, Mail, Truck } from "lucide-react";
+import { Settings, CreditCard, Mail, Truck, Globe } from "lucide-react";
 import { getIntegrationSettings, seedDefaultIntegrations } from "@/actions/settings";
 import { IntegrationCard } from "./IntegrationCard";
 import { SeedButton } from "./SeedButton";
 
 const categoryIcons: Record<string, React.ReactNode> = {
+    general: <Globe className="w-5 h-5" />,
     payment: <CreditCard className="w-5 h-5" />,
     email: <Mail className="w-5 h-5" />,
     shipping: <Truck className="w-5 h-5" />,
 };
 
 const categoryLabels: Record<string, string> = {
+    general: "Pengaturan Umum",
     payment: "Payment Gateway",
     email: "Email Service",
     shipping: "Shipping Aggregator",

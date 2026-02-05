@@ -162,6 +162,20 @@ export async function seedDefaultIntegrations() {
         credentials: Record<string, string>;
         config: Record<string, unknown>;
     }> = [
+            // General/Site Settings
+            {
+                key: "site_config",
+                name: "Pengaturan Situs",
+                description: "Konfigurasi dasar situs seperti URL domain, nama aplikasi, dll",
+                category: "general",
+                enabled: true,
+                credentials: {},
+                config: {
+                    app_url: "https://jualbeliraket.com",
+                    app_name: "JualBeliRaket",
+                    support_email: "support@jualbeliraket.com",
+                },
+            },
             // Payment Gateways
             {
                 key: "xendit",
@@ -271,4 +285,35 @@ export async function getIntegrationCredentials(key: string): Promise<Record<str
     }
 
     return setting.credentials;
+}
+
+// ============================================
+// GET SITE CONFIG (for app_url, app_name, etc.)
+// ============================================
+export async function getSiteConfig(): Promise<{
+    app_url: string;
+    app_name: string;
+    support_email: string;
+}> {
+    const setting = await db.query.integration_settings.findFirst({
+        where: eq(integration_settings.key, "site_config"),
+    });
+
+    // Default values if not found
+    const defaults = {
+        app_url: process.env.NEXT_PUBLIC_APP_URL || "https://jualbeliraket.com",
+        app_name: "JualBeliRaket",
+        support_email: "support@jualbeliraket.com",
+    };
+
+    if (!setting?.config) {
+        return defaults;
+    }
+
+    const config = setting.config as Record<string, unknown>;
+    return {
+        app_url: (config.app_url as string) || defaults.app_url,
+        app_name: (config.app_name as string) || defaults.app_name,
+        support_email: (config.support_email as string) || defaults.support_email,
+    };
 }
