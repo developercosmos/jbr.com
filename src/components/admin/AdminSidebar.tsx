@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ShieldCheck, Package, Users, BarChart3, LifeBuoy, Gavel, ShoppingBag, Zap, FolderOpen, Settings } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, Package, Users, BarChart3, LifeBuoy, Gavel, ShoppingBag, Zap, FolderOpen, Settings, FileImage } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AdminSidebarProps {
@@ -49,6 +49,11 @@ const getNavItems = (pendingCount: number) => [
 ];
 
 const toolItems = [
+    {
+        label: "File Manager",
+        href: "/admin/files",
+        icon: FileImage,
+    },
     {
         label: "Analytics",
         href: "/admin/analytics",

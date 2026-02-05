@@ -795,3 +795,42 @@ export const integration_settings = pgTable(
         category_idx: index("idx_integration_settings_category").on(table.category),
     })
 );
+
+// ============================================
+// FILES TABLE (Asset Management)
+// ============================================
+export const storageTypeEnum = pgEnum("storage_type", ["local", "s3"]);
+export const fileTypeEnum = pgEnum("file_type", ["image", "video", "audio", "document", "other"]);
+
+export const files = pgTable(
+    "files",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        filename: text("filename").notNull(), // Stored filename (unique)
+        original_name: text("original_name").notNull(), // Original upload name
+        mime_type: text("mime_type").notNull(),
+        file_type: fileTypeEnum("file_type").notNull(), // Derived category
+        size: integer("size").notNull(), // Bytes
+        storage_type: storageTypeEnum("storage_type").notNull(),
+        storage_key: text("storage_key").notNull(), // Path or S3 key
+        folder: text("folder").default("general"),
+        tags: text("tags").array(),
+        alt_text: text("alt_text"), // For images
+        is_public: boolean("is_public").default(false).notNull(),
+        uploaded_by: text("uploaded_by").references(() => users.id, { onDelete: "set null" }),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+        updated_at: timestamp("updated_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        folder_idx: index("idx_files_folder").on(table.folder),
+        file_type_idx: index("idx_files_file_type").on(table.file_type),
+        uploaded_by_idx: index("idx_files_uploaded_by").on(table.uploaded_by),
+    })
+);
+
+export const filesRelations = relations(files, ({ one }) => ({
+    uploader: one(users, {
+        fields: [files.uploaded_by],
+        references: [users.id],
+    }),
+}));

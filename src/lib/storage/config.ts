@@ -23,11 +23,29 @@ export const storageConfig = {
 
     // Allowed file types
     allowedMimeTypes: [
+        // Images
         "image/jpeg",
         "image/png",
         "image/webp",
         "image/gif",
+        "image/svg+xml",
+        // Video
+        "video/mp4",
+        "video/webm",
+        "video/quicktime",
+        // Audio
+        "audio/mpeg",
+        "audio/wav",
+        "audio/ogg",
+        "audio/mp3",
+        // Documents
         "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "text/plain",
+        "text/csv",
     ],
 };
 
