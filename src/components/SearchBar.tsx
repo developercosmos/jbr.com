@@ -1,34 +1,28 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Search, Package, Tag, Store, Loader2, X, ArrowRight } from "lucide-react";
+import { Search, Package, Tag, Loader2, X, ArrowRight } from "lucide-react";
 import { useDebouncedCallback } from "use-debounce";
+import { searchAutocomplete } from "@/actions/search";
 
 interface SearchResult {
-    products: Array<{
+    suggestions: Array<{
+        type: "product";
         id: string;
         title: string;
         slug: string;
         price: string;
-        images: string[] | null;
-        condition: string;
-        brand: string | null;
+        image: string | null;
     }>;
     categories: Array<{
+        type: "category";
         id: string;
         name: string;
         slug: string;
         icon: string | null;
-    }>;
-    sellers: Array<{
-        id: string;
-        name: string;
-        store_name: string | null;
-        store_slug: string | null;
-        image: string | null;
     }>;
 }
 
@@ -50,8 +44,8 @@ export function SearchBar() {
     const containerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Debounced search
-    const debouncedSearch = useDebouncedCallback(async (searchQuery: string, cond: string) => {
+    // Debounced search using server action
+    const debouncedSearch = useDebouncedCallback(async (searchQuery: string) => {
         if (searchQuery.trim().length < 2) {
             setResults(null);
             setIsLoading(false);
@@ -60,17 +54,9 @@ export function SearchBar() {
 
         setIsLoading(true);
         try {
-            const params = new URLSearchParams({
-                q: searchQuery,
-                condition: cond,
-                limit: "8",
-            });
-            const res = await fetch(`/api/search?${params}`);
-            if (res.ok) {
-                const data = await res.json();
-                setResults(data);
-                setIsOpen(true);
-            }
+            const data = await searchAutocomplete(searchQuery, 8);
+            setResults(data);
+            setIsOpen(true);
         } catch (error) {
             console.error("Search error:", error);
         } finally {
@@ -82,16 +68,7 @@ export function SearchBar() {
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
         setQuery(value);
-        debouncedSearch(value, condition);
-    };
-
-    // Handle condition change
-    const handleConditionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const value = e.target.value;
-        setCondition(value);
-        if (query.trim().length >= 2) {
-            debouncedSearch(query, value);
-        }
+        debouncedSearch(value);
     };
 
     // Handle form submit
@@ -131,9 +108,8 @@ export function SearchBar() {
     }, []);
 
     const hasResults = results && (
-        results.products.length > 0 ||
-        results.categories.length > 0 ||
-        results.sellers.length > 0
+        results.suggestions.length > 0 ||
+        results.categories.length > 0
     );
 
     return (
@@ -179,7 +155,7 @@ export function SearchBar() {
                 <div className="absolute inset-y-0 right-0 flex items-center">
                     <select
                         value={condition}
-                        onChange={handleConditionChange}
+                        onChange={(e) => setCondition(e.target.value)}
                         className="h-full py-0 pl-2 pr-7 border-transparent bg-transparent text-slate-500 text-xs font-medium rounded-r-md focus:ring-0 focus:border-transparent cursor-pointer hover:text-brand-primary transition-colors border-l border-slate-200"
                     >
                         <option value="all">Semua</option>
@@ -222,53 +198,14 @@ export function SearchBar() {
                                 </div>
                             )}
 
-                            {/* Sellers */}
-                            {results?.sellers && results.sellers.length > 0 && (
-                                <div className="p-3 border-b border-slate-100">
-                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">
-                                        Toko
-                                    </p>
-                                    <div className="space-y-1">
-                                        {results.sellers.map((seller) => (
-                                            <Link
-                                                key={seller.id}
-                                                href={`/store/${seller.store_slug}`}
-                                                onClick={() => setIsOpen(false)}
-                                                className="flex items-center gap-3 px-2 py-2 hover:bg-slate-50 rounded-lg transition-colors"
-                                            >
-                                                <div className="w-8 h-8 rounded-full bg-brand-primary/10 flex items-center justify-center overflow-hidden">
-                                                    {seller.image ? (
-                                                        <Image
-                                                            src={seller.image}
-                                                            alt={seller.store_name || seller.name}
-                                                            width={32}
-                                                            height={32}
-                                                            className="object-cover"
-                                                        />
-                                                    ) : (
-                                                        <Store className="w-4 h-4 text-brand-primary" />
-                                                    )}
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm font-medium text-slate-900">
-                                                        {seller.store_name || seller.name}
-                                                    </p>
-                                                    <p className="text-xs text-slate-500">Toko</p>
-                                                </div>
-                                            </Link>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
                             {/* Products */}
-                            {results?.products && results.products.length > 0 && (
+                            {results?.suggestions && results.suggestions.length > 0 && (
                                 <div className="p-3">
                                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">
                                         Produk
                                     </p>
                                     <div className="space-y-1">
-                                        {results.products.map((product) => (
+                                        {results.suggestions.map((product) => (
                                             <Link
                                                 key={product.id}
                                                 href={`/product/${product.slug}`}
@@ -276,9 +213,9 @@ export function SearchBar() {
                                                 className="flex items-center gap-3 px-2 py-2 hover:bg-slate-50 rounded-lg transition-colors"
                                             >
                                                 <div className="w-12 h-12 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0 relative">
-                                                    {product.images && product.images[0] ? (
+                                                    {product.image ? (
                                                         <Image
-                                                            src={product.images[0]}
+                                                            src={product.image}
                                                             alt={product.title}
                                                             fill
                                                             className="object-cover"
@@ -293,17 +230,9 @@ export function SearchBar() {
                                                     <p className="text-sm font-medium text-slate-900 truncate">
                                                         {product.title}
                                                     </p>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-sm font-bold text-brand-primary">
-                                                            {formatPrice(product.price)}
-                                                        </span>
-                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${product.condition === "NEW"
-                                                                ? "bg-green-100 text-green-700"
-                                                                : "bg-orange-100 text-orange-700"
-                                                            }`}>
-                                                            {product.condition === "NEW" ? "Baru" : "Preloved"}
-                                                        </span>
-                                                    </div>
+                                                    <span className="text-sm font-bold text-brand-primary">
+                                                        {formatPrice(product.price)}
+                                                    </span>
                                                 </div>
                                             </Link>
                                         ))}
