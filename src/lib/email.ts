@@ -1,23 +1,28 @@
 import nodemailer from "nodemailer";
 
-// SMTP Configuration - use 127.0.0.1 explicitly to avoid IPv6 issues
-const SMTP_HOST = process.env.SMTP_HOST || "127.0.0.1";
-const SMTP_PORT = parseInt(process.env.SMTP_PORT || "25");
+// Determine transport type - use sendmail on Linux, SMTP on Windows
+const isLinux = process.platform === "linux";
 
-console.log(`[Email] SMTP Config: host=${SMTP_HOST}, port=${SMTP_PORT}`);
+console.log(`[Email] Platform: ${process.platform}, using ${isLinux ? "sendmail" : "SMTP"} transport`);
 
-// Create reusable transporter using Postfix
-const transporter = nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: SMTP_PORT,
-    secure: false,
-    connectionTimeout: 10000, // 10 seconds
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
-    tls: {
-        rejectUnauthorized: false,
-    },
-});
+// Create transporter - sendmail for Linux (uses Postfix binary), SMTP for others
+const transporter = isLinux
+    ? nodemailer.createTransport({
+        sendmail: true,
+        newline: 'unix',
+        path: '/usr/sbin/sendmail',
+    })
+    : nodemailer.createTransport({
+        host: process.env.SMTP_HOST || "127.0.0.1",
+        port: parseInt(process.env.SMTP_PORT || "25"),
+        secure: false,
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 10000,
+        tls: {
+            rejectUnauthorized: false,
+        },
+    });
 
 const FROM_EMAIL = process.env.EMAIL_FROM || "noreply@jualbeliraket.com";
 const APP_NAME = "JualBeliRaket";
