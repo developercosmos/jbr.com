@@ -321,11 +321,49 @@ export async function deleteUser(userId: string) {
         throw new Error("Anda tidak dapat menghapus akun sendiri");
     }
 
-    // Delete the user (cascade will handle related data based on DB constraints)
-    await db.delete(users).where(eq(users.id, userId));
+    try {
+        // Delete related data in correct order to avoid FK constraints
+        // Start with tables that reference users.id without cascade
 
-    revalidatePath("/admin/users");
-    return { success: true };
+        // 1. Delete user's products first (this will cascade to product_images, variants, etc.)
+        await db.delete(products).where(eq(products.seller_id, userId));
+
+        // 2. Delete conversations where user is buyer or seller
+        await db.execute(sql`DELETE FROM conversations WHERE buyer_id = ${userId} OR seller_id = ${userId}`);
+
+        // 3. Delete orders where user is buyer or seller  
+        await db.execute(sql`DELETE FROM orders WHERE buyer_id = ${userId} OR seller_id = ${userId}`);
+
+        // 4. Delete reviews by user
+        await db.execute(sql`DELETE FROM reviews WHERE reviewer_id = ${userId} OR seller_id = ${userId}`);
+
+        // 5. Delete notifications
+        await db.execute(sql`DELETE FROM notifications WHERE user_id = ${userId}`);
+
+        // 6. Delete cart items
+        await db.execute(sql`DELETE FROM cart_items WHERE user_id = ${userId}`);
+
+        // 7. Delete wishlist items  
+        await db.execute(sql`DELETE FROM wishlist_items WHERE user_id = ${userId}`);
+
+        // 8. Delete follows
+        await db.execute(sql`DELETE FROM follows WHERE follower_id = ${userId} OR following_id = ${userId}`);
+
+        // 9. Delete addresses
+        await db.execute(sql`DELETE FROM addresses WHERE user_id = ${userId}`);
+
+        // 10. Delete disputes
+        await db.execute(sql`DELETE FROM disputes WHERE opened_by_id = ${userId}`);
+
+        // 11. Finally delete the user (sessions, accounts, verifications should cascade)
+        await db.delete(users).where(eq(users.id, userId));
+
+        revalidatePath("/admin/users");
+        return { success: true };
+    } catch (error) {
+        console.error("[deleteUser] Error:", error);
+        throw new Error("Gagal menghapus user. Pastikan tidak ada data terkait.");
+    }
 }
 
 export async function updateUserRole(userId: string, role: "USER" | "ADMIN") {
