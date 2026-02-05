@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Search, Zap, Tag, Menu } from "lucide-react";
+import { Zap, Tag, Menu } from "lucide-react";
 import { NavbarUserArea } from "./NavbarClient";
 import { ChatBadge } from "./ChatBadge";
 import { CartBadge } from "./CartBadge";
 import { NotificationBell } from "./NotificationBell";
+import { SearchBar } from "./SearchBar";
 
 export function Navbar() {
     return (
@@ -22,24 +23,7 @@ export function Navbar() {
 
                     {/* Search Bar Section (Dominant) */}
                     <div className="hidden md:block flex-1 max-w-xl mx-auto">
-                        <div className="relative group">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <Search className="w-4 h-4 text-slate-400 group-focus-within:text-brand-primary transition-colors" />
-                            </div>
-                            <input
-                                className="block w-full pl-9 pr-20 py-2.5 border border-slate-200 rounded-full leading-5 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-brand-primary focus:border-brand-primary sm:text-sm transition-all"
-                                placeholder="Search for gear..."
-                                type="text"
-                            />
-                            {/* Integrated Search Filters/Action */}
-                            <div className="absolute inset-y-0 right-0 flex items-center">
-                                <select className="h-full py-0 pl-2 pr-7 border-transparent bg-transparent text-slate-500 text-xs font-medium rounded-r-md focus:ring-0 focus:border-transparent cursor-pointer hover:text-brand-primary transition-colors border-l border-slate-200">
-                                    <option>All</option>
-                                    <option>New</option>
-                                    <option>Pre-loved</option>
-                                </select>
-                            </div>
-                        </div>
+                        <SearchBar />
                     </div>
 
                     {/* User Actions Section */}

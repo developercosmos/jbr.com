@@ -37,16 +37,21 @@ export async function searchProducts(filters: SearchFilters) {
     // Build conditions array
     const conditions = [eq(products.status, "PUBLISHED")];
 
-    // Full-text search on title, description, brand
+    // Fuzzy search - match each word individually
     if (query.trim()) {
-        const searchPattern = `%${query.trim()}%`;
-        conditions.push(
-            or(
-                ilike(products.title, searchPattern),
-                ilike(products.description, searchPattern),
-                ilike(products.brand, searchPattern)
-            )!
-        );
+        const words = query.toLowerCase().trim().split(/\s+/).filter(w => w.length > 1);
+        if (words.length > 0) {
+            const wordConditions = words.map(word =>
+                or(
+                    ilike(products.title, `%${word}%`),
+                    ilike(products.description, `%${word}%`),
+                    ilike(products.brand, `%${word}%`),
+                    sql`${products.tags}::text ILIKE ${'%' + word + '%'}`
+                )
+            );
+            // Match ANY word (OR logic for broader results)
+            conditions.push(or(...wordConditions)!);
+        }
     }
 
     // Category filter
