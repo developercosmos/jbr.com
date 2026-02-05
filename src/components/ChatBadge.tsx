@@ -47,7 +47,7 @@ export function ChatBadge() {
     }, [session?.user]);
 
     return (
-        <Link href="/chat">
+        <Link href="/messages">
             <button className="relative p-2 rounded-full text-slate-500 hover:text-brand-primary hover:bg-slate-50 transition-all group">
                 <MessageCircle className="w-5 h-5" />
                 {unreadCount > 0 ? (

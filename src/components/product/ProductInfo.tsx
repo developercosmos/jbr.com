@@ -98,7 +98,7 @@ export function ProductInfo({ product }: ProductInfoProps) {
                 if (result.error) {
                     if (result.error === "unauthorized") {
                         // Redirect to login with return URL
-                        router.push(`/auth/login?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
+                        router.push(`/auth/login?callbackUrl=${encodeURIComponent(window.location.pathname)}&redirect=/messages`);
                     } else if (result.error === "cannot_message_self") {
                         alert("Anda tidak dapat mengirim pesan ke diri sendiri");
                     }
@@ -107,7 +107,7 @@ export function ProductInfo({ product }: ProductInfoProps) {
 
                 // Success - navigate to chat
                 if (result.conversationId) {
-                    router.push(`/chat?conversation=${result.conversationId}`);
+                    router.push(`/messages?c=${result.conversationId}`);
                 }
             } catch (error) {
                 console.error("Failed to start conversation:", error);
