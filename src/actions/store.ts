@@ -1,10 +1,10 @@
 "use server";
 
 import { db } from "@/db";
-import { follows, conversations } from "@/db/schema";
+import { follows } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { eq, and, or } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 // ============================================
@@ -73,55 +73,4 @@ export async function getFollowerCount(sellerId: string) {
         where: eq(follows.following_id, sellerId),
     });
     return result.length;
-}
-
-// ============================================
-// START CHAT / GET OR CREATE CONVERSATION
-// ============================================
-export async function getOrCreateConversation(otherUserId: string) {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) {
-        return { success: false, error: "Unauthorized" };
-    }
-
-    const userId = session.user.id;
-
-    // Can't chat with yourself
-    if (userId === otherUserId) {
-        return { success: false, error: "Cannot chat with yourself" };
-    }
-
-    try {
-        // Check for existing conversation (either direction)
-        const existing = await db.query.conversations.findFirst({
-            where: or(
-                and(
-                    eq(conversations.buyer_id, userId),
-                    eq(conversations.seller_id, otherUserId)
-                ),
-                and(
-                    eq(conversations.buyer_id, otherUserId),
-                    eq(conversations.seller_id, userId)
-                )
-            ),
-        });
-
-        if (existing) {
-            return { success: true, conversationId: existing.id };
-        }
-
-        // Create new conversation
-        const [newConversation] = await db
-            .insert(conversations)
-            .values({
-                buyer_id: userId,
-                seller_id: otherUserId,
-            })
-            .returning();
-
-        return { success: true, conversationId: newConversation.id };
-    } catch (error) {
-        console.error("[getOrCreateConversation] Error:", error);
-        return { success: false, error: "Failed to start conversation" };
-    }
 }

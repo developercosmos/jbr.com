@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, UserPlus, UserCheck, MessageCircle } from "lucide-react";
-import { toggleFollow, getOrCreateConversation } from "@/actions/store";
+import { toggleFollow } from "@/actions/store";
+import { startConversation } from "@/actions/chat";
 
 interface StoreActionButtonsProps {
     sellerId: string;
@@ -33,9 +34,13 @@ export function StoreActionButtons({
     const handleChat = async () => {
         setIsChatLoading(true);
         try {
-            const result = await getOrCreateConversation(sellerId);
-            if (result.success && result.conversationId) {
-                router.push(`/chat/${result.conversationId}`);
+            const result = await startConversation(sellerId);
+            if (result.error === "unauthorized") {
+                router.push("/auth/login?redirect=/chat");
+                return;
+            }
+            if (result.conversationId) {
+                router.push(`/chat?conversation=${result.conversationId}`);
             }
         } catch (error) {
             console.error("Failed to start chat:", error);
@@ -55,8 +60,8 @@ export function StoreActionButtons({
                 onClick={handleFollow}
                 disabled={isPending}
                 className={`px-6 py-2.5 font-semibold rounded-lg transition-colors flex items-center gap-2 ${isFollowing
-                        ? "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
-                        : "bg-brand-primary text-white hover:bg-brand-primary/90"
+                    ? "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+                    : "bg-brand-primary text-white hover:bg-brand-primary/90"
                     }`}
             >
                 {isPending ? (
