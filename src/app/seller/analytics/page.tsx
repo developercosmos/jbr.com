@@ -121,7 +121,9 @@ export default async function SellerAnalyticsPage() {
                             </span>
                         </div>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Rating Toko</p>
-                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{stats.rating} / 5.0</h3>
+                        <h3 className="text-2xl font-bold text-slate-900 dark:text-white">
+                            {stats.rating !== null ? `${stats.rating} / 5.0` : "- / 5.0"}
+                        </h3>
                     </div>
                 </div>
 

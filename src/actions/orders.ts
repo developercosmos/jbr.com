@@ -309,7 +309,7 @@ export async function getSellerStats() {
         totalItemsSold,
         productCount,
         lowStockCount,
-        rating: 4.8, // TODO: Calculate from reviews when available
+        rating: null as number | null, // Will be calculated from reviews when available
     };
 }
 

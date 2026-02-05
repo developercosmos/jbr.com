@@ -204,7 +204,7 @@ export default async function SellerDashboardPage() {
                                 </div>
                                 <div>
                                     <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white mb-1">
-                                        {stats.rating}{" "}
+                                        {stats.rating !== null ? stats.rating : "-"}{" "}
                                         <span className="text-sm text-slate-400 font-normal">
                                             / 5.0
                                         </span>
