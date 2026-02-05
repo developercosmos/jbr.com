@@ -171,6 +171,7 @@ export default async function UserManagementPage() {
                                 <select className="appearance-none cursor-pointer rounded-xl border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark py-2.5 pl-4 pr-10 text-sm font-medium text-slate-700 dark:text-slate-300 hover:border-brand-primary focus:border-brand-primary focus:ring-1 focus:ring-brand-primary transition-all">
                                     <option>All Status</option>
                                     <option>Active</option>
+                                    <option>Pending</option>
                                     <option>Banned</option>
                                 </select>
                                 <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -259,10 +260,22 @@ export default async function UserManagementPage() {
                                             )}
                                         </td>
                                         <td className="px-6 py-5">
-                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${user.store_status === "BANNED" ? "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400 ring-1 ring-inset ring-red-600/20" : "bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400 ring-1 ring-inset ring-green-600/20"}`}>
-                                                <span className={`w-1.5 h-1.5 rounded-full ${user.store_status === "BANNED" ? "bg-red-600 animate-pulse" : "bg-green-600"}`}></span>
-                                                {user.store_status || "Active"}
-                                            </span>
+                                            {!user.email_verified ? (
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-yellow-50 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-400 ring-1 ring-inset ring-yellow-600/20">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-yellow-600 animate-pulse"></span>
+                                                    PENDING
+                                                </span>
+                                            ) : user.store_status === "BANNED" ? (
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400 ring-1 ring-inset ring-red-600/20">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></span>
+                                                    BANNED
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400 ring-1 ring-inset ring-green-600/20">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-green-600"></span>
+                                                    ACTIVE
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-5 text-sm text-slate-500">
                                             <div>{formatDate(user.created_at)}</div>
