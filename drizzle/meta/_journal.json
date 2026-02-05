@@ -22,6 +22,13 @@
       "when": 1769925797054,
       "tag": "0002_classy_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1770271077845,
+      "tag": "0003_add_reviews_table",
+      "breakpoints": true
     }
   ]
 }

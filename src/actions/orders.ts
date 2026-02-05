@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { orders, order_items, carts, products } from "@/db/schema";
+import { orders, order_items, carts, products, reviews } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { eq, desc, and, sql, gte } from "drizzle-orm";
@@ -301,6 +301,18 @@ export async function getSellerStats() {
     const productCount = sellerProducts.length;
     const lowStockCount = sellerProducts.filter(p => p.stock <= 5).length;
 
+    // Calculate average rating from reviews
+    const ratingResult = await db
+        .select({
+            avgRating: sql<number>`ROUND(AVG(${reviews.rating})::numeric, 1)`,
+            totalReviews: sql<number>`COUNT(*)`,
+        })
+        .from(reviews)
+        .where(eq(reviews.seller_id, user.id));
+
+    const avgRating = ratingResult[0]?.avgRating ?? null;
+    const totalReviews = Number(ratingResult[0]?.totalReviews ?? 0);
+
     return {
         totalRevenue,
         todayRevenue,
@@ -309,7 +321,8 @@ export async function getSellerStats() {
         totalItemsSold,
         productCount,
         lowStockCount,
-        rating: null as number | null, // Will be calculated from reviews when available
+        rating: avgRating,
+        totalReviews,
     };
 }
 

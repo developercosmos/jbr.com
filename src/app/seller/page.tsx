@@ -210,7 +210,7 @@ export default async function SellerDashboardPage() {
                                         </span>
                                     </h3>
                                     <p className="text-xs font-medium text-slate-400">
-                                        {stats.productCount} produk aktif
+                                        {stats.totalReviews} ulasan
                                     </p>
                                 </div>
                             </div>

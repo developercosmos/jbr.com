@@ -117,7 +117,7 @@ export default async function SellerAnalyticsPage() {
                                 <TrendingUp className="w-5 h-5" />
                             </div>
                             <span className="text-xs font-medium text-yellow-500 px-2 py-1">
-                                ⭐ Rating
+                                ⭐ {stats.totalReviews} ulasan
                             </span>
                         </div>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Rating Toko</p>
