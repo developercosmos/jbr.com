@@ -1,19 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Zap, ArrowRight, Lock, Mail, User, Loader2 } from "lucide-react";
+import { Zap, ArrowRight, Lock, Mail, User, Loader2, CheckCircle, MailCheck } from "lucide-react";
 import { signUp } from "@/lib/auth-client";
 
 export default function RegisterPage() {
-    const router = useRouter();
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [agreedToTerms, setAgreedToTerms] = useState(false);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
+    const [showSuccess, setShowSuccess] = useState(false);
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -41,8 +40,8 @@ export default function RegisterPage() {
             if (result.error) {
                 setError(result.error.message || "Pendaftaran gagal. Silakan coba lagi.");
             } else {
-                router.push("/");
-                router.refresh();
+                // Show success popup instead of redirect
+                setShowSuccess(true);
             }
         } catch {
             setError("Terjadi kesalahan. Silakan coba lagi.");
@@ -50,6 +49,66 @@ export default function RegisterPage() {
             setLoading(false);
         }
     };
+
+    // Success popup
+    if (showSuccess) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-black/20 p-4">
+                <div className="max-w-md w-full bg-white dark:bg-surface-dark rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-8 text-center">
+                    {/* Success Icon */}
+                    <div className="flex justify-center mb-6">
+                        <div className="relative">
+                            <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-full">
+                                <MailCheck className="w-16 h-16 text-green-600" />
+                            </div>
+                            <div className="absolute -bottom-1 -right-1 p-1.5 bg-green-600 rounded-full">
+                                <CheckCircle className="w-5 h-5 text-white" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Title */}
+                    <h1 className="text-2xl font-heading font-bold text-slate-900 dark:text-white mb-3">
+                        Pendaftaran Berhasil! 🎉
+                    </h1>
+
+                    {/* Message */}
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 mb-6">
+                        <p className="text-blue-800 dark:text-blue-300 font-medium mb-2">
+                            Email verifikasi telah dikirim ke:
+                        </p>
+                        <p className="text-blue-600 dark:text-blue-400 font-bold text-lg">
+                            {email}
+                        </p>
+                    </div>
+
+                    <p className="text-slate-500 dark:text-slate-400 mb-6">
+                        Silakan cek <strong>inbox email</strong> Anda dan klik tombol <strong>"Verifikasi Email"</strong> untuk mengaktifkan akun.
+                        <br /><br />
+                        <span className="text-sm text-slate-400">
+                            Tidak menemukan email? Cek folder <strong>Spam</strong> atau <strong>Promosi</strong>.
+                        </span>
+                    </p>
+
+                    {/* Actions */}
+                    <div className="space-y-3">
+                        <Link
+                            href="/auth/login"
+                            className="block w-full py-3.5 bg-brand-primary hover:bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-brand-primary/25 transition-all text-center"
+                        >
+                            Lanjut ke Halaman Login
+                        </Link>
+                        <Link
+                            href="/"
+                            className="block w-full py-3 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-center"
+                        >
+                            Kembali ke Beranda
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-black/20 p-4">
@@ -185,4 +244,5 @@ export default function RegisterPage() {
         </div>
     );
 }
+
 
