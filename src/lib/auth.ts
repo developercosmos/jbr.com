@@ -23,7 +23,12 @@ export const auth = betterAuth({
                 return bcrypt.compare(password, hash);
             },
         },
-        sendVerificationEmail: async ({ user, token }: { user: { email: string; name?: string | null }; url: string; token: string }) => {
+    },
+    emailVerification: {
+        sendOnSignUp: true,
+        autoSignInAfterVerification: true,
+        sendVerificationEmail: async ({ user, url, token }) => {
+            console.log(`[Auth] Sending verification email to ${user.email}`);
             await sendVerificationEmail(user.email, token, user.name || undefined);
         },
     },
