@@ -13,8 +13,7 @@ function buildFuzzyCondition(query: string) {
     const conditions = words.map(word =>
         or(
             ilike(products.title, `%${word}%`),
-            ilike(products.brand, `%${word}%`),
-            sql`${products.tags}::text ILIKE ${'%' + word + '%'}`
+            ilike(products.brand, `%${word}%`)
         )
     );
 

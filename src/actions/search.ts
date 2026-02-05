@@ -45,8 +45,7 @@ export async function searchProducts(filters: SearchFilters) {
                 or(
                     ilike(products.title, `%${word}%`),
                     ilike(products.description, `%${word}%`),
-                    ilike(products.brand, `%${word}%`),
-                    sql`${products.tags}::text ILIKE ${'%' + word + '%'}`
+                    ilike(products.brand, `%${word}%`)
                 )
             );
             // Match ANY word (OR logic for broader results)
