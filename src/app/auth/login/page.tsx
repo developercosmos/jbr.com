@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Zap, ArrowRight, Lock, Mail, Loader2 } from "lucide-react";
-import { signIn } from "@/lib/auth-client";
+import { Zap, ArrowRight, Lock, Mail, Loader2, AlertCircle, Send } from "lucide-react";
+import { signIn, authClient } from "@/lib/auth-client";
 
 export default function LoginPage() {
     const router = useRouter();
@@ -12,10 +12,15 @@ export default function LoginPage() {
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
+    const [needsVerification, setNeedsVerification] = useState(false);
+    const [resendLoading, setResendLoading] = useState(false);
+    const [resendSuccess, setResendSuccess] = useState(false);
 
     const handleEmailLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
+        setNeedsVerification(false);
+        setResendSuccess(false);
         setLoading(true);
 
         try {
@@ -25,7 +30,14 @@ export default function LoginPage() {
             });
 
             if (result.error) {
-                setError(result.error.message || "Login gagal. Silakan coba lagi.");
+                const errorMessage = result.error.message || "";
+                // Check if it's an email verification error
+                if (errorMessage.toLowerCase().includes("verif") || errorMessage.toLowerCase().includes("verified")) {
+                    setNeedsVerification(true);
+                    setError("Email Anda belum terverifikasi. Silakan cek inbox email Anda.");
+                } else {
+                    setError(errorMessage || "Login gagal. Silakan coba lagi.");
+                }
             } else {
                 router.push("/");
                 router.refresh();
@@ -34,6 +46,37 @@ export default function LoginPage() {
             setError("Terjadi kesalahan. Silakan coba lagi.");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleResendVerification = async () => {
+        if (!email) {
+            setError("Masukkan email Anda terlebih dahulu.");
+            return;
+        }
+
+        setResendLoading(true);
+        setError("");
+
+        try {
+            // Call the API to resend verification email
+            const response = await fetch("/api/auth/resend-verification", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email }),
+            });
+
+            if (response.ok) {
+                setResendSuccess(true);
+                setNeedsVerification(false);
+            } else {
+                const data = await response.json();
+                setError(data.error || "Gagal mengirim email verifikasi.");
+            }
+        } catch {
+            setError("Gagal mengirim email verifikasi.");
+        } finally {
+            setResendLoading(false);
         }
     };
 
@@ -77,10 +120,46 @@ export default function LoginPage() {
                     </p>
                 </div>
 
+                {/* Resend Success Message */}
+                {resendSuccess && (
+                    <div className="mb-6 p-3 bg-green-50 border border-green-200 text-green-700 rounded-xl text-sm flex items-start gap-2">
+                        <Send className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                        <div>
+                            <p className="font-medium">Email verifikasi terkirim!</p>
+                            <p className="text-sm text-green-600">Silakan cek inbox email Anda untuk link verifikasi.</p>
+                        </div>
+                    </div>
+                )}
+
                 {/* Error Message */}
                 {error && (
                     <div className="mb-6 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm">
-                        {error}
+                        <div className="flex items-start gap-2">
+                            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                                <p>{error}</p>
+                                {needsVerification && (
+                                    <button
+                                        type="button"
+                                        onClick={handleResendVerification}
+                                        disabled={resendLoading}
+                                        className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-red-800 hover:text-red-900 underline disabled:opacity-50"
+                                    >
+                                        {resendLoading ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                Mengirim...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Send className="w-4 h-4" />
+                                                Kirim Ulang Email Verifikasi
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
 

@@ -162,6 +162,7 @@ export async function seedDefaultIntegrations() {
         credentials: Record<string, string>;
         config: Record<string, unknown>;
     }> = [
+            // Payment Gateways
             {
                 key: "xendit",
                 name: "Xendit",
@@ -178,19 +179,37 @@ export async function seedDefaultIntegrations() {
                 },
             },
             {
-                key: "resend",
-                name: "Resend",
-                description: "Email service untuk notifikasi transaksi dan marketing",
-                category: "email",
+                key: "midtrans",
+                name: "Midtrans",
+                description: "Payment gateway populer dengan dukungan bank transfer, e-wallet, dan kartu kredit",
+                category: "payment",
                 enabled: false,
                 credentials: {
-                    api_key: "",
+                    server_key: "",
+                    client_key: "",
                 },
                 config: {
-                    from_email: "noreply@jualbeliraket.com",
-                    from_name: "JualBeliRaket",
+                    is_production: false,
+                    enable_3ds: true,
                 },
             },
+            // Email Service
+            {
+                key: "postfix",
+                name: "Postfix / SMTP",
+                description: "Email server internal menggunakan Postfix SMTP untuk notifikasi sistem",
+                category: "email",
+                enabled: true,
+                credentials: {},
+                config: {
+                    smtp_host: "localhost",
+                    smtp_port: 25,
+                    from_email: "noreply@jualbeliraket.com",
+                    from_name: "JualBeliRaket",
+                    use_tls: false,
+                },
+            },
+            // Shipping
             {
                 key: "rajaongkir",
                 name: "RajaOngkir",

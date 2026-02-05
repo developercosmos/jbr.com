@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { Pool } from "pg";
 import bcrypt from "bcryptjs";
+import { sendVerificationEmail } from "./email";
 
 // Create database pool with explicit configuration
 const pool = new Pool({
@@ -13,6 +14,7 @@ export const auth = betterAuth({
     emailAndPassword: {
         enabled: true,
         minPasswordLength: 6,
+        requireEmailVerification: true,
         password: {
             hash: async (password: string) => {
                 return bcrypt.hash(password, 10);
@@ -20,6 +22,9 @@ export const auth = betterAuth({
             verify: async ({ password, hash }: { password: string; hash: string }) => {
                 return bcrypt.compare(password, hash);
             },
+        },
+        sendVerificationEmail: async ({ user, token }: { user: { email: string; name?: string | null }; url: string; token: string }) => {
+            await sendVerificationEmail(user.email, token, user.name || undefined);
         },
     },
     // Map to existing database schema (snake_case)
@@ -73,3 +78,4 @@ export const auth = betterAuth({
 });
 
 export type Session = typeof auth.$Infer.Session;
+
