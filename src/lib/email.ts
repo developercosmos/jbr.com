@@ -1,9 +1,15 @@
 import nodemailer from "nodemailer";
 
+// SMTP Configuration
+const SMTP_HOST = process.env.SMTP_HOST || "localhost";
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || "25");
+
+console.log(`[Email] SMTP Config: host=${SMTP_HOST}, port=${SMTP_PORT}`);
+
 // Create reusable transporter using Postfix
 const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "localhost",
-    port: parseInt(process.env.SMTP_PORT || "25"),
+    host: SMTP_HOST,
+    port: SMTP_PORT,
     secure: false,
     tls: {
         rejectUnauthorized: false,
