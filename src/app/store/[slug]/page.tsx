@@ -5,6 +5,10 @@ import { eq, and, desc } from "drizzle-orm";
 import Image from "next/image";
 import Link from "next/link";
 import { Store, Package, Star, MapPin, Calendar, ChevronRight } from "lucide-react";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { checkIsFollowing, getFollowerCount } from "@/actions/store";
+import { StoreActionButtons } from "@/components/store/StoreActionButtons";
 
 type Props = {
     params: Promise<{ slug: string }>;
@@ -49,6 +53,12 @@ export default async function StorePage({ params }: Props) {
     if (!seller || !seller.store_name) {
         notFound();
     }
+
+    // Get current session and check if following
+    const session = await auth.api.getSession({ headers: await headers() });
+    const isOwnStore = session?.user?.id === seller.id;
+    const isFollowing = session?.user ? await checkIsFollowing(seller.id) : false;
+    const followerCount = await getFollowerCount(seller.id);
 
     const sellerProducts = await getSellerProducts(seller.id);
 
@@ -110,18 +120,20 @@ export default async function StorePage({ params }: Props) {
                                         })}
                                     </span>
                                 </div>
+                                {followerCount > 0 && (
+                                    <div className="flex items-center gap-1.5">
+                                        <span>{followerCount} pengikut</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex gap-3">
-                            <button className="px-6 py-2.5 bg-brand-primary text-white font-semibold rounded-lg hover:bg-brand-primary/90 transition-colors">
-                                Follow
-                            </button>
-                            <button className="px-6 py-2.5 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-semibold rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                                Chat
-                            </button>
-                        </div>
+                        <StoreActionButtons
+                            sellerId={seller.id}
+                            initialIsFollowing={isFollowing}
+                            isOwnStore={isOwnStore}
+                        />
                     </div>
                 </div>
             </div>

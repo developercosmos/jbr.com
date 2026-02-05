@@ -834,3 +834,38 @@ export const filesRelations = relations(files, ({ one }) => ({
         references: [users.id],
     }),
 }));
+
+// ============================================
+// FOLLOWS TABLE (Store Followers)
+// ============================================
+export const follows = pgTable(
+    "follows",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        follower_id: text("follower_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        following_id: text("following_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        follower_idx: index("idx_follows_follower").on(table.follower_id),
+        following_idx: index("idx_follows_following").on(table.following_id),
+        unique_follow: uniqueIndex("idx_follows_unique").on(table.follower_id, table.following_id),
+    })
+);
+
+export const followsRelations = relations(follows, ({ one }) => ({
+    follower: one(users, {
+        fields: [follows.follower_id],
+        references: [users.id],
+        relationName: "follower",
+    }),
+    following: one(users, {
+        fields: [follows.following_id],
+        references: [users.id],
+        relationName: "following",
+    }),
+}));

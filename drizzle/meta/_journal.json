@@ -29,6 +29,13 @@
       "when": 1770271077845,
       "tag": "0003_add_reviews_table",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1770277872184,
+      "tag": "0004_youthful_omega_flight",
+      "breakpoints": true
     }
   ]
 }
