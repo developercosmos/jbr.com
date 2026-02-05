@@ -297,6 +297,7 @@ export async function banUser(userId: string) {
         .set({ store_status: "BANNED", updated_at: new Date() })
         .where(eq(users.id, userId));
 
+    revalidatePath("/admin/users");
     return { success: true };
 }
 
@@ -307,6 +308,21 @@ export async function unbanUser(userId: string) {
         .update(users)
         .set({ store_status: "ACTIVE", updated_at: new Date() })
         .where(eq(users.id, userId));
+
+    revalidatePath("/admin/users");
+    return { success: true };
+}
+
+export async function deleteUser(userId: string) {
+    const admin = await getCurrentAdmin();
+
+    // Prevent admin from deleting themselves
+    if (admin.id === userId) {
+        throw new Error("Anda tidak dapat menghapus akun sendiri");
+    }
+
+    // Delete the user (cascade will handle related data based on DB constraints)
+    await db.delete(users).where(eq(users.id, userId));
 
     revalidatePath("/admin/users");
     return { success: true };
