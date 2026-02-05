@@ -1,5 +1,6 @@
-import { TrendingUp, Users, ShoppingBag, DollarSign, ArrowUpRight, Calendar, Activity, Package } from "lucide-react";
+import { TrendingUp, Users, ShoppingBag, DollarSign, ArrowUpRight, Calendar, Activity, Package, Database, Cpu } from "lucide-react";
 import { getAnalyticsStats } from "@/actions/admin";
+import { getServerHealth } from "@/actions/health";
 
 // Format currency
 function formatCurrency(value: string | number) {
@@ -23,7 +24,10 @@ const COLORS = [
 ];
 
 export default async function AdminAnalyticsPage() {
-    const stats = await getAnalyticsStats();
+    const [stats, serverHealth] = await Promise.all([
+        getAnalyticsStats(),
+        getServerHealth(),
+    ]);
 
     // Calculate category percentages
     const totalProducts = stats.categoryDistribution.reduce((sum, cat) => sum + cat.count, 0);
@@ -129,30 +133,83 @@ export default async function AdminAnalyticsPage() {
 
                 {/* Charts Section */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Server Status Placeholder */}
+                    {/* Server Status - Real Data */}
                     <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
                         <div className="flex items-center justify-between mb-6">
                             <h3 className="text-lg font-bold text-slate-900 dark:text-white">Status Server</h3>
-                            <span className="flex items-center gap-2 text-sm text-green-600 font-medium">
-                                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                                Semua Sistem Operasional
+                            <span className={`flex items-center gap-2 text-sm font-medium ${serverHealth.database.status === "ok"
+                                    ? "text-green-600"
+                                    : serverHealth.database.status === "slow"
+                                        ? "text-yellow-600"
+                                        : "text-red-600"
+                                }`}>
+                                <span className={`w-2 h-2 rounded-full animate-pulse ${serverHealth.database.status === "ok"
+                                        ? "bg-green-500"
+                                        : serverHealth.database.status === "slow"
+                                            ? "bg-yellow-500"
+                                            : "bg-red-500"
+                                    }`}></span>
+                                {serverHealth.database.status === "ok"
+                                    ? "Semua Sistem Operasional"
+                                    : serverHealth.database.status === "slow"
+                                        ? "Response Lambat"
+                                        : "Ada Masalah"}
                             </span>
                         </div>
                         <div className="grid grid-cols-3 gap-4">
-                            <div className="text-center p-4 bg-green-50 dark:bg-green-900/10 rounded-lg">
-                                <Activity className="w-6 h-6 text-green-600 mx-auto mb-2" />
-                                <p className="text-2xl font-bold text-green-600">99.9%</p>
-                                <p className="text-xs text-slate-500">Uptime</p>
-                            </div>
-                            <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/10 rounded-lg">
-                                <TrendingUp className="w-6 h-6 text-blue-600 mx-auto mb-2" />
-                                <p className="text-2xl font-bold text-blue-600">45ms</p>
-                                <p className="text-xs text-slate-500">Response</p>
-                            </div>
-                            <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/10 rounded-lg">
-                                <Users className="w-6 h-6 text-purple-600 mx-auto mb-2" />
-                                <p className="text-2xl font-bold text-purple-600">OK</p>
+                            {/* Database Response Time */}
+                            <div className={`text-center p-4 rounded-lg ${serverHealth.database.status === "ok"
+                                    ? "bg-green-50 dark:bg-green-900/10"
+                                    : serverHealth.database.status === "slow"
+                                        ? "bg-yellow-50 dark:bg-yellow-900/10"
+                                        : "bg-red-50 dark:bg-red-900/10"
+                                }`}>
+                                <Database className={`w-6 h-6 mx-auto mb-2 ${serverHealth.database.status === "ok"
+                                        ? "text-green-600"
+                                        : serverHealth.database.status === "slow"
+                                            ? "text-yellow-600"
+                                            : "text-red-600"
+                                    }`} />
+                                <p className={`text-2xl font-bold ${serverHealth.database.status === "ok"
+                                        ? "text-green-600"
+                                        : serverHealth.database.status === "slow"
+                                            ? "text-yellow-600"
+                                            : "text-red-600"
+                                    }`}>
+                                    {serverHealth.database.responseTime}ms
+                                </p>
                                 <p className="text-xs text-slate-500">Database</p>
+                            </div>
+                            {/* Memory Usage */}
+                            <div className={`text-center p-4 rounded-lg ${serverHealth.memory.percentage < 70
+                                    ? "bg-blue-50 dark:bg-blue-900/10"
+                                    : serverHealth.memory.percentage < 90
+                                        ? "bg-yellow-50 dark:bg-yellow-900/10"
+                                        : "bg-red-50 dark:bg-red-900/10"
+                                }`}>
+                                <Cpu className={`w-6 h-6 mx-auto mb-2 ${serverHealth.memory.percentage < 70
+                                        ? "text-blue-600"
+                                        : serverHealth.memory.percentage < 90
+                                            ? "text-yellow-600"
+                                            : "text-red-600"
+                                    }`} />
+                                <p className={`text-2xl font-bold ${serverHealth.memory.percentage < 70
+                                        ? "text-blue-600"
+                                        : serverHealth.memory.percentage < 90
+                                            ? "text-yellow-600"
+                                            : "text-red-600"
+                                    }`}>
+                                    {serverHealth.memory.percentage}%
+                                </p>
+                                <p className="text-xs text-slate-500">Memory</p>
+                            </div>
+                            {/* Uptime */}
+                            <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/10 rounded-lg">
+                                <Activity className="w-6 h-6 text-purple-600 mx-auto mb-2" />
+                                <p className="text-2xl font-bold text-purple-600">
+                                    {serverHealth.uptime.percentage}%
+                                </p>
+                                <p className="text-xs text-slate-500">Uptime</p>
                             </div>
                         </div>
                     </div>
