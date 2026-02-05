@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 
-// SMTP Configuration
-const SMTP_HOST = process.env.SMTP_HOST || "localhost";
+// SMTP Configuration - use 127.0.0.1 explicitly to avoid IPv6 issues
+const SMTP_HOST = process.env.SMTP_HOST || "127.0.0.1";
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || "25");
 
 console.log(`[Email] SMTP Config: host=${SMTP_HOST}, port=${SMTP_PORT}`);
@@ -11,6 +11,9 @@ const transporter = nodemailer.createTransport({
     host: SMTP_HOST,
     port: SMTP_PORT,
     secure: false,
+    connectionTimeout: 10000, // 10 seconds
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
     tls: {
         rejectUnauthorized: false,
     },
