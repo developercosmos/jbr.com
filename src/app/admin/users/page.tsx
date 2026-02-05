@@ -290,6 +290,7 @@ export default async function UserManagementPage() {
                                                     role: user.role,
                                                 }}
                                                 isBanned={user.store_status === "BANNED"}
+                                                isPendingVerification={!user.email_verified}
                                             />
                                         </td>
                                     </tr>

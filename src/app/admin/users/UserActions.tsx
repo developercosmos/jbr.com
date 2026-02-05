@@ -1,8 +1,9 @@
 "use client";
 
-import { Ban, RefreshCcw, Trash2 } from "lucide-react";
+import { Ban, RefreshCcw, Trash2, Mail, Loader2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { banUser, unbanUser, deleteUser } from "@/actions/admin";
+import { requestEmailVerification } from "@/actions/auth-email";
 import { EditUserButton } from "./EditUserButton";
 
 interface UserData {
@@ -12,9 +13,10 @@ interface UserData {
     role: "USER" | "ADMIN";
 }
 
-export function UserActions({ user, isBanned }: { user: UserData; isBanned: boolean }) {
+export function UserActions({ user, isBanned, isPendingVerification }: { user: UserData; isBanned: boolean; isPendingVerification: boolean }) {
     const [isPending, startTransition] = useTransition();
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [resendSuccess, setResendSuccess] = useState(false);
 
     const handleBan = () => {
         startTransition(async () => {
@@ -25,6 +27,16 @@ export function UserActions({ user, isBanned }: { user: UserData; isBanned: bool
     const handleUnban = () => {
         startTransition(async () => {
             await unbanUser(user.id);
+        });
+    };
+
+    const handleResendVerification = () => {
+        startTransition(async () => {
+            const result = await requestEmailVerification(user.id);
+            if (result.success) {
+                setResendSuccess(true);
+                setTimeout(() => setResendSuccess(false), 3000);
+            }
         });
     };
 
@@ -43,6 +55,25 @@ export function UserActions({ user, isBanned }: { user: UserData; isBanned: bool
         <>
             <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
                 <EditUserButton user={user} />
+                {isPendingVerification && (
+                    <button
+                        onClick={handleResendVerification}
+                        disabled={isPending || resendSuccess}
+                        className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${resendSuccess
+                                ? "text-green-600 bg-green-50 dark:bg-green-900/20"
+                                : "text-slate-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 hover:text-yellow-600 dark:hover:text-yellow-400"
+                            }`}
+                        title={resendSuccess ? "Email Terkirim!" : "Resend Verification Email"}
+                    >
+                        {isPending ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : resendSuccess ? (
+                            <Mail className="w-4 h-4" />
+                        ) : (
+                            <Mail className="w-4 h-4" />
+                        )}
+                    </button>
+                )}
                 {isBanned ? (
                     <button
                         onClick={handleUnban}
@@ -104,4 +135,3 @@ export function UserActions({ user, isBanned }: { user: UserData; isBanned: bool
         </>
     );
 }
-
