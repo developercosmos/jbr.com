@@ -9,6 +9,9 @@ const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
 });
 
+const tiktokClientKey = process.env.TIKTOK_CLIENT_KEY || process.env.TIKTOK_CLIENT_ID || "";
+const tiktokClientSecret = process.env.TIKTOK_CLIENT_SECRET || "";
+
 export const auth = betterAuth({
     secret: process.env.BETTER_AUTH_SECRET,
     database: pool,
@@ -34,6 +37,14 @@ export const auth = betterAuth({
             ],
         }),
     ],
+    socialProviders: tiktokClientKey && tiktokClientSecret
+        ? {
+            tiktok: {
+                clientKey: tiktokClientKey,
+                clientSecret: tiktokClientSecret,
+            },
+        }
+        : undefined,
     emailAndPassword: {
         enabled: true,
         minPasswordLength: 6,

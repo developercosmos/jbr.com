@@ -102,7 +102,7 @@ export default function LoginPage() {
         }
     };
 
-    const handleSocialLogin = async (provider: "google" | "facebook" | "instagram" | "apple" | "twitter") => {
+    const handleSocialLogin = async (provider: "google" | "facebook" | "instagram" | "tiktok" | "apple" | "twitter") => {
         setError("");
         setLoading(true);
 
@@ -317,6 +317,20 @@ export default function LoginPage() {
                             <path fill="url(#ig-gradient)" d="M7.5 2h9A5.5 5.5 0 0 1 22 7.5v9A5.5 5.5 0 0 1 16.5 22h-9A5.5 5.5 0 0 1 2 16.5v-9A5.5 5.5 0 0 1 7.5 2Zm0 1.8A3.7 3.7 0 0 0 3.8 7.5v9a3.7 3.7 0 0 0 3.7 3.7h9a3.7 3.7 0 0 0 3.7-3.7v-9a3.7 3.7 0 0 0-3.7-3.7h-9Zm9.7 1.3a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2ZM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 1.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4Z" />
                         </svg>
                         Instagram
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleSocialLogin("tiktok")}
+                        disabled={loading}
+                        className="flex items-center justify-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors font-medium text-slate-700 dark:text-slate-300 text-sm disabled:opacity-50"
+                    >
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
+                            <path
+                                fill="currentColor"
+                                d="M17.5 3c.3 1.8 1.4 3.2 3.1 4 .5.2 1 .4 1.4.4V11c-1.7 0-3.4-.5-4.8-1.4v5.9c0 3.1-2.5 5.5-5.6 5.5S6 18.6 6 15.5 8.5 10 11.6 10c.3 0 .6 0 .9.1v3.4a2.1 2.1 0 0 0-.9-.2c-1.2 0-2.2 1-2.2 2.2s1 2.2 2.2 2.2 2.2-1 2.2-2.2V3h3.7Z"
+                            />
+                        </svg>
+                        TikTok
                     </button>
                 </div>
 
