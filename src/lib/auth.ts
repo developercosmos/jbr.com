@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth";
+import { genericOAuth } from "better-auth/plugins";
 import { Pool } from "pg";
 import bcrypt from "bcryptjs";
 import { sendVerificationEmail } from "./email";
@@ -11,6 +12,28 @@ const pool = new Pool({
 export const auth = betterAuth({
     secret: process.env.BETTER_AUTH_SECRET,
     database: pool,
+    plugins: [
+        genericOAuth({
+            config: [
+                {
+                    providerId: "instagram",
+                    authorizationUrl: "https://api.instagram.com/oauth/authorize",
+                    tokenUrl: "https://api.instagram.com/oauth/access_token",
+                    userInfoUrl: "https://graph.instagram.com/me?fields=id,username",
+                    clientId: process.env.INSTAGRAM_CLIENT_ID || "",
+                    clientSecret: process.env.INSTAGRAM_CLIENT_SECRET || "",
+                    scopes: ["user_profile"],
+                    mapProfileToUser: (profile) => ({
+                        id: String(profile.id),
+                        name: String(profile.username || "Instagram User"),
+                        email: `${String(profile.id)}@instagram.local`,
+                        emailVerified: false,
+                        image: null,
+                    }),
+                },
+            ],
+        }),
+    ],
     emailAndPassword: {
         enabled: true,
         minPasswordLength: 6,

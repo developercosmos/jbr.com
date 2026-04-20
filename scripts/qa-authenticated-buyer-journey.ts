@@ -8,6 +8,9 @@ type StepResult = {
 };
 
 const baseUrl = "http://localhost:3000";
+const browserLikeHeaders = {
+    Origin: "http://localhost:3000",
+};
 
 async function main() {
     const results: StepResult[] = [];
@@ -22,7 +25,10 @@ async function main() {
     try {
         const loginResp = await fetch(`${baseUrl}/api/auth/sign-in/email`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                ...browserLikeHeaders,
+            },
             body: JSON.stringify({
                 email: "buyer1@demo.com",
                 password: "demo123",
@@ -80,7 +86,7 @@ async function main() {
     // 3) Product page must be reachable with authenticated session.
     try {
         const productResp = await fetch(`${baseUrl}/product/${productSlug}`, {
-            headers: { Cookie: sessionCookie },
+            headers: { Cookie: sessionCookie, ...browserLikeHeaders },
             redirect: "manual",
         });
 
@@ -136,7 +142,7 @@ async function main() {
     // 5) Cart page should render for authenticated buyer and contain product title.
     try {
         const cartResp = await fetch(`${baseUrl}/cart`, {
-            headers: { Cookie: sessionCookie },
+            headers: { Cookie: sessionCookie, ...browserLikeHeaders },
             redirect: "manual",
         });
 
@@ -159,7 +165,7 @@ async function main() {
     // 6) Checkout page should be reachable and not redirect to login.
     try {
         const checkoutResp = await fetch(`${baseUrl}/checkout`, {
-            headers: { Cookie: sessionCookie },
+            headers: { Cookie: sessionCookie, ...browserLikeHeaders },
             redirect: "manual",
         });
 

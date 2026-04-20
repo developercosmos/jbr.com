@@ -102,7 +102,7 @@ export default function LoginPage() {
         }
     };
 
-    const handleSocialLogin = async (provider: "google" | "facebook" | "apple" | "twitter") => {
+    const handleSocialLogin = async (provider: "google" | "facebook" | "instagram" | "apple" | "twitter") => {
         setError("");
         setLoading(true);
 
@@ -298,6 +298,25 @@ export default function LoginPage() {
                             <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
                         </svg>
                         Facebook
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleSocialLogin("instagram")}
+                        disabled={loading}
+                        className="flex items-center justify-center gap-2 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-white/5 transition-colors font-medium text-slate-700 dark:text-slate-300 text-sm disabled:opacity-50"
+                    >
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" aria-hidden="true">
+                            <defs>
+                                <linearGradient id="ig-gradient" x1="0%" y1="100%" x2="100%" y2="0%">
+                                    <stop offset="0%" stopColor="#F58529" />
+                                    <stop offset="35%" stopColor="#DD2A7B" />
+                                    <stop offset="70%" stopColor="#8134AF" />
+                                    <stop offset="100%" stopColor="#515BD4" />
+                                </linearGradient>
+                            </defs>
+                            <path fill="url(#ig-gradient)" d="M7.5 2h9A5.5 5.5 0 0 1 22 7.5v9A5.5 5.5 0 0 1 16.5 22h-9A5.5 5.5 0 0 1 2 16.5v-9A5.5 5.5 0 0 1 7.5 2Zm0 1.8A3.7 3.7 0 0 0 3.8 7.5v9a3.7 3.7 0 0 0 3.7 3.7h9a3.7 3.7 0 0 0 3.7-3.7v-9a3.7 3.7 0 0 0-3.7-3.7h-9Zm9.7 1.3a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2ZM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 1.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4Z" />
+                        </svg>
+                        Instagram
                     </button>
                 </div>
 

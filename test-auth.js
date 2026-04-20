@@ -4,7 +4,10 @@ async function testAuth() {
         console.log('Testing sign-in API...');
         const response = await fetch('http://localhost:3000/api/auth/sign-in/email', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Origin': 'http://localhost:3000'
+            },
             body: JSON.stringify({ email: 'buyer1@demo.com', password: 'demo123' })
         });
         
