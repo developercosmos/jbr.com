@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 interface MessagesPageProps {
-    searchParams: Promise<{ c?: string }>;
+    searchParams: Promise<{ c?: string; conversation?: string }>;
 }
 
 export default async function MessagesPage({ searchParams }: MessagesPageProps) {
@@ -20,8 +20,8 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
 
     const conversations = await getConversations();
     const params = await searchParams;
-    // Use short param 'c' instead of full 'conversation' to reduce WAF triggers
-    const initialConversationId = params.c || null;
+    // Prefer short param 'c' but keep legacy support for 'conversation'.
+    const initialConversationId = params.c || params.conversation || null;
 
     return (
         <ChatClient

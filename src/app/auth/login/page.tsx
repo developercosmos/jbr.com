@@ -4,7 +4,27 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Zap, ArrowRight, Lock, Mail, Loader2, AlertCircle, Send } from "lucide-react";
-import { signIn, authClient } from "@/lib/auth-client";
+import { signIn } from "@/lib/auth-client";
+
+function getSafeCallbackUrl(value: string | null): string {
+    if (!value) {
+        return "/";
+    }
+
+    let decoded = value;
+    try {
+        decoded = decodeURIComponent(value);
+    } catch {
+        decoded = value;
+    }
+
+    // Allow only same-site relative URLs.
+    if (decoded.startsWith("/") && !decoded.startsWith("//")) {
+        return decoded;
+    }
+
+    return "/";
+}
 
 export default function LoginPage() {
     const router = useRouter();
@@ -39,7 +59,9 @@ export default function LoginPage() {
                     setError(errorMessage || "Login gagal. Silakan coba lagi.");
                 }
             } else {
-                router.push("/");
+                const searchParams = new URLSearchParams(window.location.search);
+                const callbackUrl = getSafeCallbackUrl(searchParams.get("callbackUrl") || searchParams.get("redirect"));
+                router.push(callbackUrl);
                 router.refresh();
             }
         } catch {
@@ -85,9 +107,11 @@ export default function LoginPage() {
         setLoading(true);
 
         try {
+            const searchParams = new URLSearchParams(window.location.search);
+            const callbackUrl = getSafeCallbackUrl(searchParams.get("callbackUrl") || searchParams.get("redirect"));
             await signIn.social({
                 provider,
-                callbackURL: "/",
+                callbackURL: callbackUrl,
             });
         } catch {
             setError("Terjadi kesalahan. Silakan coba lagi.");

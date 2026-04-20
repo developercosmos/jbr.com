@@ -3,6 +3,8 @@ import { Inter, Oswald } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
 
+export const dynamic = "force-dynamic";
+
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",

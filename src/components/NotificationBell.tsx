@@ -1,18 +1,19 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bell, Check, CheckCheck, X } from "lucide-react";
+import { Bell, Check, CheckCheck } from "lucide-react";
 import Link from "next/link";
-import { getNotifications, getUnreadNotificationCount, markNotificationAsRead, markAllNotificationsAsRead } from "@/actions/notifications";
+import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from "@/actions/notifications";
+import { useHeaderCounters } from "@/hooks/useHeaderCounters";
 
 type Notification = Awaited<ReturnType<typeof getNotifications>>[number];
 
 export function NotificationBell() {
     const [isOpen, setIsOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
-    const [unreadCount, setUnreadCount] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const { unreadNotificationCount, refreshCounters } = useHeaderCounters();
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -24,23 +25,6 @@ export function NotificationBell() {
 
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    // Fetch unread count on mount and periodically
-    useEffect(() => {
-        const fetchUnreadCount = async () => {
-            try {
-                const count = await getUnreadNotificationCount();
-                setUnreadCount(count);
-            } catch (error) {
-                console.error("Error fetching unread count:", error);
-            }
-        };
-
-        fetchUnreadCount();
-        const interval = setInterval(fetchUnreadCount, 30000); // Every 30 seconds
-
-        return () => clearInterval(interval);
     }, []);
 
     // Fetch notifications when dropdown opens
@@ -68,7 +52,7 @@ export function NotificationBell() {
             setNotifications((prev) =>
                 prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n))
             );
-            setUnreadCount((prev) => Math.max(0, prev - 1));
+            await refreshCounters();
         } catch (error) {
             console.error("Error marking notification as read:", error);
         }
@@ -78,7 +62,7 @@ export function NotificationBell() {
         try {
             await markAllNotificationsAsRead();
             setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-            setUnreadCount(0);
+            await refreshCounters();
         } catch (error) {
             console.error("Error marking all as read:", error);
         }
@@ -129,9 +113,9 @@ export function NotificationBell() {
                 aria-label="Notifications"
             >
                 <Bell className="w-5 h-5 text-slate-600" />
-                {unreadCount > 0 && (
+                {unreadNotificationCount > 0 && (
                     <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                        {unreadCount > 99 ? "99+" : unreadCount}
+                        {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
                     </span>
                 )}
             </button>
@@ -142,7 +126,7 @@ export function NotificationBell() {
                     {/* Header */}
                     <div className="flex items-center justify-between p-4 border-b border-slate-200">
                         <h3 className="font-bold text-slate-900">Notifikasi</h3>
-                        {unreadCount > 0 && (
+                        {unreadNotificationCount > 0 && (
                             <button
                                 onClick={handleMarkAllAsRead}
                                 className="text-xs text-brand-primary hover:underline flex items-center gap-1"

@@ -5,6 +5,8 @@ import { ProductGrid } from "@/components/home/ProductGrid";
 import { TrustSection } from "@/components/home/TrustSection";
 import { Package } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export default function Home() {
   return (
     <main className="w-full max-w-[1440px] mx-auto pb-20">

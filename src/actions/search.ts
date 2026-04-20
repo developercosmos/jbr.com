@@ -4,6 +4,24 @@ import { db } from "@/db";
 import { products, categories, users } from "@/db/schema";
 import { eq, ilike, or, and, sql, desc, asc } from "drizzle-orm";
 
+function getSearchVariants(query: string): string[] {
+    const base = query.trim().toLowerCase();
+    if (!base) return [];
+
+    const normalizedNoSeparators = base.replace(/[\s\-_]+/g, "");
+    const normalizedSpace = base.replace(/[\-_]+/g, " ").replace(/\s+/g, " ").trim();
+
+    const variants = new Set<string>([base, normalizedNoSeparators, normalizedSpace]);
+
+    for (const word of normalizedSpace.split(" ")) {
+        if (word.length > 1) {
+            variants.add(word);
+        }
+    }
+
+    return Array.from(variants).filter((v) => v.length > 1);
+}
+
 // ============================================
 // SEARCH PRODUCTS
 // ============================================
@@ -39,13 +57,14 @@ export async function searchProducts(filters: SearchFilters) {
 
     // Fuzzy search - match each word individually
     if (query.trim()) {
-        const words = query.toLowerCase().trim().split(/\s+/).filter(w => w.length > 1);
-        if (words.length > 0) {
-            const wordConditions = words.map(word =>
+        const variants = getSearchVariants(query);
+        if (variants.length > 0) {
+            const wordConditions = variants.map((variant) =>
                 or(
-                    ilike(products.title, `%${word}%`),
-                    ilike(products.description, `%${word}%`),
-                    ilike(products.brand, `%${word}%`)
+                    ilike(products.title, `%${variant}%`),
+                    ilike(products.description, `%${variant}%`),
+                    ilike(products.brand, `%${variant}%`),
+                    sql`REPLACE(LOWER(${products.brand}), ' ', '') LIKE ${`%${variant.replace(/\s+/g, "")}%`}`
                 )
             );
             // Match ANY word (OR logic for broader results)
@@ -143,7 +162,8 @@ export async function searchAutocomplete(query: string, limit = 8) {
         return { suggestions: [], categories: [] };
     }
 
-    const searchPattern = `%${query.trim()}%`;
+    const variants = getSearchVariants(query);
+    const patterns = variants.length > 0 ? variants : [query.trim().toLowerCase()];
 
     // Get matching products
     const productResults = await db
@@ -159,9 +179,14 @@ export async function searchAutocomplete(query: string, limit = 8) {
             and(
                 eq(products.status, "PUBLISHED"),
                 or(
-                    ilike(products.title, searchPattern),
-                    ilike(products.brand, searchPattern)
-                )
+                    ...patterns.map((pattern) =>
+                        or(
+                            ilike(products.title, `%${pattern}%`),
+                            ilike(products.brand, `%${pattern}%`),
+                            sql`REPLACE(LOWER(${products.brand}), ' ', '') LIKE ${`%${pattern.replace(/\s+/g, "")}%`}`
+                        )
+                    )
+                )!
             )
         )
         .limit(limit);
@@ -175,7 +200,11 @@ export async function searchAutocomplete(query: string, limit = 8) {
             icon: categories.icon,
         })
         .from(categories)
-        .where(ilike(categories.name, searchPattern))
+        .where(
+            or(
+                ...patterns.map((pattern) => ilike(categories.name, `%${pattern}%`))
+            )!
+        )
         .limit(3);
 
     return {

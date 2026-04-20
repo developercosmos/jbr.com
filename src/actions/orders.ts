@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { orders, order_items, carts, products, reviews } from "@/db/schema";
+import { orders, order_items, carts, products, reviews, addresses } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { eq, desc, and, sql, gte } from "drizzle-orm";
@@ -38,6 +38,21 @@ const createOrderSchema = z.object({
 export async function createOrderFromCart(input: z.infer<typeof createOrderSchema>) {
     const user = await getCurrentUser();
     const validated = createOrderSchema.parse(input);
+
+    if (!validated.shipping_address_id) {
+        throw new Error("Alamat pengiriman wajib dipilih");
+    }
+
+    const shippingAddress = await db.query.addresses.findFirst({
+        where: and(
+            eq(addresses.id, validated.shipping_address_id),
+            eq(addresses.user_id, user.id)
+        ),
+    });
+
+    if (!shippingAddress) {
+        throw new Error("Alamat pengiriman tidak valid");
+    }
 
     // Get cart items
     const cartItems = await db.query.carts.findMany({
@@ -80,7 +95,7 @@ export async function createOrderFromCart(input: z.infer<typeof createOrderSchem
                 order_number: generateOrderNumber(),
                 buyer_id: user.id,
                 seller_id: sellerId,
-                shipping_address_id: validated.shipping_address_id,
+                shipping_address_id: shippingAddress.id,
                 status: "PENDING_PAYMENT",
                 subtotal: subtotal.toString(),
                 shipping_cost: "0",

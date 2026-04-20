@@ -240,6 +240,7 @@ export async function sendMessage(conversationId: string, content: string, attac
         .set({ last_message_at: new Date() })
         .where(eq(conversations.id, conversationId));
 
+    revalidatePath("/messages");
     revalidatePath("/chat");
 
     return {
@@ -305,6 +306,7 @@ export async function startConversation(sellerId: string, productId?: string) {
         })
         .returning();
 
+    revalidatePath("/messages");
     revalidatePath("/chat");
 
     return { conversationId: newConversation.id, isNew: true };

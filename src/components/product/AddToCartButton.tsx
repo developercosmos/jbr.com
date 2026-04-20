@@ -22,7 +22,28 @@ export function AddToCartButton({ productId, className = "" }: AddToCartButtonPr
 
         startTransition(async () => {
             try {
-                await addToCart(productId, 1);
+                const result = await addToCart(productId, 1);
+
+                if (!result.success) {
+                    if (result.error === "unauthorized") {
+                        router.push(`/auth/login?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
+                        return;
+                    }
+
+                    if (result.error === "own_product") {
+                        setError("Anda tidak dapat menambahkan produk sendiri ke keranjang.");
+                        return;
+                    }
+
+                    if (result.error === "product_not_available") {
+                        setError("Produk tidak tersedia.");
+                        return;
+                    }
+
+                    setError("Gagal menambahkan ke keranjang");
+                    return;
+                }
+
                 setAdded(true);
                 router.refresh();
 
@@ -30,11 +51,7 @@ export function AddToCartButton({ productId, className = "" }: AddToCartButtonPr
                 setTimeout(() => setAdded(false), 2000);
             } catch (err) {
                 if (err instanceof Error) {
-                    if (err.message === "Unauthorized") {
-                        router.push("/auth/login?redirect=/product");
-                    } else {
-                        setError(err.message);
-                    }
+                    setError(err.message);
                 } else {
                     setError("Gagal menambahkan ke keranjang");
                 }

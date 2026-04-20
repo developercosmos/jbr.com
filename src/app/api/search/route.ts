@@ -3,9 +3,24 @@ import { db } from "@/db";
 import { products, categories, users } from "@/db/schema";
 import { and, eq, ilike, or, sql, desc } from "drizzle-orm";
 
+function getSearchVariants(query: string): string[] {
+    const base = query.trim().toLowerCase();
+    if (!base) return [];
+
+    const normalizedNoSeparators = base.replace(/[\s\-_]+/g, "");
+    const normalizedSpace = base.replace(/[\-_]+/g, " ").replace(/\s+/g, " ").trim();
+
+    const variants = new Set<string>([base, normalizedNoSeparators, normalizedSpace]);
+    for (const word of normalizedSpace.split(" ")) {
+        if (word.length > 1) variants.add(word);
+    }
+
+    return Array.from(variants).filter((v) => v.length > 1);
+}
+
 // Simple fuzzy matching - breaks query into words and matches any
 function buildFuzzyCondition(query: string) {
-    const words = query.toLowerCase().trim().split(/\s+/).filter(w => w.length > 1);
+    const words = getSearchVariants(query);
 
     if (words.length === 0) return null;
 
@@ -13,7 +28,8 @@ function buildFuzzyCondition(query: string) {
     const conditions = words.map(word =>
         or(
             ilike(products.title, `%${word}%`),
-            ilike(products.brand, `%${word}%`)
+            ilike(products.brand, `%${word}%`),
+            sql`REPLACE(LOWER(${products.brand}), ' ', '') LIKE ${`%${word.replace(/\s+/g, "")}%`}`
         )
     );
 

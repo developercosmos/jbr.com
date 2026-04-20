@@ -1,7 +1,8 @@
 import { getCategoryBySlug } from "@/actions/categories";
 import { getFilteredProducts, getProductCount } from "@/actions/products";
 import { BrowsePageLayout } from "@/components/browse/BrowsePageLayout";
-import { notFound } from "next/navigation";
+
+export const dynamic = "force-dynamic";
 
 interface CategoryPageProps {
     params: Promise<{ slug: string }>;

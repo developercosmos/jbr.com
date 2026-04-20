@@ -2,11 +2,19 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, Loader2, CreditCard } from "lucide-react";
+import { Loader2, CreditCard } from "lucide-react";
 import { createOrderFromCart } from "@/actions/orders";
 import { createPaymentInvoice } from "@/actions/payments";
 
-export function CheckoutForm() {
+type PaymentMethod = "BANK_TRANSFER" | "EWALLET" | "COD";
+
+interface CheckoutFormProps {
+    selectedAddressId: string | null;
+    paymentMethod: PaymentMethod;
+    canCheckout: boolean;
+}
+
+export function CheckoutForm({ selectedAddressId, paymentMethod, canCheckout }: CheckoutFormProps) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState("");
@@ -14,12 +22,25 @@ export function CheckoutForm() {
 
     const handleCheckout = () => {
         setError("");
+
+        if (!selectedAddressId) {
+            setError("Pilih alamat pengiriman terlebih dahulu.");
+            return;
+        }
+
+        if (!paymentMethod) {
+            setError("Pilih metode pembayaran terlebih dahulu.");
+            return;
+        }
+
         startTransition(async () => {
             try {
                 setStep("creating");
 
                 // Step 1: Create order
-                const orderResult = await createOrderFromCart({});
+                const orderResult = await createOrderFromCart({
+                    shipping_address_id: selectedAddressId,
+                });
 
                 if (!orderResult.success || !orderResult.orders?.length) {
                     setError("Gagal membuat pesanan. Silakan coba lagi.");
@@ -32,7 +53,7 @@ export function CheckoutForm() {
                 setStep("redirecting");
 
                 // Step 2: Create Xendit payment invoice
-                const paymentResult = await createPaymentInvoice(order.id);
+                const paymentResult = await createPaymentInvoice(order.id, paymentMethod);
 
                 if (!paymentResult.success || !paymentResult.invoiceUrl) {
                     // If payment creation fails, still redirect to orders page
@@ -59,7 +80,7 @@ export function CheckoutForm() {
             )}
             <button
                 onClick={handleCheckout}
-                disabled={isPending}
+                disabled={isPending || !canCheckout}
                 className="w-full h-12 rounded-lg bg-brand-primary hover:bg-blue-600 disabled:bg-slate-400 text-white font-bold text-base shadow-lg shadow-blue-900/30 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
             >
                 {isPending ? (

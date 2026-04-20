@@ -35,7 +35,7 @@ function formatCurrency(amount: number): string {
 // ============================================
 // CREATE XENDIT INVOICE
 // ============================================
-export async function createPaymentInvoice(orderId: string) {
+export async function createPaymentInvoice(orderId: string, preferredMethod?: "BANK_TRANSFER" | "EWALLET" | "COD") {
     const user = await getCurrentUser();
 
     // Get order with items
@@ -83,7 +83,7 @@ export async function createPaymentInvoice(orderId: string) {
         external_id: `order-${order.id}`,
         amount: parseFloat(order.total),
         payer_email: order.buyer?.email,
-        description: `Pembayaran untuk Order ${order.order_number}`,
+        description: `Pembayaran untuk Order ${order.order_number}${preferredMethod ? ` (${preferredMethod})` : ""}`,
         invoice_duration: 86400, // 24 hours in seconds
         success_redirect_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/payment/${orderId}?status=success`,
         failure_redirect_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/payment/${orderId}?status=failed`,
@@ -125,6 +125,7 @@ export async function createPaymentInvoice(orderId: string) {
             xendit_invoice_url: invoice.invoice_url,
             amount: order.total,
             status: "PENDING",
+            payment_method: preferredMethod || null,
             expires_at: expiresAt,
         })
         .returning();

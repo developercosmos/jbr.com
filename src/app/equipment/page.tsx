@@ -18,6 +18,8 @@ import {
 } from "react-icons/io5";
 import { TbPackage } from "react-icons/tb";
 
+export const dynamic = "force-dynamic";
+
 // Icon component map for database icon names
 const iconComponents: Record<string, React.ComponentType<{ className?: string }>> = {
     Target: GiTennisCourt,          // Raket

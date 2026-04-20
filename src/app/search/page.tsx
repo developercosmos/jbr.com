@@ -1,10 +1,11 @@
 import { Suspense } from "react";
-import { Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
+import { Search } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { searchProducts, getSearchFilters } from "@/actions/search";
 import { SearchFiltersPanel } from "./SearchFiltersPanel";
 import { SearchPagination } from "./SearchPagination";
+import { SearchSortControl } from "./SearchSortControl";
 
 interface SearchPageProps {
     searchParams: Promise<{
@@ -89,25 +90,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                         <div className="bg-white rounded-xl border border-slate-200 p-4 mb-4">
                             <div className="flex items-center justify-between flex-wrap gap-3">
                                 {/* Sort */}
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm text-slate-600">Urutkan:</span>
-                                    <select
-                                        defaultValue={params.sort || "relevance"}
-                                        className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-primary"
-                                        onChange={(e) => {
-                                            const url = new URL(window.location.href);
-                                            url.searchParams.set("sort", e.target.value);
-                                            url.searchParams.delete("page");
-                                            window.location.href = url.toString();
-                                        }}
-                                    >
-                                        {filters.sortOptions.map((opt) => (
-                                            <option key={opt.value} value={opt.value}>
-                                                {opt.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
+                                <SearchSortControl
+                                    sortOptions={filters.sortOptions}
+                                    currentSort={params.sort || "relevance"}
+                                />
 
                                 {/* Active Filters */}
                                 {activeFilters.length > 0 && (

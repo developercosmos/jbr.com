@@ -16,9 +16,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
-        const clonedRequest = request.clone();
-        const body = await clonedRequest.text();
-        console.log('[AUTH POST] URL:', request.url, 'Body:', body);
+        console.log('[AUTH POST] URL:', request.url);
         const response = await originalPOST(request);
         console.log('[AUTH POST] Response status:', response.status);
         return response;

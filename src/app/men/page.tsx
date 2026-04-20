@@ -1,6 +1,8 @@
 import { getFilteredProducts, getProductCount } from "@/actions/products";
 import { BrowsePageLayout } from "@/components/browse/BrowsePageLayout";
 
+export const dynamic = "force-dynamic";
+
 export default async function MenPage() {
     const filters = { gender: "MEN" as const, includeUnisex: true, limit: 48 };
 

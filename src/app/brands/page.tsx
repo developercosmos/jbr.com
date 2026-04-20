@@ -2,6 +2,8 @@ import { getBrands } from "@/actions/products";
 import Link from "next/link";
 import { ChevronRight, Tag, Award } from "lucide-react";
 
+export const dynamic = "force-dynamic";
+
 export default async function BrandsPage() {
     const brands = await getBrands();
 
