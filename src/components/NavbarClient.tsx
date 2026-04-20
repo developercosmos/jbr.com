@@ -10,10 +10,16 @@ import { serverSignOut } from "@/actions/auth";
 
 export function NavbarUserArea() {
     const { data: session, isPending } = useSession();
+    const [mounted, setMounted] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const [isLoggingOut, startLogout] = useTransition();
     const dropdownRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
+
+    // Keep initial server/client markup stable to avoid hydration mismatch
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -35,7 +41,7 @@ export function NavbarUserArea() {
         });
     };
 
-    if (isPending) {
+    if (!mounted || isPending) {
         return (
             <div className="relative flex items-center gap-2 p-1 pr-2 rounded-full">
                 <div className="size-8 rounded-full bg-slate-200 animate-pulse" />
