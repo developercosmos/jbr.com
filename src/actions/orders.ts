@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { orders, order_items, carts, products, reviews, addresses } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { eq, desc, and, sql, gte } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 

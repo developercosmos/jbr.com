@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Lock, Home, Verified, ShoppingCart, MapPin, CreditCard, ClipboardCheck } from "lucide-react";
+import { Lock, Home, Verified, MapPin, CreditCard, ClipboardCheck } from "lucide-react";
 import { CheckoutForm } from "@/components/checkout/CheckoutForm";
 
 type CheckoutAddress = {

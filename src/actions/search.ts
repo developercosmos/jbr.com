@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { products, categories, users } from "@/db/schema";
+import { products, categories } from "@/db/schema";
 import { eq, ilike, or, and, sql, desc, asc } from "drizzle-orm";
 
 function getSearchVariants(query: string): string[] {
