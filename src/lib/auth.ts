@@ -115,6 +115,9 @@ export const auth = betterAuth({
         // Dynamic from environment variables
         process.env.BETTER_AUTH_URL,
         process.env.NEXT_PUBLIC_APP_URL,
+        // Production explicit allowlist to avoid env drift causing social sign-in 403
+        "https://jualbeliraket.com",
+        "https://www.jualbeliraket.com",
         // Development fallback
         "http://localhost:3000",
     ].filter((origin): origin is string => Boolean(origin)),
