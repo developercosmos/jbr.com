@@ -3,22 +3,46 @@
 import { Save, User, Lock, Bell } from "lucide-react";
 import Image from "next/image";
 import { useState, useTransition } from "react";
+import { updateProfile } from "@/actions/profile";
 
 interface UserData {
     id: string;
     name: string;
     email: string;
     image?: string | null;
+    phone?: string | null;
+    locale?: string | null;
+}
+
+interface FormState {
+    name: string;
+    email: string;
+    phone: string;
+    avatarUrl: string;
+    locale: "id-ID" | "en-US";
+    currentPassword: string;
+    newPassword: string;
+    confirmPassword: string;
+    emailTransactions: boolean;
+    emailPromo: boolean;
 }
 
 export function SettingsForm({ user }: { user: UserData }) {
     const [isPending, startTransition] = useTransition();
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-
-    const [formData, setFormData] = useState({
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string[] | undefined>>({});
+    const [savedProfile, setSavedProfile] = useState({
+        name: user.name || "",
+        phone: user.phone || "",
+        avatarUrl: user.image || "",
+        locale: (user.locale as "id-ID" | "en-US") || "id-ID",
+    });
+    const [formData, setFormData] = useState<FormState>({
         name: user.name || "",
         email: user.email || "",
-        phone: "",
+        phone: user.phone || "",
+        avatarUrl: user.image || "",
+        locale: (user.locale as "id-ID" | "en-US") || "id-ID",
         currentPassword: "",
         newPassword: "",
         confirmPassword: "",
@@ -29,8 +53,8 @@ export function SettingsForm({ user }: { user: UserData }) {
     const handleSave = (e: React.FormEvent) => {
         e.preventDefault();
         setMessage(null);
+        setFieldErrors({});
 
-        // Validate passwords if changing
         if (formData.newPassword && formData.newPassword !== formData.confirmPassword) {
             setMessage({ type: "error", text: "Password baru tidak cocok" });
             return;
@@ -38,26 +62,75 @@ export function SettingsForm({ user }: { user: UserData }) {
 
         startTransition(async () => {
             try {
-                // TODO: Implement updateProfile action
-                setMessage({ type: "success", text: "Pengaturan berhasil disimpan" });
+                const result = await updateProfile({
+                    name: formData.name,
+                    phone: formData.phone,
+                    avatarUrl: formData.avatarUrl,
+                    locale: formData.locale,
+                });
+
+                if (!result.success) {
+                    setFieldErrors(result.fieldErrors);
+                    setFormData((current) => ({
+                        ...current,
+                        name: savedProfile.name,
+                        phone: savedProfile.phone,
+                        avatarUrl: savedProfile.avatarUrl,
+                        locale: savedProfile.locale,
+                    }));
+                    setMessage({ type: "error", text: "Periksa kembali data profil Anda." });
+                    return;
+                }
+
+                const nextSavedProfile = {
+                    name: result.user.name || "",
+                    phone: result.user.phone || "",
+                    avatarUrl: result.user.image || "",
+                    locale: (result.user.locale as "id-ID" | "en-US") || "id-ID",
+                };
+
+                setSavedProfile(nextSavedProfile);
+                setFormData((current) => ({
+                    ...current,
+                    name: nextSavedProfile.name,
+                    phone: nextSavedProfile.phone,
+                    avatarUrl: nextSavedProfile.avatarUrl,
+                    locale: nextSavedProfile.locale,
+                }));
+                setMessage({ type: "success", text: "Profil berhasil diperbarui" });
             } catch (err) {
+                setFormData((current) => ({
+                    ...current,
+                    name: savedProfile.name,
+                    phone: savedProfile.phone,
+                    avatarUrl: savedProfile.avatarUrl,
+                    locale: savedProfile.locale,
+                }));
                 setMessage({ type: "error", text: err instanceof Error ? err.message : "Gagal menyimpan" });
             }
         });
+    };
+
+    const renderFieldError = (field: string) => {
+        const error = fieldErrors[field]?.[0];
+        if (!error) {
+            return null;
+        }
+
+        return <p className="text-sm text-red-600">{error}</p>;
     };
 
     return (
         <form onSubmit={handleSave} className="space-y-8 max-w-3xl">
             {message && (
                 <div className={`p-4 rounded-lg ${message.type === "success"
-                        ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400"
-                        : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400"
+                    ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400"
+                    : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400"
                     }`}>
                     {message.text}
                 </div>
             )}
 
-            {/* Personal Info */}
             <section className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                 <div className="p-6 border-b border-slate-200 dark:border-slate-800">
                     <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -69,9 +142,9 @@ export function SettingsForm({ user }: { user: UserData }) {
                     <div className="flex items-center gap-6">
                         <div className="relative h-24 w-24 flex-shrink-0">
                             <div className="h-24 w-24 rounded-full overflow-hidden border-4 border-slate-100 dark:border-slate-800 relative group cursor-pointer bg-brand-primary/10">
-                                {user.image ? (
+                                {formData.avatarUrl ? (
                                     <Image
-                                        src={user.image}
+                                        src={formData.avatarUrl}
                                         alt="Profile"
                                         fill
                                         className="object-cover"
@@ -79,20 +152,25 @@ export function SettingsForm({ user }: { user: UserData }) {
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center">
                                         <span className="text-2xl font-bold text-brand-primary">
-                                            {user.name?.slice(0, 2).toUpperCase() || "??"}
+                                            {formData.name?.slice(0, 2).toUpperCase() || "??"}
                                         </span>
                                     </div>
                                 )}
-                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <span className="text-xs text-white font-bold">Ubah</span>
-                                </div>
                             </div>
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-1 flex-1">
                             <h3 className="font-bold text-slate-900 dark:text-white">Foto Profil</h3>
                             <p className="text-sm text-slate-500">
-                                Format: JPG, GIF atau PNG. Ukuran maks. 1MB.
+                                Masukkan URL avatar dari domain aplikasi Anda.
                             </p>
+                            <input
+                                type="url"
+                                value={formData.avatarUrl}
+                                onChange={(e) => setFormData({ ...formData, avatarUrl: e.target.value })}
+                                className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm"
+                                placeholder="https://jualbeliraket.com/uploads/avatar.jpg"
+                            />
+                            {renderFieldError("avatarUrl")}
                         </div>
                     </div>
 
@@ -107,6 +185,7 @@ export function SettingsForm({ user }: { user: UserData }) {
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                 className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm"
                             />
+                            {renderFieldError("name")}
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -115,8 +194,8 @@ export function SettingsForm({ user }: { user: UserData }) {
                             <input
                                 type="email"
                                 value={formData.email}
-                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm"
+                                readOnly
+                                className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-100 dark:bg-black/30 text-slate-500 dark:text-slate-300 focus:outline-none sm:text-sm"
                             />
                         </div>
                         <div className="space-y-2">
@@ -130,12 +209,26 @@ export function SettingsForm({ user }: { user: UserData }) {
                                 placeholder="08xx-xxxx-xxxx"
                                 className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm"
                             />
+                            {renderFieldError("phone")}
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                Bahasa / Locale
+                            </label>
+                            <select
+                                value={formData.locale}
+                                onChange={(e) => setFormData({ ...formData, locale: e.target.value as "id-ID" | "en-US" })}
+                                className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm"
+                            >
+                                <option value="id-ID">Bahasa Indonesia</option>
+                                <option value="en-US">English (US)</option>
+                            </select>
+                            {renderFieldError("locale")}
                         </div>
                     </div>
                 </div>
             </section>
 
-            {/* Security */}
             <section className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                 <div className="p-6 border-b border-slate-200 dark:border-slate-800">
                     <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -182,7 +275,6 @@ export function SettingsForm({ user }: { user: UserData }) {
                 </div>
             </section>
 
-            {/* Notifications */}
             <section className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
                 <div className="p-6 border-b border-slate-200 dark:border-slate-800">
                     <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -224,7 +316,6 @@ export function SettingsForm({ user }: { user: UserData }) {
                 </div>
             </section>
 
-            {/* Save Button */}
             <div className="flex justify-end pt-4">
                 <button
                     type="submit"

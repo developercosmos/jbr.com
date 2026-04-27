@@ -1,6 +1,10 @@
-import { TrendingUp, Users, ShoppingBag, DollarSign, ArrowUpRight, Calendar, Package } from "lucide-react";
+import { TrendingUp, ShoppingBag, DollarSign, ArrowUpRight, Calendar, Package } from "lucide-react";
 import { getSellerStats, getRecentSellerOrders } from "@/actions/orders";
+import { canAccessSellerCenter, getSellerProfileByUserId } from "@/actions/seller";
+import { auth } from "@/lib/auth";
 import Image from "next/image";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 function formatPrice(amount: number) {
     return new Intl.NumberFormat("id-ID", {
@@ -11,6 +15,17 @@ function formatPrice(amount: number) {
 }
 
 export default async function SellerAnalyticsPage() {
+    const session = await auth.api.getSession({ headers: await headers() });
+
+    if (!session?.user) {
+        redirect("/auth/login?redirect=/seller/analytics");
+    }
+
+    const sellerProfile = await getSellerProfileByUserId(session.user.id);
+    if (!sellerProfile?.store_name || !sellerProfile.store_slug || !canAccessSellerCenter(sellerProfile.store_status)) {
+        redirect("/seller/register");
+    }
+
     const stats = await getSellerStats();
     const recentOrders = await getRecentSellerOrders(10);
 

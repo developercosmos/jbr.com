@@ -1,0 +1,54 @@
+import { NextRequest, NextResponse } from "next/server";
+import { runEscrowAutoRelease } from "@/actions/escrow";
+import { runDisputeSlaSweep } from "@/actions/disputes";
+import { recomputeAllSellerRatingsForActiveSellers } from "@/actions/reputation";
+import { runOfferExpirySweep } from "@/actions/offers";
+import { clearAttributionsForCompletedOrders } from "@/actions/affiliate";
+
+export const dynamic = "force-dynamic";
+
+function isAuthorized(request: NextRequest): boolean {
+    const expected = process.env.CRON_SECRET;
+    if (!expected) {
+        // Fail-closed: refuse to run unauthenticated when no secret is configured.
+        return false;
+    }
+    const header = request.headers.get("authorization") || "";
+    const provided = header.startsWith("Bearer ") ? header.slice(7) : "";
+    return provided === expected;
+}
+
+export async function POST(request: NextRequest) {
+    if (!isAuthorized(request)) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    try {
+        const [escrow, dispute, reputation, offers, affiliate] = await Promise.all([
+            runEscrowAutoRelease(),
+            runDisputeSlaSweep(),
+            recomputeAllSellerRatingsForActiveSellers(),
+            runOfferExpirySweep(),
+            clearAttributionsForCompletedOrders(),
+        ]);
+
+        return NextResponse.json({
+            success: true,
+            escrow,
+            dispute,
+            reputation,
+            offers,
+            affiliate,
+            ranAt: new Date().toISOString(),
+        });
+    } catch (error) {
+        console.error("[trust-sweeps] failure:", error);
+        return NextResponse.json(
+            {
+                success: false,
+                error: error instanceof Error ? error.message : "Sweep failed",
+            },
+            { status: 500 }
+        );
+    }
+}

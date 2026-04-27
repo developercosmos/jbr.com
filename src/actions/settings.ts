@@ -94,7 +94,7 @@ export async function updateIntegration(
     }
 
     // Merge credentials - only update fields that are provided and not empty
-    let newCredentials = existing.credentials || {};
+    const newCredentials = existing.credentials || {};
     if (data.credentials) {
         Object.entries(data.credentials).forEach(([k, v]) => {
             if (v && v.trim() !== "" && !v.includes("*")) {
@@ -235,6 +235,8 @@ export async function seedDefaultIntegrations() {
                 },
                 config: {
                     account_type: "starter", // starter, basic, pro
+                    origin_city_id: "1",
+                    fallback_cost: 20000,
                 },
             },
         ];

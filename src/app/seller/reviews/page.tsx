@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ArrowLeft, Star, Reply, Package } from "lucide-react";
+import { ArrowLeft, Star, Package } from "lucide-react";
 import Image from "next/image";
 import { getSellerReviews, getSellerRatingStats } from "@/actions/reviews";
+import { canAccessSellerCenter, getSellerProfileByUserId } from "@/actions/seller";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -17,6 +18,11 @@ export default async function SellerReviewsPage() {
 
     if (!session?.user) {
         redirect("/auth/login?redirect=/seller/reviews");
+    }
+
+    const sellerProfile = await getSellerProfileByUserId(session.user.id);
+    if (!sellerProfile?.store_name || !sellerProfile.store_slug || !canAccessSellerCenter(sellerProfile.store_status)) {
+        redirect("/seller/register");
     }
 
     let reviews: SellerReview[] = [];

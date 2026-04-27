@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Lock, Home, Verified, MapPin, CreditCard, ClipboardCheck } from "lucide-react";
 import { CheckoutForm } from "@/components/checkout/CheckoutForm";
+import { getCheckoutShippingQuote } from "@/actions/shipping";
 
 type CheckoutAddress = {
     id: string;
@@ -19,6 +20,14 @@ type CheckoutAddress = {
 type CheckoutCartItem = {
     id: string;
     quantity: number;
+    variant: {
+        id: string;
+        name: string;
+        variant_type: string;
+        price: string | null;
+        stock: number;
+        is_available: boolean;
+    } | null;
     product: {
         id: string;
         title: string;
@@ -26,6 +35,7 @@ type CheckoutCartItem = {
         images: string[] | null;
         condition: "NEW" | "PRELOVED";
         condition_rating: number | null;
+        variants: { id: string }[];
         seller: {
             name: string | null;
             store_name: string | null;
@@ -35,6 +45,22 @@ type CheckoutCartItem = {
 
 type PaymentMethod = "BANK_TRANSFER" | "EWALLET" | "COD";
 
+type CheckoutShippingQuote = {
+    success: boolean;
+    courier: "jne" | "pos" | "tiki";
+    totalCost: number;
+    quotesBySeller: Array<{
+        sellerId: string;
+        shippingProvider: string;
+        service: string;
+        description: string;
+        cost: number;
+        etd: string;
+    }>;
+    warning?: string;
+    usedFallback: boolean;
+};
+
 interface CheckoutPageClientProps {
     userName: string;
     cartItems: CheckoutCartItem[];
@@ -42,7 +68,7 @@ interface CheckoutPageClientProps {
     subtotal: number;
     shippingCost: number;
     serviceFee: number;
-    total: number;
+    initialShippingQuote: CheckoutShippingQuote | null;
 }
 
 function formatPrice(price: number) {
@@ -60,7 +86,7 @@ export function CheckoutPageClient({
     subtotal,
     shippingCost,
     serviceFee,
-    total,
+    initialShippingQuote,
 }: CheckoutPageClientProps) {
     const defaultAddress = useMemo(
         () => addresses.find((addr) => addr.is_default_shipping) ?? addresses[0] ?? null,
@@ -69,13 +95,63 @@ export function CheckoutPageClient({
 
     const [selectedAddressId, setSelectedAddressId] = useState<string | null>(defaultAddress?.id ?? null);
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("BANK_TRANSFER");
+    const [selectedCourier, setSelectedCourier] = useState<"jne" | "pos" | "tiki">("jne");
+    const [shippingQuote, setShippingQuote] = useState<CheckoutShippingQuote | null>(initialShippingQuote);
+    const [shippingError, setShippingError] = useState<string>("");
+    const [isShippingPending, startShippingTransition] = useTransition();
 
     const selectedAddress = useMemo(
         () => addresses.find((addr) => addr.id === selectedAddressId) ?? null,
         [addresses, selectedAddressId]
     );
 
-    const canCheckout = Boolean(selectedAddressId && paymentMethod);
+    const hasVariantResolutionErrors = useMemo(
+        () => cartItems.some((item) => item.product.variants.length > 0 && !item.variant),
+        [cartItems]
+    );
+
+    const effectiveShippingQuote = selectedAddressId && !hasVariantResolutionErrors ? shippingQuote : null;
+
+    useEffect(() => {
+        if (!selectedAddressId || hasVariantResolutionErrors) {
+            return;
+        }
+
+        let cancelled = false;
+
+        startShippingTransition(async () => {
+            try {
+                const result = await getCheckoutShippingQuote({
+                    addressId: selectedAddressId,
+                    courier: selectedCourier,
+                });
+
+                if (!cancelled) {
+                    setShippingQuote(result);
+                    setShippingError("");
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    setShippingQuote(null);
+                    setShippingError(error instanceof Error ? error.message : "Gagal mengambil ongkir");
+                }
+            }
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [hasVariantResolutionErrors, selectedAddressId, selectedCourier]);
+
+    const resolvedShippingCost = effectiveShippingQuote?.totalCost ?? shippingCost;
+    const resolvedTotal = subtotal + resolvedShippingCost + serviceFee;
+    const canCheckout = Boolean(
+        selectedAddressId &&
+        paymentMethod &&
+        !hasVariantResolutionErrors &&
+        effectiveShippingQuote?.success &&
+        !isShippingPending
+    );
 
     return (
         <main className="flex-grow w-full max-w-[1280px] mx-auto px-4 lg:px-16 py-5">
@@ -207,6 +283,59 @@ export function CheckoutPageClient({
 
                     <section className="flex flex-col gap-4">
                         <h2 className="text-slate-900 text-[22px] font-bold border-b border-slate-200 pb-3">
+                            Pengiriman
+                        </h2>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {[
+                                { value: "jne", label: "JNE" },
+                                { value: "pos", label: "POS" },
+                                { value: "tiki", label: "TIKI" },
+                            ].map((courier) => (
+                                <label key={courier.value} className="cursor-pointer group">
+                                    <input
+                                        className="peer sr-only"
+                                        name="courier"
+                                        type="radio"
+                                        checked={selectedCourier === courier.value}
+                                        onChange={() => setSelectedCourier(courier.value as "jne" | "pos" | "tiki")}
+                                    />
+                                    <div className="h-full rounded-xl border-2 border-slate-200 peer-checked:border-brand-primary peer-checked:bg-brand-primary/5 p-4 flex flex-col gap-2 transition-all">
+                                        <span className="text-slate-900 font-medium text-sm">{courier.label}</span>
+                                        {shippingQuote?.courier === courier.value && shippingQuote.quotesBySeller[0] && (
+                                            <span className="text-xs text-slate-500">
+                                                Mulai {formatPrice(shippingQuote.quotesBySeller[0].cost)}
+                                            </span>
+                                        )}
+                                    </div>
+                                </label>
+                            ))}
+                        </div>
+                        {isShippingPending && (
+                            <p className="text-sm text-slate-500">Mengambil ongkir terbaru...</p>
+                        )}
+                        {effectiveShippingQuote?.warning && (
+                            <p className="text-sm text-amber-600">{effectiveShippingQuote.warning}</p>
+                        )}
+                        {shippingError && (
+                            <p className="text-sm text-red-600">{shippingError}</p>
+                        )}
+                        {effectiveShippingQuote?.quotesBySeller.length ? (
+                            <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
+                                {effectiveShippingQuote.quotesBySeller.map((quote) => (
+                                    <div key={`${quote.sellerId}-${quote.service}`} className="flex items-center justify-between gap-4 text-sm">
+                                        <div>
+                                            <p className="font-medium text-slate-900">{quote.shippingProvider}</p>
+                                            <p className="text-slate-500">Estimasi {quote.etd} hari</p>
+                                        </div>
+                                        <span className="font-semibold text-slate-900">{formatPrice(quote.cost)}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : null}
+                    </section>
+
+                    <section className="flex flex-col gap-4">
+                        <h2 className="text-slate-900 text-[22px] font-bold border-b border-slate-200 pb-3">
                             Rincian Pesanan ({cartItems.length} item)
                         </h2>
                         {cartItems.map((item) => (
@@ -229,10 +358,18 @@ export function CheckoutPageClient({
                                         <div className="flex justify-between items-start">
                                             <h3 className="text-slate-900 text-lg font-bold">{item.product.title}</h3>
                                             <p className="text-slate-900 text-lg font-bold">
-                                                {formatPrice(parseFloat(item.product.price) * item.quantity)}
+                                                {formatPrice(parseFloat(item.variant?.price ?? item.product.price) * item.quantity)}
                                             </p>
                                         </div>
                                         <p className="text-slate-500 text-sm mt-1">Qty: {item.quantity}</p>
+                                        {item.variant && (
+                                            <p className="text-slate-500 text-sm mt-1">Varian: {item.variant.name}</p>
+                                        )}
+                                        {!item.variant && item.product.variants.length > 0 && (
+                                            <p className="text-amber-600 text-sm mt-1">
+                                                Item lama ini perlu dipilih ulang variannya dari halaman produk.
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="mt-4 pt-4 border-t border-slate-200 flex items-center gap-2">
                                         <span className="text-sm text-slate-500">
@@ -299,7 +436,7 @@ export function CheckoutPageClient({
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-slate-500">Biaya Pengiriman</span>
-                                <span className="text-slate-900 font-medium">{formatPrice(shippingCost)}</span>
+                                <span className="text-slate-900 font-medium">{formatPrice(resolvedShippingCost)}</span>
                             </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-slate-500">Biaya Layanan</span>
@@ -308,14 +445,21 @@ export function CheckoutPageClient({
                         </div>
                         <div className="flex justify-between items-end">
                             <span className="text-slate-900 font-bold text-lg">Total Tagihan</span>
-                            <span className="text-brand-primary font-black text-2xl">{formatPrice(total)}</span>
+                            <span className="text-brand-primary font-black text-2xl">{formatPrice(resolvedTotal)}</span>
                         </div>
 
                         <CheckoutForm
                             selectedAddressId={selectedAddress?.id ?? null}
                             paymentMethod={paymentMethod}
+                            shippingCourier={selectedCourier}
                             canCheckout={canCheckout}
                         />
+
+                        {hasVariantResolutionErrors && (
+                            <p className="text-sm text-amber-600">
+                                Checkout dinonaktifkan sampai semua item varian dipilih ulang.
+                            </p>
+                        )}
 
                         <div className="flex items-start gap-2 text-xs text-slate-500 bg-slate-100 p-3 rounded-lg border border-slate-200">
                             <Verified className="w-4 h-4 text-green-500 mt-0.5" />

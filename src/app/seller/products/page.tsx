@@ -1,7 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, Search, MoreVertical, Edit, Trash2, Eye, Package, AlertTriangle } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Eye, Package, AlertTriangle } from "lucide-react";
 import { getSellerProducts } from "@/actions/products";
+import { canAccessSellerCenter, getSellerProfileByUserId } from "@/actions/seller";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -34,6 +35,11 @@ export default async function SellerProductsPage() {
 
     if (!session?.user) {
         redirect("/auth/login");
+    }
+
+    const sellerProfile = await getSellerProfileByUserId(session.user.id);
+    if (!sellerProfile?.store_name || !sellerProfile.store_slug || !canAccessSellerCenter(sellerProfile.store_status)) {
+        redirect("/seller/register");
     }
 
     const products = await getSellerProducts();

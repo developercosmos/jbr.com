@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { CheckoutPageClient } from "@/components/checkout/CheckoutPageClient";
+import { getCheckoutShippingQuote } from "@/actions/shipping";
 
 export default async function CheckoutPage() {
     // Check if user is logged in
@@ -47,14 +48,26 @@ export default async function CheckoutPage() {
     }
 
     const addresses = await getUserAddresses();
+    const defaultAddress = addresses.find((address) => address.is_default_shipping) ?? addresses[0] ?? null;
+
+    let initialShippingQuote = null;
+    if (defaultAddress) {
+        try {
+            initialShippingQuote = await getCheckoutShippingQuote({
+                addressId: defaultAddress.id,
+                courier: "jne",
+            });
+        } catch {
+            initialShippingQuote = null;
+        }
+    }
 
     // Calculate totals
     const subtotal = cartItems.reduce((sum, item) => {
-        return sum + parseFloat(item.product.price) * item.quantity;
+        return sum + parseFloat(item.variant?.price ?? item.product.price) * item.quantity;
     }, 0);
-    const shippingCost = 20000;
-    const serviceFee = 1000;
-    const total = subtotal + shippingCost + serviceFee;
+    const shippingCost = initialShippingQuote?.totalCost ?? 0;
+    const serviceFee = 0;
 
     return (
         <CheckoutPageClient
@@ -64,7 +77,7 @@ export default async function CheckoutPage() {
             subtotal={subtotal}
             shippingCost={shippingCost}
             serviceFee={serviceFee}
-            total={total}
+            initialShippingQuote={initialShippingQuote}
         />
     );
 }

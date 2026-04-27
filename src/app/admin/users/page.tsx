@@ -270,6 +270,11 @@ export default async function UserManagementPage() {
                                                     <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></span>
                                                     BANNED
                                                 </span>
+                                            ) : user.store_status === "PENDING_REVIEW" ? (
+                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400 ring-1 ring-inset ring-orange-600/20">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-orange-600 animate-pulse"></span>
+                                                    PENDING REVIEW
+                                                </span>
                                             ) : (
                                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400 ring-1 ring-inset ring-green-600/20">
                                                     <span className="w-1.5 h-1.5 rounded-full bg-green-600"></span>

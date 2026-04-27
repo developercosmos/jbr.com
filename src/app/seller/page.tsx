@@ -1,7 +1,11 @@
 import Link from "next/link";
-import { Search, Bell, Plus, TrendingUp, ShoppingBag, Package, Star, ArrowRight, Truck, MessageCircle, AlertTriangle, ChevronRight } from "lucide-react";
+import { Search, Bell, Plus, TrendingUp, ShoppingBag, Package, Star, ArrowRight, Truck, AlertTriangle, ChevronRight } from "lucide-react";
 import { getSellerStats, getRecentSellerOrders } from "@/actions/orders";
+import { canAccessSellerCenter, getSellerProfileByUserId } from "@/actions/seller";
+import { auth } from "@/lib/auth";
 import Image from "next/image";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 function formatPrice(amount: number) {
     return new Intl.NumberFormat("id-ID", {
@@ -47,6 +51,17 @@ const statusConfig: Record<string, { label: string; className: string }> = {
 };
 
 export default async function SellerDashboardPage() {
+    const session = await auth.api.getSession({ headers: await headers() });
+
+    if (!session?.user) {
+        redirect("/auth/login?redirect=/seller");
+    }
+
+    const sellerProfile = await getSellerProfileByUserId(session.user.id);
+    if (!sellerProfile?.store_name || !sellerProfile.store_slug || !canAccessSellerCenter(sellerProfile.store_status)) {
+        redirect("/seller/register");
+    }
+
     const stats = await getSellerStats();
     const recentOrders = await getRecentSellerOrders(5);
 

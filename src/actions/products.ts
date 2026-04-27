@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/db";
-import { products } from "@/db/schema";
+import { categories, products } from "@/db/schema";
+import { ensureCurrentUserCanSell } from "@/actions/seller";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { eq, desc, and } from "drizzle-orm";
@@ -55,6 +56,7 @@ async function getCurrentUser() {
 
 export async function createProduct(input: z.infer<typeof createProductSchema>) {
     const user = await getCurrentUser();
+    await ensureCurrentUserCanSell();
     const validated = createProductSchema.parse(input);
 
     const [product] = await db
@@ -151,6 +153,7 @@ export async function getPublishedProducts(limit = 20, offset = 0) {
                 },
             },
             category: true,
+            variants: true,
         },
     });
 
@@ -172,6 +175,7 @@ export async function getProductBySlug(slug: string) {
                 },
             },
             category: true,
+            variants: true,
         },
     });
 
@@ -190,7 +194,6 @@ export async function archiveProduct(productId: string) {
 // FILTERING & BROWSE ACTIONS
 // ============================================
 
-import { categories } from "@/db/schema";
 import { or, asc, ilike, sql, count } from "drizzle-orm";
 
 export type ProductFilters = {

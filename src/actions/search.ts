@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { products, categories } from "@/db/schema";
-import { eq, ilike, or, and, sql, desc, asc } from "drizzle-orm";
+import { eq, ilike, or, and, sql, desc, asc, inArray, gte } from "drizzle-orm";
 
 function getSearchVariants(query: string): string[] {
     const base = query.trim().toLowerCase();
@@ -35,6 +35,12 @@ interface SearchFilters {
     sortBy?: "relevance" | "price_asc" | "price_desc" | "newest" | "popular";
     page?: number;
     limit?: number;
+    // NICHE-02: spec filters.
+    weightClass?: string[];
+    balance?: string[];
+    shaftFlex?: string[];
+    gripSize?: string[];
+    minTensionLbs?: number;
 }
 
 export async function searchProducts(filters: SearchFilters) {
@@ -48,6 +54,11 @@ export async function searchProducts(filters: SearchFilters) {
         sortBy = "relevance",
         page = 1,
         limit = 20,
+        weightClass,
+        balance,
+        shaftFlex,
+        gripSize,
+        minTensionLbs,
     } = filters;
 
     const offset = (page - 1) * limit;
@@ -98,6 +109,23 @@ export async function searchProducts(filters: SearchFilters) {
     // Gender filter
     if (gender) {
         conditions.push(eq(products.gender, gender));
+    }
+
+    // NICHE-02: spec filters.
+    if (weightClass && weightClass.length > 0) {
+        conditions.push(inArray(products.weight_class, weightClass));
+    }
+    if (balance && balance.length > 0) {
+        conditions.push(inArray(products.balance, balance));
+    }
+    if (shaftFlex && shaftFlex.length > 0) {
+        conditions.push(inArray(products.shaft_flex, shaftFlex));
+    }
+    if (gripSize && gripSize.length > 0) {
+        conditions.push(inArray(products.grip_size, gripSize));
+    }
+    if (minTensionLbs !== undefined) {
+        conditions.push(gte(products.max_string_tension_lbs, minTensionLbs));
     }
 
     // Determine sort order

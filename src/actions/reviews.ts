@@ -1,12 +1,14 @@
 "use server";
 
 import { db } from "@/db";
-import { reviews, order_items, orders, products, users, notifications } from "@/db/schema";
+import { reviews, order_items } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { eq, desc, and, avg, count, sql } from "drizzle-orm";
+import { eq, desc, avg, count, and, gte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { notify } from "@/lib/notify";
+import { recomputeSellerRating } from "@/actions/reputation";
 
 // Helper to get current user
 async function getCurrentUser() {
@@ -19,19 +21,81 @@ async function getCurrentUser() {
     return session.user;
 }
 
+// TRUST-05: bound how many reviews a single user can submit per day to limit spam.
+const REVIEW_DAILY_LIMIT = Number(process.env.REVIEW_DAILY_LIMIT || 10);
+const MAX_REVIEW_IMAGES = 6;
+const MAX_COMMENT_LENGTH = 2000;
+
+function buildAllowedReviewMediaOrigins(): Set<string> {
+    const origins = new Set<string>();
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (appUrl) {
+        try {
+            origins.add(new URL(appUrl).origin);
+        } catch {
+            // Ignore malformed app URL; fall back to env-defined CDN list.
+        }
+    }
+    const cdnList = (process.env.REVIEW_MEDIA_ALLOWED_ORIGINS || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    for (const origin of cdnList) {
+        try {
+            origins.add(new URL(origin).origin);
+        } catch {
+            console.warn("[reviews] invalid REVIEW_MEDIA_ALLOWED_ORIGINS entry:", origin);
+        }
+    }
+    return origins;
+}
+
+function isAllowedReviewMediaUrl(url: string, allowedOrigins: Set<string>): boolean {
+    try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+            return false;
+        }
+        // Always allow same-origin internal API references (e.g. /api/files/<id>).
+        if (parsed.pathname.startsWith("/api/files/")) {
+            return true;
+        }
+        if (allowedOrigins.size === 0) {
+            // Without configured origins we can only accept relative-like internal URLs above.
+            return false;
+        }
+        return allowedOrigins.has(parsed.origin);
+    } catch {
+        return false;
+    }
+}
+
 // ============================================
 // CREATE REVIEW
 // ============================================
 const createReviewSchema = z.object({
     order_item_id: z.string().uuid(),
     rating: z.number().min(1).max(5),
-    comment: z.string().optional(),
-    images: z.array(z.string().url()).optional(),
+    comment: z.string().max(MAX_COMMENT_LENGTH, `Komentar maksimal ${MAX_COMMENT_LENGTH} karakter`).optional(),
+    images: z
+        .array(z.string().url("URL gambar tidak valid"))
+        .max(MAX_REVIEW_IMAGES, `Maksimal ${MAX_REVIEW_IMAGES} foto per review`)
+        .optional(),
 });
 
 export async function createReview(input: z.infer<typeof createReviewSchema>) {
     const user = await getCurrentUser();
     const validated = createReviewSchema.parse(input);
+
+    // TRUST-05: validate review media against the configured allowlist before any DB read.
+    if (validated.images && validated.images.length > 0) {
+        const allowedOrigins = buildAllowedReviewMediaOrigins();
+        for (const image of validated.images) {
+            if (!isAllowedReviewMediaUrl(image, allowedOrigins)) {
+                throw new Error("Foto review harus berasal dari penyimpanan aplikasi atau CDN terdaftar.");
+            }
+        }
+    }
 
     // Get order item with order and product info
     const orderItem = await db.query.order_items.findFirst({
@@ -65,6 +129,17 @@ export async function createReview(input: z.infer<typeof createReviewSchema>) {
         throw new Error("Already reviewed this item");
     }
 
+    // TRUST-05: per-user daily rate limit on review submission.
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentCount = await db
+        .select({ value: count() })
+        .from(reviews)
+        .where(and(eq(reviews.buyer_id, user.id), gte(reviews.created_at, since)));
+
+    if ((recentCount[0]?.value ?? 0) >= REVIEW_DAILY_LIMIT) {
+        throw new Error(`Anda sudah mencapai batas ${REVIEW_DAILY_LIMIT} review per 24 jam.`);
+    }
+
     // Create review
     const [review] = await db
         .insert(reviews)
@@ -80,17 +155,18 @@ export async function createReview(input: z.infer<typeof createReviewSchema>) {
         .returning();
 
     // Notify seller about new review
-    await db.insert(notifications).values({
-        user_id: orderItem.order.seller_id,
-        type: "NEW_REVIEW",
-        title: "Review Baru",
-        message: `${user.name} memberikan rating ${validated.rating}/5 untuk ${orderItem.product.title}`,
-        data: {
-            review_id: review.id,
-            product_id: orderItem.product_id,
-            rating: validated.rating,
-        },
+    await notify({
+        event: "REVIEW_RECEIVED",
+        recipientUserId: orderItem.order.seller_id,
+        actorName: user.name,
+        productId: orderItem.product_id,
+        productTitle: orderItem.product.title,
+        reviewId: review.id,
+        rating: validated.rating,
     });
+
+    // RATE-01: refresh aggregate so seller card reflects the new review.
+    await recomputeSellerRating(orderItem.order.seller_id);
 
     revalidatePath(`/product/${orderItem.product.slug}`);
     revalidatePath("/profile/orders");
@@ -185,15 +261,11 @@ export async function replyToReview(reviewId: string, reply: string) {
         .returning();
 
     // Notify buyer about reply
-    await db.insert(notifications).values({
-        user_id: review.buyer_id,
-        type: "REVIEW_REPLY",
-        title: "Balasan Review",
-        message: "Penjual telah membalas review Anda",
-        data: {
-            review_id: reviewId,
-            product_id: review.product_id,
-        },
+    await notify({
+        event: "REVIEW_REPLY",
+        recipientUserId: review.buyer_id,
+        reviewId,
+        productId: review.product_id,
     });
 
     revalidatePath("/seller/reviews");

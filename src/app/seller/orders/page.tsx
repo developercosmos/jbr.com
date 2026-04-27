@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Search, Filter, Download, Eye, MoreHorizontal, ArrowUpDown, ChevronLeft, ChevronRight, Package, Truck, CheckCircle, Clock, CreditCard, XCircle } from "lucide-react";
 import { getSellerOrders } from "@/actions/orders";
+import { canAccessSellerCenter, getSellerProfileByUserId } from "@/actions/seller";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -86,6 +87,11 @@ export default async function SellerOrdersPage() {
 
     if (!session?.user) {
         redirect("/auth/login");
+    }
+
+    const sellerProfile = await getSellerProfileByUserId(session.user.id);
+    if (!sellerProfile?.store_name || !sellerProfile.store_slug || !canAccessSellerCenter(sellerProfile.store_status)) {
+        redirect("/seller/register");
     }
 
     const orders = await getSellerOrders();

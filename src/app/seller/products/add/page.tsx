@@ -1,6 +1,7 @@
 import { getCategories } from "@/actions/categories";
 import { getUserAddresses } from "@/actions/address";
 import { getBrands } from "@/actions/products";
+import { canAccessSellerCenter, getSellerProfileByUserId } from "@/actions/seller";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -16,6 +17,11 @@ export default async function AddProductPage() {
 
     if (!session?.user) {
         redirect("/auth/login");
+    }
+
+    const sellerProfile = await getSellerProfileByUserId(session.user.id);
+    if (!sellerProfile?.store_name || !sellerProfile.store_slug || !canAccessSellerCenter(sellerProfile.store_status)) {
+        redirect("/seller/register");
     }
 
     // Fetch categories from database with error handling

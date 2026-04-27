@@ -3,6 +3,10 @@ import Image from "next/image";
 import { ArrowLeft, Package, Truck, CheckCircle, Clock, XCircle, CreditCard, MapPin, Store, Phone, Mail } from "lucide-react";
 import { getOrderById } from "@/actions/orders";
 import { notFound } from "next/navigation";
+import ConfirmReceiptButton from "./ConfirmReceiptButton";
+import CounterpartyRating from "./CounterpartyRating";
+import StringingAddOnButton from "./StringingAddOnButton";
+import { getOrderRatingPair } from "@/actions/reputation";
 
 const statusConfig: Record<string, { label: string; icon: React.ReactNode; bg: string; text: string; border: string }> = {
     PENDING_PAYMENT: {
@@ -101,6 +105,12 @@ export default async function OrderDetailPage({ params }: PageProps) {
 
     const status = statusConfig[order.status] || statusConfig.PENDING_PAYMENT;
 
+    const ratingPair = order.status === "COMPLETED"
+        ? await getOrderRatingPair(order.id).catch(() => null)
+        : null;
+    const buyerToSeller = ratingPair?.buyerToSeller ?? null;
+    const sellerToBuyer = ratingPair?.sellerToBuyer ?? null;
+
     return (
         <div className="flex-1">
             {/* Header */}
@@ -169,6 +179,14 @@ export default async function OrderDetailPage({ params }: PageProps) {
                                         <p className="text-brand-primary font-bold mt-2">
                                             {formatPrice((parseFloat(item.price) * item.quantity).toString())}
                                         </p>
+                                        {(order.status === "PAID" || order.status === "PROCESSING" || order.status === "SHIPPED" || order.status === "DELIVERED") && (
+                                            <div className="mt-2">
+                                                <StringingAddOnButton
+                                                    orderItemId={item.id}
+                                                    productTitle={item.product?.title || "raket"}
+                                                />
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ))}
@@ -286,8 +304,44 @@ export default async function OrderDetailPage({ params }: PageProps) {
                                     Bayar Sekarang
                                 </Link>
                             )}
+                            {order.status === "DELIVERED" && (
+                                <ConfirmReceiptButton
+                                    orderId={order.id}
+                                    releaseDueAt={order.release_due_at ? new Date(order.release_due_at).toISOString() : null}
+                                />
+                            )}
                         </div>
                     </div>
+
+                    {/* Counterparty Rating (RATE-02) */}
+                    {ratingPair && (
+                        <CounterpartyRating
+                            orderId={order.id}
+                            role="buyer"
+                            existing={
+                                buyerToSeller
+                                    ? {
+                                        rating: buyerToSeller.rating,
+                                        tags: buyerToSeller.tags,
+                                        comment: buyerToSeller.comment,
+                                        submitted_at: buyerToSeller.submitted_at,
+                                    }
+                                    : null
+                            }
+                            revealedOpposite={
+                                sellerToBuyer
+                                    ? {
+                                        rating: sellerToBuyer.rating,
+                                        tags: sellerToBuyer.tags,
+                                        comment: sellerToBuyer.comment,
+                                        submitted_at: sellerToBuyer.submitted_at,
+                                    }
+                                    : null
+                            }
+                            revealed={ratingPair.revealed}
+                            submissionWindowOpen={ratingPair.submissionWindowOpen}
+                        />
+                    )}
 
                     {/* Order Date Info */}
                     <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">

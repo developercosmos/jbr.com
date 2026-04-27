@@ -11,10 +11,11 @@ type PaymentMethod = "BANK_TRANSFER" | "EWALLET" | "COD";
 interface CheckoutFormProps {
     selectedAddressId: string | null;
     paymentMethod: PaymentMethod;
+    shippingCourier: "jne" | "pos" | "tiki";
     canCheckout: boolean;
 }
 
-export function CheckoutForm({ selectedAddressId, paymentMethod, canCheckout }: CheckoutFormProps) {
+export function CheckoutForm({ selectedAddressId, paymentMethod, shippingCourier, canCheckout }: CheckoutFormProps) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState("");
@@ -40,6 +41,7 @@ export function CheckoutForm({ selectedAddressId, paymentMethod, canCheckout }: 
                 // Step 1: Create order
                 const orderResult = await createOrderFromCart({
                     shipping_address_id: selectedAddressId,
+                    shipping_courier: shippingCourier,
                 });
 
                 if (!orderResult.success || !orderResult.orders?.length) {

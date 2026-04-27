@@ -3,13 +3,21 @@
 import { useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Trash2, Minus, Plus, Store, MapPin, Verified, Loader2, Tag, ShieldCheck } from "lucide-react";
+import { Trash2, Minus, Plus, Store, Verified, Loader2, Tag, ShieldCheck } from "lucide-react";
 import { removeFromCart, updateCartItemQuantity, clearCart } from "@/actions/cart";
 
 // Define the cart item type based on getCart return
 interface CartItemType {
     id: string;
     quantity: number;
+    variant: {
+        id: string;
+        name: string;
+        variant_type: string;
+        price: string | null;
+        stock: number;
+        is_available: boolean;
+    } | null;
     product: {
         id: string;
         title: string;
@@ -23,6 +31,7 @@ interface CartItemType {
             name: string | null;
             store_name: string | null;
         };
+        variants: { id: string }[];
     };
 }
 
@@ -91,8 +100,12 @@ export function CartContent({ initialItems }: CartContentProps) {
 
     // Calculate totals
     const subtotal = items.reduce((sum, item) => {
-        return sum + parseFloat(item.product.price) * item.quantity;
+        return sum + parseFloat(item.variant?.price ?? item.product.price) * item.quantity;
     }, 0);
+
+    const hasVariantResolutionErrors = items.some(
+        (item) => item.product.variants.length > 0 && !item.variant
+    );
 
     const formatPrice = (price: number) => {
         return new Intl.NumberFormat("id-ID", {
@@ -168,8 +181,18 @@ export function CartContent({ initialItems }: CartContentProps) {
                                         </span>
                                     </div>
                                     <div className="text-slate-900 text-lg font-bold">
-                                        {formatPrice(parseFloat(item.product.price))}
+                                        {formatPrice(parseFloat(item.variant?.price ?? item.product.price))}
                                     </div>
+                                    {item.variant && (
+                                        <p className="text-sm text-slate-500">
+                                            Varian: {item.variant.name}
+                                        </p>
+                                    )}
+                                    {!item.variant && item.product.variants.length > 0 && (
+                                        <p className="text-sm text-amber-600">
+                                            Varian lama perlu dipilih ulang sebelum checkout.
+                                        </p>
+                                    )}
                                 </div>
 
                                 {/* Actions */}
@@ -254,7 +277,7 @@ export function CartContent({ initialItems }: CartContentProps) {
                     {/* CTA Button */}
                     <Link href="/checkout">
                         <button
-                            disabled={isPending || items.length === 0}
+                            disabled={isPending || items.length === 0 || hasVariantResolutionErrors}
                             className="w-full bg-brand-primary hover:bg-blue-600 disabled:bg-slate-400 text-white font-bold py-3.5 rounded-lg shadow-lg shadow-brand-primary/30 transition-all active:scale-[0.98] flex justify-center items-center gap-2"
                         >
                             {isPending ? (
@@ -264,6 +287,12 @@ export function CartContent({ initialItems }: CartContentProps) {
                             )}
                         </button>
                     </Link>
+
+                    {hasVariantResolutionErrors && (
+                        <p className="text-sm text-amber-600">
+                            Beberapa item memerlukan pemilihan ulang varian dari halaman produk.
+                        </p>
+                    )}
 
                     {/* Trust Badge */}
                     <div className="flex items-center justify-center gap-2 text-slate-500 text-xs">

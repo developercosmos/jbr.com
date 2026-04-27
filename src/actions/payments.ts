@@ -1,12 +1,16 @@
 "use server";
 
 import { db } from "@/db";
-import { payments, orders, notifications } from "@/db/schema";
+import { payments, orders } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { eq, desc, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { sendOrderConfirmationEmail, sendPaymentSuccessEmail } from "@/lib/email";
+import { notify } from "@/lib/notify";
+import { formatCurrency } from "@/lib/format";
+import { isBuyerEligibleForCod } from "@/actions/reputation";
+import { recordOrderPayment } from "@/actions/ledger";
+import { logger } from "@/lib/logger";
 
 // Xendit API configuration
 const XENDIT_SECRET_KEY = process.env.XENDIT_SECRET_KEY;
@@ -21,15 +25,6 @@ async function getCurrentUser() {
         throw new Error("Unauthorized");
     }
     return session.user;
-}
-
-// Helper to format currency
-function formatCurrency(amount: number): string {
-    return new Intl.NumberFormat("id-ID", {
-        style: "currency",
-        currency: "IDR",
-        minimumFractionDigits: 0,
-    }).format(amount);
 }
 
 // ============================================
@@ -57,6 +52,14 @@ export async function createPaymentInvoice(orderId: string, preferredMethod?: "B
 
     if (order.status !== "PENDING_PAYMENT") {
         throw new Error("Order has already been paid or is not pending payment");
+    }
+
+    // RATE-03: gate COD on buyer reputation. Other payment methods skip this check.
+    if (preferredMethod === "COD") {
+        const eligibility = await isBuyerEligibleForCod(user.id);
+        if (!eligibility.eligible) {
+            throw new Error(eligibility.reason || "Akun Anda belum memenuhi syarat untuk COD.");
+        }
     }
 
     // Check if payment already exists
@@ -130,12 +133,15 @@ export async function createPaymentInvoice(orderId: string, preferredMethod?: "B
         })
         .returning();
 
-    // Send order confirmation email
     if (order.buyer) {
-        await sendOrderConfirmationEmail({
+        await notify({
+            event: "ORDER_CREATED",
+            audience: "buyer",
+            recipientUserId: order.buyer_id,
+            recipientEmail: order.buyer.email,
+            recipientName: order.buyer.name,
+            orderId: order.id,
             orderNumber: order.order_number,
-            buyerName: order.buyer.name,
-            buyerEmail: order.buyer.email,
             items: order.items.map((item: typeof order.items[number]) => ({
                 title: item.product.title,
                 quantity: item.quantity,
@@ -241,36 +247,55 @@ export async function handleXenditWebhook(data: {
             with: {
                 buyer: true,
                 seller: true,
+                items: {
+                    with: {
+                        product: true,
+                    },
+                },
             },
         });
 
         if (order?.buyer) {
-            // Send payment success email
-            await sendPaymentSuccessEmail({
+            await notify({
+                event: "PAYMENT_SUCCESS",
+                recipientUserId: order.buyer_id,
+                recipientEmail: order.buyer.email,
+                recipientName: order.buyer.name,
+                orderId: order.id,
                 orderNumber: order.order_number,
-                buyerName: order.buyer.name,
-                buyerEmail: order.buyer.email,
                 paymentMethod: data.payment_method,
                 amount: formatCurrency(parseFloat(order.total)),
                 paidAt: new Date(data.paid_at || Date.now()).toLocaleString("id-ID"),
             });
 
-            // Create notification for buyer
-            await db.insert(notifications).values({
-                user_id: order.buyer_id,
-                type: "PAYMENT_SUCCESS",
-                title: "Pembayaran Berhasil",
-                message: `Pembayaran untuk pesanan ${order.order_number} telah diterima. Pesanan sedang diproses.`,
-                data: { order_id: orderId, order_number: order.order_number },
-            });
+            // MON-03: record buyer payment into escrow ledger.
+            try {
+                await recordOrderPayment({
+                    orderId: order.id,
+                    buyerId: order.buyer_id,
+                    amount: parseFloat(order.total),
+                });
+            } catch (ledgerError) {
+                logger.error("ledger:record_order_payment_failed", { orderId: order.id, error: String(ledgerError) });
+            }
+        }
 
-            // Create notification for seller
-            await db.insert(notifications).values({
-                user_id: order.seller_id,
-                type: "ORDER_CREATED",
-                title: "Pesanan Baru",
-                message: `Ada pesanan baru ${order.order_number} yang perlu diproses.`,
-                data: { order_id: orderId, order_number: order.order_number },
+        if (order?.seller) {
+            await notify({
+                event: "ORDER_CREATED",
+                audience: "seller",
+                recipientUserId: order.seller_id,
+                recipientEmail: order.seller.email,
+                recipientName: order.seller.store_name || order.seller.name,
+                orderId: order.id,
+                orderNumber: order.order_number,
+                buyerName: order.buyer?.name || "Pembeli",
+                items: order.items.map((item: typeof order.items[number]) => ({
+                    name: item.product.title,
+                    quantity: item.quantity,
+                    price: parseFloat(item.price),
+                })),
+                total: parseFloat(order.total),
             });
         }
     }

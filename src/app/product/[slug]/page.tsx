@@ -5,6 +5,7 @@ import { ProductInfo } from "@/components/product/ProductInfo";
 import { SimilarProducts } from "@/components/product/SimilarProducts";
 import { ProductReviews } from "@/components/product/ProductReviews";
 import { getProductBySlug } from "@/actions/products";
+import { getSellerReputationSummary } from "@/actions/reputation";
 
 interface ProductPageProps {
     params: Promise<{ slug: string }>;
@@ -17,6 +18,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
     if (!product) {
         notFound();
     }
+
+    const sellerReputation = product.seller
+        ? await getSellerReputationSummary(product.seller.id)
+        : null;
 
     return (
         <main className="flex-grow w-full max-w-7xl mx-auto px-4 lg:px-10 py-6">
@@ -47,18 +52,24 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
                 {/* Right Side: Details & Actions */}
                 <div className="lg:col-span-5">
-                    <ProductInfo product={{
-                        id: product.id,
-                        title: product.title,
-                        description: product.description,
-                        price: product.price,
-                        condition: product.condition,
-                        condition_rating: product.condition_rating,
-                        condition_notes: product.condition_notes,
-                        stock: product.stock,
-                        seller: product.seller,
-                        category: product.category,
-                    }} />
+                    <ProductInfo
+                        product={{
+                            id: product.id,
+                            title: product.title,
+                            description: product.description,
+                            price: product.price,
+                            condition: product.condition,
+                            condition_rating: product.condition_rating,
+                            condition_notes: product.condition_notes,
+                            stock: product.stock,
+                            seller: product.seller,
+                            category: product.category,
+                            variants: product.variants,
+                            bargain_enabled: product.bargain_enabled,
+                            auto_decline_below: product.auto_decline_below,
+                        }}
+                        sellerReputation={sellerReputation}
+                    />
                 </div>
             </div>
 

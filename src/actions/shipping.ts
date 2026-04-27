@@ -1,17 +1,17 @@
 "use server";
 
 import { db } from "@/db";
-import { orders, notifications, users } from "@/db/schema";
+import { addresses, carts, integration_settings, orders } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { sendShippingNotificationEmail } from "@/lib/email";
 import { z } from "zod";
+import { notify } from "@/lib/notify";
 
-// RajaOngkir API configuration
-const RAJAONGKIR_API_KEY = process.env.RAJAONGKIR_API_KEY;
-const RAJAONGKIR_API_URL = "https://api.rajaongkir.com/starter";
+const SHIPPING_COURIERS = ["jne", "pos", "tiki"] as const;
+const SHIPPING_QUOTE_TTL_MS = 10 * 60 * 1000;
+const quoteCache = new Map<string, { expiresAt: number; value: CheckoutShippingQuoteResult }>();
 
 // Helper to get current user
 async function getCurrentUser() {
@@ -31,28 +31,85 @@ const getShippingCostSchema = z.object({
     origin: z.string(), // City ID
     destination: z.string(), // City ID
     weight: z.number().min(1), // in grams
-    courier: z.enum(["jne", "pos", "tiki"]),
+    courier: z.enum(SHIPPING_COURIERS),
 });
 
-export async function getShippingCost(input: z.infer<typeof getShippingCostSchema>) {
-    const validated = getShippingCostSchema.parse(input);
+const getCheckoutShippingQuoteSchema = z.object({
+    addressId: z.string().uuid(),
+    courier: z.enum(SHIPPING_COURIERS),
+});
 
-    if (!RAJAONGKIR_API_KEY) {
-        // Return dummy data if API key not configured
+type ShippingCourier = z.infer<typeof getShippingCostSchema>["courier"];
+
+type ShippingOption = {
+    service: string;
+    description: string;
+    cost: number;
+    etd: string;
+};
+
+type CheckoutShippingQuoteResult = {
+    success: boolean;
+    courier: ShippingCourier;
+    totalCost: number;
+    quotesBySeller: Array<{
+        sellerId: string;
+        shippingProvider: string;
+        service: string;
+        description: string;
+        cost: number;
+        etd: string;
+    }>;
+    warning?: string;
+    usedFallback: boolean;
+};
+
+async function getRajaOngkirSettings() {
+    const setting = await db.query.integration_settings.findFirst({
+        where: eq(integration_settings.key, "rajaongkir"),
+    });
+
+    const config = (setting?.config as Record<string, unknown> | null) ?? {};
+    const credentials = setting?.credentials ?? {};
+    const accountType = String(config.account_type ?? "starter");
+
+    return {
+        enabled: setting?.enabled ?? false,
+        apiKey: credentials.api_key || process.env.RAJAONGKIR_API_KEY || "",
+        apiUrl: `https://api.rajaongkir.com/${accountType}`,
+        originCityId: String(config.origin_city_id ?? process.env.RAJAONGKIR_ORIGIN_CITY_ID ?? "1"),
+        fallbackCost: Number(config.fallback_cost ?? process.env.CHECKOUT_SHIPPING_FALLBACK_COST ?? 20000),
+    };
+}
+
+function getFallbackOptions(fallbackCost: number): ShippingOption[] {
+    return [
+        {
+            service: "FALLBACK",
+            description: "Estimasi sementara",
+            cost: fallbackCost,
+            etd: "3-5",
+        },
+    ];
+}
+
+async function fetchShippingOptions(input: z.infer<typeof getShippingCostSchema>): Promise<{ options: ShippingOption[]; usedFallback: boolean; warning?: string }> {
+    const validated = getShippingCostSchema.parse(input);
+    const settings = await getRajaOngkirSettings();
+
+    if (!settings.enabled || !settings.apiKey) {
         return {
-            success: true,
-            costs: [
-                { service: "REG", description: "Layanan Reguler", cost: 20000, etd: "3-4" },
-                { service: "YES", description: "Yakin Esok Sampai", cost: 35000, etd: "1-2" },
-            ],
+            options: getFallbackOptions(settings.fallbackCost),
+            usedFallback: true,
+            warning: "RajaOngkir belum aktif. Menggunakan ongkir fallback sementara.",
         };
     }
 
     try {
-        const response = await fetch(`${RAJAONGKIR_API_URL}/cost`, {
+        const response = await fetch(`${settings.apiUrl}/cost`, {
             method: "POST",
             headers: {
-                "key": RAJAONGKIR_API_KEY,
+                key: settings.apiKey,
                 "Content-Type": "application/x-www-form-urlencoded",
             },
             body: new URLSearchParams({
@@ -61,6 +118,7 @@ export async function getShippingCost(input: z.infer<typeof getShippingCostSchem
                 weight: validated.weight.toString(),
                 courier: validated.courier,
             }),
+            cache: "no-store",
         });
 
         if (!response.ok) {
@@ -69,52 +127,196 @@ export async function getShippingCost(input: z.infer<typeof getShippingCostSchem
 
         const data = await response.json();
         const results = data.rajaongkir?.results?.[0]?.costs || [];
+        const options = results.map((cost: { service: string; description: string; cost: { value: number; etd: string }[] }) => ({
+            service: cost.service,
+            description: cost.description,
+            cost: cost.cost[0]?.value || 0,
+            etd: cost.cost[0]?.etd || "-",
+        }));
+
+        if (options.length === 0) {
+            throw new Error("No shipping options returned");
+        }
 
         return {
-            success: true,
-            costs: results.map((cost: { service: string; description: string; cost: { value: number; etd: string }[] }) => ({
-                service: cost.service,
-                description: cost.description,
-                cost: cost.cost[0]?.value || 0,
-                etd: cost.cost[0]?.etd || "-",
-            })),
+            options,
+            usedFallback: false,
         };
     } catch (error) {
         console.error("RajaOngkir error:", error);
         return {
-            success: false,
-            error: "Failed to get shipping cost",
-            costs: [],
+            options: getFallbackOptions(settings.fallbackCost),
+            usedFallback: true,
+            warning: "Gagal mengambil ongkir live. Menggunakan ongkir fallback sementara.",
         };
     }
+}
+
+function buildQuoteCacheKey(userId: string, addressId: string, courier: ShippingCourier, sellerId: string, items: Array<{ productId: string; variantId: string | null; quantity: number }>) {
+    const signature = items
+        .map((item) => `${item.productId}:${item.variantId ?? "base"}:${item.quantity}`)
+        .sort()
+        .join("|");
+
+    return `${userId}:${addressId}:${courier}:${sellerId}:${signature}`;
+}
+
+export async function getCheckoutShippingQuoteForUser(userId: string, addressId: string, courier: ShippingCourier): Promise<CheckoutShippingQuoteResult> {
+    const validated = getCheckoutShippingQuoteSchema.parse({ addressId, courier });
+    const settings = await getRajaOngkirSettings();
+
+    const shippingAddress = await db.query.addresses.findFirst({
+        where: and(eq(addresses.id, validated.addressId), eq(addresses.user_id, userId)),
+    });
+
+    if (!shippingAddress?.city_id) {
+        throw new Error("Alamat pengiriman belum memiliki kota tujuan yang valid");
+    }
+
+    const cartItems = await db.query.carts.findMany({
+        where: eq(carts.user_id, userId),
+        with: {
+            product: true,
+        },
+    });
+
+    if (cartItems.length === 0) {
+        throw new Error("Cart is empty");
+    }
+
+    const itemsBySeller = cartItems.reduce<Record<string, typeof cartItems>>((acc, item) => {
+        const sellerId = item.product.seller_id;
+        if (!acc[sellerId]) {
+            acc[sellerId] = [];
+        }
+        acc[sellerId].push(item);
+        return acc;
+    }, {});
+
+    let totalCost = 0;
+    let usedFallback = false;
+    const warnings = new Set<string>();
+    const quotesBySeller: CheckoutShippingQuoteResult["quotesBySeller"] = [];
+
+    for (const [sellerId, sellerItems] of Object.entries(itemsBySeller)) {
+        const weight = sellerItems.reduce((sum, item) => {
+            const baseWeight = item.product.weight_grams ?? 1000;
+            return sum + Math.max(baseWeight, 1) * item.quantity;
+        }, 0);
+
+        const cacheKey = buildQuoteCacheKey(
+            userId,
+            validated.addressId,
+            validated.courier,
+            sellerId,
+            sellerItems.map((item) => ({
+                productId: item.product_id,
+                variantId: item.variant_id,
+                quantity: item.quantity,
+            }))
+        );
+
+        const cached = quoteCache.get(cacheKey);
+        if (cached && cached.expiresAt > Date.now()) {
+            totalCost += cached.value.totalCost;
+            usedFallback = usedFallback || cached.value.usedFallback;
+            if (cached.value.warning) {
+                warnings.add(cached.value.warning);
+            }
+            quotesBySeller.push(...cached.value.quotesBySeller);
+            continue;
+        }
+
+        const { options, usedFallback: sellerUsedFallback, warning } = await fetchShippingOptions({
+            origin: settings.originCityId,
+            destination: String(shippingAddress.city_id),
+            weight,
+            courier: validated.courier,
+        });
+
+        const selectedOption = options.reduce((lowest, option) => (option.cost < lowest.cost ? option : lowest), options[0]);
+        const sellerQuote: CheckoutShippingQuoteResult = {
+            success: true,
+            courier: validated.courier,
+            totalCost: selectedOption.cost,
+            quotesBySeller: [
+                {
+                    sellerId,
+                    shippingProvider: `${validated.courier.toUpperCase()} ${selectedOption.service}`,
+                    service: selectedOption.service,
+                    description: selectedOption.description,
+                    cost: selectedOption.cost,
+                    etd: selectedOption.etd,
+                },
+            ],
+            warning,
+            usedFallback: sellerUsedFallback,
+        };
+
+        quoteCache.set(cacheKey, {
+            expiresAt: Date.now() + SHIPPING_QUOTE_TTL_MS,
+            value: sellerQuote,
+        });
+
+        totalCost += sellerQuote.totalCost;
+        usedFallback = usedFallback || sellerQuote.usedFallback;
+        if (sellerQuote.warning) {
+            warnings.add(sellerQuote.warning);
+        }
+        quotesBySeller.push(...sellerQuote.quotesBySeller);
+    }
+
+    return {
+        success: true,
+        courier: validated.courier,
+        totalCost,
+        quotesBySeller,
+        usedFallback,
+        warning: warnings.size > 0 ? Array.from(warnings).join(" ") : undefined,
+    };
+}
+
+export async function getCheckoutShippingQuote(input: z.infer<typeof getCheckoutShippingQuoteSchema>) {
+    const user = await getCurrentUser();
+    return getCheckoutShippingQuoteForUser(user.id, input.addressId, input.courier);
+}
+
+export async function getShippingCost(input: z.infer<typeof getShippingCostSchema>) {
+    const { options, usedFallback, warning } = await fetchShippingOptions(input);
+
+    return {
+        success: true,
+        costs: options,
+        usedFallback,
+        warning,
+    };
 }
 
 // ============================================
 // GET CITIES (for dropdown)
 // ============================================
 export async function getCities(provinceId?: string) {
-    if (!RAJAONGKIR_API_KEY) {
-        // Return dummy data if API key not configured
+    const settings = await getRajaOngkirSettings();
+
+    if (!settings.enabled || !settings.apiKey) {
         return {
-            success: true,
-            cities: [
-                { id: "1", name: "Jakarta Pusat", province: "DKI Jakarta" },
-                { id: "2", name: "Bandung", province: "Jawa Barat" },
-                { id: "3", name: "Surabaya", province: "Jawa Timur" },
-            ],
+            success: false,
+            error: "Integrasi RajaOngkir belum aktif. Aktifkan di pengaturan admin untuk mengambil daftar kota.",
+            cities: [] as Array<{ id: string; name: string; province: string }>,
         };
     }
 
     try {
         const url = provinceId
-            ? `${RAJAONGKIR_API_URL}/city?province=${provinceId}`
-            : `${RAJAONGKIR_API_URL}/city`;
+            ? `${settings.apiUrl}/city?province=${provinceId}`
+            : `${settings.apiUrl}/city`;
 
         const response = await fetch(url, {
             method: "GET",
             headers: {
-                "key": RAJAONGKIR_API_KEY,
+                key: settings.apiKey,
             },
+            cache: "no-store",
         });
 
         if (!response.ok) {
@@ -130,14 +332,14 @@ export async function getCities(provinceId?: string) {
                 id: city.city_id,
                 name: city.city_name,
                 province: city.province,
-            })),
+            })) as Array<{ id: string; name: string; province: string }>,
         };
     } catch (error) {
         console.error("RajaOngkir error:", error);
         return {
             success: false,
-            error: "Failed to get cities",
-            cities: [],
+            error: "Gagal mengambil daftar kota dari RajaOngkir.",
+            cities: [] as Array<{ id: string; name: string; province: string }>,
         };
     }
 }
@@ -195,30 +397,17 @@ export async function updateShippingInfo(input: z.infer<typeof updateShippingSch
         .where(eq(orders.id, validated.orderId))
         .returning();
 
-    // Notify buyer
     if (order.buyer) {
-        // Email notification
-        await sendShippingNotificationEmail({
+        await notify({
+            event: "ORDER_SHIPPED",
+            recipientUserId: order.buyer_id,
+            recipientEmail: order.buyer.email,
+            recipientName: order.buyer.name,
+            orderId: validated.orderId,
             orderNumber: order.order_number,
-            buyerName: order.buyer.name,
-            buyerEmail: order.buyer.email,
             trackingNumber: validated.trackingNumber,
             shippingProvider: validated.shippingProvider,
             trackingUrl: getTrackingUrl(validated.shippingProvider, validated.trackingNumber),
-        });
-
-        // In-app notification
-        await db.insert(notifications).values({
-            user_id: order.buyer_id,
-            type: "ORDER_SHIPPED",
-            title: "Pesanan Dikirim",
-            message: `Pesanan ${order.order_number} telah dikirim dengan ${validated.shippingProvider}. No. Resi: ${validated.trackingNumber}`,
-            data: {
-                order_id: validated.orderId,
-                order_number: order.order_number,
-                tracking_number: validated.trackingNumber,
-                shipping_provider: validated.shippingProvider,
-            },
         });
     }
 
@@ -263,6 +452,10 @@ export async function confirmDelivery(orderId: string) {
             eq(orders.id, orderId),
             eq(orders.buyer_id, user.id)
         ),
+        with: {
+            buyer: true,
+            seller: true,
+        },
     });
 
     if (!order) {
@@ -273,26 +466,39 @@ export async function confirmDelivery(orderId: string) {
         throw new Error("Order is not in shipped status");
     }
 
+    // TRUST-02: arm the escrow auto-release timer. Configurable via env, default 3 days.
+    const releaseHours = Number(process.env.ESCROW_RELEASE_HOURS || 72);
+    const releaseDueAt = new Date(Date.now() + releaseHours * 60 * 60 * 1000);
+
     // Update order
     const [updated] = await db
         .update(orders)
         .set({
             status: "DELIVERED",
+            release_due_at: releaseDueAt,
             updated_at: new Date(),
         })
         .where(eq(orders.id, orderId))
         .returning();
 
-    // Notify seller
-    await db.insert(notifications).values({
-        user_id: order.seller_id,
-        type: "ORDER_DELIVERED",
-        title: "Pesanan Terkirim",
-        message: `Pembeli telah mengkonfirmasi penerimaan pesanan ${order.order_number}`,
-        data: {
-            order_id: orderId,
-            order_number: order.order_number,
-        },
+    if (order.buyer) {
+        await notify({
+            event: "ORDER_DELIVERED",
+            audience: "buyer",
+            recipientUserId: order.buyer_id,
+            recipientEmail: order.buyer.email,
+            recipientName: order.buyer.name,
+            orderId,
+            orderNumber: order.order_number,
+        });
+    }
+
+    await notify({
+        event: "ORDER_DELIVERED",
+        audience: "seller",
+        recipientUserId: order.seller_id,
+        orderId,
+        orderNumber: order.order_number,
     });
 
     revalidatePath("/seller/orders");

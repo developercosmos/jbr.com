@@ -1,8 +1,11 @@
 import { Save, Upload, MapPin, Store } from "lucide-react";
 import Image from "next/image";
+import { canAccessSellerCenter, getSellerProfileByUserId } from "@/actions/seller";
+import { getCurrentSellerKyc } from "@/actions/kyc";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import KycSection from "./KycSection";
 
 export default async function SellerSettingsPage() {
     const session = await auth.api.getSession({
@@ -14,6 +17,14 @@ export default async function SellerSettingsPage() {
     }
 
     const user = session.user;
+    const sellerProfile = await getSellerProfileByUserId(user.id);
+
+    if (!sellerProfile?.store_name || !sellerProfile.store_slug || !canAccessSellerCenter(sellerProfile.store_status)) {
+        redirect("/seller/register");
+    }
+
+    const kycProfile = await getCurrentSellerKyc();
+    const currentTier = (sellerProfile.tier ?? "T0") as "T0" | "T1" | "T2";
 
     return (
         <div className="flex-1 p-8 scroll-smooth">
@@ -149,6 +160,21 @@ export default async function SellerSettingsPage() {
                         </div>
                     </div>
                 </div>
+
+                {/* KYC Section */}
+                <KycSection
+                    profile={kycProfile ? {
+                        tier: kycProfile.tier,
+                        status: kycProfile.status,
+                        notes: kycProfile.notes,
+                        submitted_at: kycProfile.submitted_at,
+                        reviewed_at: kycProfile.reviewed_at,
+                        ktp_file_id: kycProfile.ktp_file_id,
+                        selfie_file_id: kycProfile.selfie_file_id,
+                        business_doc_file_id: kycProfile.business_doc_file_id,
+                    } : null}
+                    currentTier={currentTier}
+                />
 
                 {/* Save Button */}
                 <div className="flex justify-end">

@@ -634,14 +634,42 @@ export async function updateDisputeStatus(
 ) {
     const admin = await getCurrentAdmin();
 
+    const existing = await db.query.disputes.findFirst({
+        where: eq(disputes.id, disputeId),
+        columns: { id: true, response_due_at: true, resolution_due_at: true },
+    });
+
+    if (!existing) {
+        throw new Error("Dispute not found");
+    }
+
     const updateData: any = {
         status,
         updated_at: new Date(),
     };
 
+    // TRUST-03: arm/refresh SLA timers based on lifecycle state.
+    const responseHours = Number(process.env.DISPUTE_RESPONSE_HOURS || 24);
+    const resolutionHours = Number(process.env.DISPUTE_RESOLUTION_HOURS || 24 * 7);
+    const now = Date.now();
+
+    if (status === "AWAITING_RESPONSE") {
+        updateData.response_due_at = new Date(now + responseHours * 60 * 60 * 1000);
+    } else if (status === "OPEN" && !existing.response_due_at) {
+        updateData.response_due_at = new Date(now + responseHours * 60 * 60 * 1000);
+    } else if (status === "IN_PROGRESS") {
+        if (!existing.resolution_due_at) {
+            updateData.resolution_due_at = new Date(now + resolutionHours * 60 * 60 * 1000);
+        }
+        // Pause response timer once admin actively works the case.
+        updateData.response_due_at = null;
+    }
+
     if (status === "RESOLVED" || status === "CLOSED") {
         updateData.resolved_at = new Date();
         updateData.resolved_by = admin.id;
+        updateData.response_due_at = null;
+        updateData.resolution_due_at = null;
         if (resolution) {
             updateData.resolution = resolution;
         }

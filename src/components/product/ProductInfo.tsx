@@ -1,6 +1,6 @@
 "use client";
 
-import { Star, ShieldCheck, Truck, Heart, Share2, ShoppingCart, Loader2, MessageCircle } from "lucide-react";
+import { ShieldCheck, Truck, Heart, Share2, ShoppingCart, Loader2, MessageCircle } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useState, useTransition } from "react";
@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation";
 import { addToCart } from "@/actions/cart";
 import { startConversation } from "@/actions/chat";
 import { addToWishlist } from "@/actions/wishlist";
+import { VariantSelector } from "@/components/product/VariantSelector";
+import MakeOfferButton from "@/components/product/MakeOfferButton";
 
 interface ProductSeller {
     id: string;
@@ -36,10 +38,36 @@ interface ProductInfoProps {
         stock: number;
         seller: ProductSeller | null;
         category: ProductCategory | null;
+        bargain_enabled?: boolean;
+        auto_decline_below?: string | null;
+        variants: {
+            id: string;
+            name: string;
+            variant_type: string;
+            price: string | null;
+            stock: number;
+            images: string[] | null;
+            is_available: boolean;
+        }[];
     };
+    sellerReputation?: {
+        avgRating: number;
+        ratingCount: number;
+        completionRate: number;
+        cancellationRate: number;
+        responseTimeMinutes: number;
+    } | null;
 }
 
-export function ProductInfo({ product }: ProductInfoProps) {
+function formatResponseTime(minutes: number): string {
+    if (!minutes || minutes <= 0) return "-";
+    if (minutes < 60) return `${minutes} menit`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `${hours} jam`;
+    return `${Math.round(hours / 24)} hari`;
+}
+
+export function ProductInfo({ product, sellerReputation }: ProductInfoProps) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [isChatPending, startChatTransition] = useTransition();
@@ -47,6 +75,7 @@ export function ProductInfo({ product }: ProductInfoProps) {
     const [added, setAdded] = useState(false);
     const [wishlisted, setWishlisted] = useState(false);
     const [shared, setShared] = useState(false);
+    const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
 
     const formatPrice = (price: string) => {
         return new Intl.NumberFormat("id-ID", {
@@ -62,10 +91,26 @@ export function ProductInfo({ product }: ProductInfoProps) {
         return "Pre-loved";
     };
 
+    const groupedVariants = product.variants.reduce<Record<string, ProductInfoProps["product"]["variants"]>>(
+        (acc, variant) => {
+            if (!acc[variant.variant_type]) {
+                acc[variant.variant_type] = [];
+            }
+            acc[variant.variant_type].push(variant);
+            return acc;
+        },
+        {}
+    );
+
+    const selectedVariant = product.variants.find((variant) => variant.id === selectedVariantId) ?? null;
+    const displayPrice = selectedVariant?.price ?? product.price;
+    const displayStock = selectedVariant?.stock ?? product.stock;
+    const requiresVariantSelection = product.variants.length > 0 && !selectedVariant;
+
     const handleAddToCart = () => {
         startTransition(async () => {
             try {
-                const result = await addToCart(product.id);
+                const result = await addToCart(product.id, 1, selectedVariant?.id);
 
                 // Check for error response
                 if (!result.success && result.error) {
@@ -75,6 +120,10 @@ export function ProductInfo({ product }: ProductInfoProps) {
                         alert("Anda tidak dapat menambahkan produk sendiri ke keranjang");
                     } else if (result.error === "product_not_available") {
                         alert("Produk tidak tersedia");
+                    } else if (result.error === "variant_required") {
+                        alert("Pilih varian produk terlebih dahulu");
+                    } else if (result.error === "insufficient_stock") {
+                        alert("Stok tidak mencukupi untuk varian yang dipilih");
                     }
                     return;
                 }
@@ -183,15 +232,29 @@ export function ProductInfo({ product }: ProductInfoProps) {
                     {product.title}
                 </h1>
                 <div className="flex items-center gap-4 mt-3 text-sm">
-                    <span className="text-slate-500">Stok: {product.stock}</span>
+                    <span className="text-slate-500">Stok: {displayStock}</span>
                 </div>
             </div>
 
             <div className="flex items-baseline gap-3 pb-6 border-b border-slate-100">
                 <span className="text-4xl font-bold text-brand-primary font-heading">
-                    {formatPrice(product.price)}
+                    {formatPrice(displayPrice)}
                 </span>
             </div>
+
+            {product.variants.length > 0 && (
+                <div className="space-y-2">
+                    <VariantSelector
+                        variants={product.variants}
+                        grouped={groupedVariants}
+                        basePrice={product.price}
+                        onVariantSelect={(variant) => setSelectedVariantId(variant?.id ?? null)}
+                    />
+                    {requiresVariantSelection && (
+                        <p className="text-sm text-amber-600">Pilih varian sebelum menambahkan ke keranjang.</p>
+                    )}
+                </div>
+            )}
 
             {/* Seller Info */}
             {product.seller && (
@@ -220,7 +283,18 @@ export function ProductInfo({ product }: ProductInfoProps) {
                                 </span>
                                 <ShieldCheck className="w-4 h-4 text-brand-primary" />
                             </div>
-                            <p className="text-xs text-slate-500">Verified Seller</p>
+                            {sellerReputation && sellerReputation.ratingCount > 0 ? (
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
+                                    <span className="font-semibold text-slate-700">
+                                        ★ {sellerReputation.avgRating.toFixed(2)}
+                                    </span>
+                                    <span>({sellerReputation.ratingCount} ulasan)</span>
+                                    <span>· {sellerReputation.completionRate.toFixed(0)}% selesai</span>
+                                    <span>· respon {formatResponseTime(sellerReputation.responseTimeMinutes)}</span>
+                                </div>
+                            ) : (
+                                <p className="text-xs text-slate-500">Verified Seller</p>
+                            )}
                         </div>
                     </div>
                     {product.seller.store_slug && (
@@ -239,7 +313,7 @@ export function ProductInfo({ product }: ProductInfoProps) {
                 <div className="flex gap-3">
                     <button
                         onClick={handleAddToCart}
-                        disabled={isPending || product.stock === 0}
+                        disabled={isPending || displayStock === 0 || requiresVariantSelection}
                         className="flex-1 bg-brand-primary hover:bg-slate-800 disabled:bg-slate-400 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg shadow-brand-primary/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                     >
                         {isPending ? (
@@ -249,7 +323,7 @@ export function ProductInfo({ product }: ProductInfoProps) {
                         ) : (
                             <>
                                 <ShoppingCart className="w-5 h-5" />
-                                {product.stock === 0 ? "Stok Habis" : "Add to Cart"}
+                                {displayStock === 0 ? "Stok Habis" : "Add to Cart"}
                             </>
                         )}
                     </button>
@@ -268,6 +342,13 @@ export function ProductInfo({ product }: ProductInfoProps) {
                         )}
                     </button>
                 </div>
+                {product.bargain_enabled && (
+                    <MakeOfferButton
+                        listingId={product.id}
+                        listingPrice={parseFloat(product.price)}
+                        autoDeclineBelow={product.auto_decline_below ? parseFloat(product.auto_decline_below) : null}
+                    />
+                )}
                 <div className="flex gap-3">
                     <button
                         onClick={handleAddToWishlist}

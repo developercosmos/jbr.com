@@ -17,7 +17,18 @@ interface SearchPageProps {
         gender?: string;
         sort?: string;
         page?: string;
+        weightClass?: string;
+        balance?: string;
+        shaftFlex?: string;
+        gripSize?: string;
+        minTension?: string;
     }>;
+}
+
+function csvOrUndef(value?: string): string[] | undefined {
+    if (!value) return undefined;
+    const list = value.split(",").map((s) => s.trim()).filter(Boolean);
+    return list.length > 0 ? list : undefined;
 }
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
@@ -36,6 +47,11 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
             sortBy: (params.sort as "relevance" | "price_asc" | "price_desc" | "newest" | "popular") || "relevance",
             page,
             limit: 24,
+            weightClass: csvOrUndef(params.weightClass),
+            balance: csvOrUndef(params.balance),
+            shaftFlex: csvOrUndef(params.shaftFlex),
+            gripSize: csvOrUndef(params.gripSize),
+            minTensionLbs: params.minTension ? parseInt(params.minTension, 10) : undefined,
         }),
         getSearchFilters(),
     ]);

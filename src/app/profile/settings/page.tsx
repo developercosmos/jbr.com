@@ -1,4 +1,7 @@
+import { db } from "@/db";
+import { users } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { SettingsForm } from "./SettingsForm";
@@ -12,7 +15,21 @@ export default async function ProfileSettingsPage() {
         redirect("/auth/login");
     }
 
-    const user = session.user;
+    const user = await db.query.users.findFirst({
+        where: eq(users.id, session.user.id),
+        columns: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+            phone: true,
+            locale: true,
+        },
+    });
+
+    if (!user) {
+        redirect("/auth/login");
+    }
 
     return (
         <div className="flex-1">

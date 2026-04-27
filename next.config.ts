@@ -30,6 +30,12 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: "standalone",
   images: {
+    // TECH-04: image pipeline. Next/Image handles on-demand resize and format
+    // conversion (WebP/AVIF) automatically. Allowed remote sources below; CDN
+    // (e.g. Cloudflare Images) can be wired by setting NEXT_PUBLIC_IMAGE_CDN
+    // and adding an `imageLoader` here when the CDN is provisioned.
+    formats: ["image/avif", "image/webp"],
+    deviceSizes: [320, 420, 640, 768, 1024, 1280, 1600, 1920],
     remotePatterns: [
       {
         protocol: "https",
@@ -42,6 +48,14 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "jualbeliraket.com",
+      },
+      {
+        protocol: "https",
+        hostname: "**.s3.amazonaws.com",
+      },
+      {
+        protocol: "https",
+        hostname: "**.utfs.io",
       },
     ],
   },

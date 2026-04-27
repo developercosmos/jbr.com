@@ -17,7 +17,9 @@ import { relations } from "drizzle-orm";
 // ENUMS
 // ============================================
 export const userRoleEnum = pgEnum("user_role", ["USER", "ADMIN"]);
-export const storeStatusEnum = pgEnum("store_status", ["ACTIVE", "VACATION", "BANNED"]);
+export const storeStatusEnum = pgEnum("store_status", ["ACTIVE", "PENDING_REVIEW", "VACATION", "BANNED"]);
+export const sellerTierEnum = pgEnum("seller_tier", ["T0", "T1", "T2"]);
+export const kycStatusEnum = pgEnum("kyc_status", ["NOT_SUBMITTED", "PENDING_REVIEW", "APPROVED", "REJECTED"]);
 export const productConditionEnum = pgEnum("product_condition", ["NEW", "PRELOVED"]);
 export const productStatusEnum = pgEnum("product_status", ["DRAFT", "PUBLISHED", "ARCHIVED", "MODERATED"]);
 export const orderStatusEnum = pgEnum("order_status", [
@@ -42,9 +44,19 @@ export const notificationTypeEnum = pgEnum("notification_type", [
     "PAYMENT_SUCCESS",
     "ORDER_SHIPPED",
     "ORDER_DELIVERED",
+    "ORDER_COMPLETED",
+    "REVIEW_RECEIVED",
     "NEW_MESSAGE",
     "NEW_REVIEW",
     "REVIEW_REPLY",
+    "DISPUTE_OPENED",
+    "DISPUTE_UPDATED",
+    "OFFER_RECEIVED",
+    "OFFER_ACCEPTED",
+    "AFFILIATE_CONVERSION",
+    "PAYOUT_PROCESSED",
+    "SELLER_ACTIVATED",
+    "SELLER_REVIEW_NEEDED",
     "SYSTEM",
 ]);
 
@@ -60,12 +72,18 @@ export const users = pgTable(
         email: text("email").notNull().unique(),
         email_verified: boolean("email_verified").default(false),
         image: text("image"),
+        phone: text("phone"),
+        locale: text("locale").default("id-ID"),
         role: userRoleEnum("role").default("USER").notNull(),
+        tier: sellerTierEnum("tier").default("T0").notNull(),
         // Seller-specific fields
         store_name: text("store_name"),
         store_slug: text("store_slug").unique(),
         store_description: text("store_description"),
+        payout_bank_name: text("payout_bank_name"),
         store_status: storeStatusEnum("store_status").default("ACTIVE"),
+        buyer_score: decimal("buyer_score", { precision: 3, scale: 2 }).default("0").notNull(),
+        buyer_score_count: integer("buyer_score_count").default(0).notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
         updated_at: timestamp("updated_at").defaultNow().notNull(),
     },
@@ -74,6 +92,75 @@ export const users = pgTable(
         store_slug_idx: uniqueIndex("idx_users_store_slug").on(table.store_slug),
     })
 );
+
+// ============================================
+// SELLER RATINGS (RATE-01) - aggregate per seller user
+// ============================================
+export const seller_ratings = pgTable("seller_ratings", {
+    user_id: text("user_id")
+        .primaryKey()
+        .references(() => users.id, { onDelete: "cascade" }),
+    avg_rating: decimal("avg_rating", { precision: 3, scale: 2 }).default("0").notNull(),
+    rating_count: integer("rating_count").default(0).notNull(),
+    completion_rate: decimal("completion_rate", { precision: 5, scale: 2 }).default("0").notNull(),
+    response_time_minutes_avg: integer("response_time_minutes_avg").default(0).notNull(),
+    cancellation_rate: decimal("cancellation_rate", { precision: 5, scale: 2 }).default("0").notNull(),
+    last_recomputed_at: timestamp("last_recomputed_at").defaultNow().notNull(),
+});
+
+export const sellerRatingsRelations = relations(seller_ratings, ({ one }) => ({
+    seller: one(users, {
+        fields: [seller_ratings.user_id],
+        references: [users.id],
+        relationName: "seller_ratings_user",
+    }),
+}));
+
+// ============================================
+// BUYER RATINGS (RATE-02) - per-order, two-direction with reveal window
+// ============================================
+export const buyer_ratings = pgTable(
+    "buyer_ratings",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        order_id: uuid("order_id")
+            .notNull()
+            .references(() => orders.id, { onDelete: "cascade" }),
+        rater_id: text("rater_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        ratee_id: text("ratee_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        direction: text("direction").notNull(),
+        rating: integer("rating").notNull(),
+        tags: text("tags").array(),
+        comment: text("comment"),
+        submitted_at: timestamp("submitted_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        unique_per_direction: uniqueIndex("buyer_ratings_unique").on(table.order_id, table.direction),
+        ratee_idx: index("idx_buyer_ratings_ratee").on(table.ratee_id),
+        order_idx: index("idx_buyer_ratings_order").on(table.order_id),
+    })
+);
+
+export const buyerRatingsRelations = relations(buyer_ratings, ({ one }) => ({
+    order: one(orders, {
+        fields: [buyer_ratings.order_id],
+        references: [orders.id],
+    }),
+    rater: one(users, {
+        fields: [buyer_ratings.rater_id],
+        references: [users.id],
+        relationName: "buyer_ratings_rater",
+    }),
+    ratee: one(users, {
+        fields: [buyer_ratings.ratee_id],
+        references: [users.id],
+        relationName: "buyer_ratings_ratee",
+    }),
+}));
 
 // ============================================
 // SESSIONS TABLE (Better Auth)
@@ -162,6 +249,16 @@ export const products = pgTable(
         views: integer("views").default(0),
         status: productStatusEnum("status").default("DRAFT").notNull(),
         images: jsonb("images").$type<string[]>().default([]),
+        bargain_enabled: boolean("bargain_enabled").default(false).notNull(),
+        min_acceptable_price: decimal("min_acceptable_price", { precision: 12, scale: 2 }),
+        max_offer_rounds: integer("max_offer_rounds").default(3).notNull(),
+        auto_decline_below: decimal("auto_decline_below", { precision: 12, scale: 2 }),
+        weight_class: text("weight_class"),
+        balance: text("balance"),
+        shaft_flex: text("shaft_flex"),
+        grip_size: text("grip_size"),
+        max_string_tension_lbs: integer("max_string_tension_lbs"),
+        stiffness_rating: integer("stiffness_rating"),
         created_at: timestamp("created_at").defaultNow().notNull(),
         updated_at: timestamp("updated_at").defaultNow().notNull(),
     },
@@ -235,11 +332,16 @@ export const carts = pgTable(
         product_id: uuid("product_id")
             .notNull()
             .references(() => products.id, { onDelete: "cascade" }),
+        variant_id: uuid("variant_id").references(() => product_variants.id, { onDelete: "set null" }),
         quantity: integer("quantity").default(1).notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
     },
     (table) => ({
-        user_product_idx: uniqueIndex("idx_carts_user_product").on(table.user_id, table.product_id),
+        user_product_variant_idx: uniqueIndex("idx_carts_user_product_variant").on(
+            table.user_id,
+            table.product_id,
+            table.variant_id
+        ),
     })
 );
 
@@ -286,8 +388,10 @@ export const orders = pgTable(
         // Shipping tracking fields
         tracking_number: text("tracking_number"),
         shipping_provider: text("shipping_provider"),
+        shipping_quote_at: timestamp("shipping_quote_at"),
         shipped_at: timestamp("shipped_at"),
         estimated_delivery: timestamp("estimated_delivery"),
+        release_due_at: timestamp("release_due_at"),
         created_at: timestamp("created_at").defaultNow().notNull(),
         updated_at: timestamp("updated_at").defaultNow().notNull(),
     },
@@ -295,6 +399,7 @@ export const orders = pgTable(
         buyer_id_idx: index("idx_orders_buyer_id").on(table.buyer_id),
         seller_id_idx: index("idx_orders_seller_id").on(table.seller_id),
         status_idx: index("idx_orders_status").on(table.status),
+        release_due_at_idx: index("idx_orders_release_due_at").on(table.release_due_at),
     })
 );
 
@@ -309,10 +414,329 @@ export const order_items = pgTable("order_items", {
     product_id: uuid("product_id")
         .notNull()
         .references(() => products.id),
+    variant_id: uuid("variant_id").references(() => product_variants.id, { onDelete: "set null" }),
     quantity: integer("quantity").default(1).notNull(),
     price: decimal("price", { precision: 12, scale: 2 }).notNull(),
+    fee_rule_id: uuid("fee_rule_id"),
+    resolved_fee_value: decimal("resolved_fee_value", { precision: 12, scale: 2 }).default("0").notNull(),
+    resolved_fee_currency: text("resolved_fee_currency").default("IDR").notNull(),
     created_at: timestamp("created_at").defaultNow().notNull(),
 });
+
+// ============================================
+// NICHE-04: STRING SERVICE ORDERS
+// ============================================
+export const string_service_orders = pgTable("string_service_orders", {
+    id: uuid("id").defaultRandom().primaryKey(),
+    order_item_id: uuid("order_item_id").notNull(),
+    string_brand: text("string_brand").notNull(),
+    string_gauge: text("string_gauge"),
+    tension_lbs: integer("tension_lbs").notNull(),
+    service_fee: decimal("service_fee", { precision: 12, scale: 2 }).default("0").notNull(),
+    status: text("status").default("PENDING").notNull(),
+    completed_at: timestamp("completed_at"),
+    created_at: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ============================================
+// NICHE-05: PLAYER PROFILES
+// ============================================
+export const player_profiles = pgTable("player_profiles", {
+    user_id: text("user_id")
+        .primaryKey()
+        .references(() => users.id, { onDelete: "cascade" }),
+    level: text("level"),
+    play_style: text("play_style"),
+    dominant_hand: text("dominant_hand"),
+    preferred_weight_class: text("preferred_weight_class"),
+    preferred_balance: text("preferred_balance"),
+    preferred_shaft_flex: text("preferred_shaft_flex"),
+    updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ============================================
+// AFF-01..04: AFFILIATE
+// ============================================
+export const affiliateStatusEnum = pgEnum("affiliate_status", ["PENDING", "ACTIVE", "SUSPENDED"]);
+export const attributionStatusEnum = pgEnum("attribution_status", ["PENDING", "CLEARED", "REVERSED"]);
+
+export const affiliate_accounts = pgTable("affiliate_accounts", {
+    user_id: text("user_id")
+        .primaryKey()
+        .references(() => users.id, { onDelete: "cascade" }),
+    code: text("code").notNull().unique(),
+    status: affiliateStatusEnum("status").default("ACTIVE").notNull(),
+    commission_rate_override: decimal("commission_rate_override", { precision: 5, scale: 2 }),
+    payout_method: text("payout_method"),
+    payout_account: text("payout_account"),
+    created_at: timestamp("created_at").defaultNow().notNull(),
+    updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const affiliate_clicks = pgTable(
+    "affiliate_clicks",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        code: text("code").notNull(),
+        fingerprint: text("fingerprint"),
+        referrer: text("referrer"),
+        landing_url: text("landing_url"),
+        ip: text("ip"),
+        user_agent: text("user_agent"),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+        expires_at: timestamp("expires_at").notNull(),
+    },
+    (table) => ({
+        code_idx: index("idx_affiliate_clicks_code").on(table.code),
+    })
+);
+
+export const affiliate_attributions = pgTable(
+    "affiliate_attributions",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        order_id: uuid("order_id")
+            .notNull()
+            .unique()
+            .references(() => orders.id, { onDelete: "cascade" }),
+        affiliate_user_id: text("affiliate_user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        code: text("code").notNull(),
+        computed_commission: decimal("computed_commission", { precision: 12, scale: 2 }).default("0").notNull(),
+        rate_used: decimal("rate_used", { precision: 5, scale: 2 }).default("0").notNull(),
+        status: attributionStatusEnum("status").default("PENDING").notNull(),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+        decided_at: timestamp("decided_at"),
+        memo: text("memo"),
+    },
+    (table) => ({
+        affiliate_idx: index("idx_affiliate_attributions_affiliate").on(table.affiliate_user_id),
+        status_idx: index("idx_affiliate_attributions_status").on(table.status),
+    })
+);
+
+export const affiliateAccountsRelations = relations(affiliate_accounts, ({ one, many }) => ({
+    user: one(users, { fields: [affiliate_accounts.user_id], references: [users.id] }),
+    attributions: many(affiliate_attributions),
+}));
+
+export const affiliateAttributionsRelations = relations(affiliate_attributions, ({ one }) => ({
+    affiliate: one(users, {
+        fields: [affiliate_attributions.affiliate_user_id],
+        references: [users.id],
+    }),
+    order: one(orders, {
+        fields: [affiliate_attributions.order_id],
+        references: [orders.id],
+    }),
+}));
+
+// ============================================
+// BARG-01: OFFERS (bargaining)
+// ============================================
+export const offerStatusEnum = pgEnum("offer_status", [
+    "PENDING",
+    "ACCEPTED",
+    "REJECTED",
+    "COUNTERED",
+    "EXPIRED",
+    "WITHDRAWN",
+]);
+
+export const offers = pgTable(
+    "offers",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        listing_id: uuid("listing_id")
+            .notNull()
+            .references(() => products.id, { onDelete: "cascade" }),
+        variant_id: uuid("variant_id").references(() => product_variants.id, { onDelete: "set null" }),
+        buyer_id: text("buyer_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        seller_id: text("seller_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+        status: offerStatusEnum("status").default("PENDING").notNull(),
+        round: integer("round").default(1).notNull(),
+        parent_offer_id: uuid("parent_offer_id"),
+        actor_role: text("actor_role").notNull(),
+        expires_at: timestamp("expires_at").notNull(),
+        decided_at: timestamp("decided_at"),
+        decided_by: text("decided_by").references(() => users.id, { onDelete: "set null" }),
+        checkout_token: text("checkout_token").unique(),
+        checkout_token_expires_at: timestamp("checkout_token_expires_at"),
+        checkout_token_used_at: timestamp("checkout_token_used_at"),
+        notes: text("notes"),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        listing_idx: index("idx_offers_listing").on(table.listing_id),
+        buyer_status_idx: index("idx_offers_buyer_status").on(table.buyer_id, table.status),
+        seller_status_idx: index("idx_offers_seller_status").on(table.seller_id, table.status),
+        status_expires_idx: index("idx_offers_status_expires").on(table.status, table.expires_at),
+    })
+);
+
+export const offersRelations = relations(offers, ({ one }) => ({
+    listing: one(products, {
+        fields: [offers.listing_id],
+        references: [products.id],
+    }),
+    variant: one(product_variants, {
+        fields: [offers.variant_id],
+        references: [product_variants.id],
+    }),
+    buyer: one(users, {
+        fields: [offers.buyer_id],
+        references: [users.id],
+        relationName: "offer_buyer",
+    }),
+    seller: one(users, {
+        fields: [offers.seller_id],
+        references: [users.id],
+        relationName: "offer_seller",
+    }),
+}));
+
+// ============================================
+// MON-01: PLATFORM FEE RULES + BRACKETS
+// ============================================
+export const feeRuleModeEnum = pgEnum("fee_rule_mode", ["PERCENT", "FIXED", "TIERED"]);
+export const feeValueModeEnum = pgEnum("fee_value_mode", ["PERCENT", "FIXED"]);
+
+export const platform_fee_rules = pgTable("platform_fee_rules", {
+    id: uuid("id").defaultRandom().primaryKey(),
+    name: text("name").notNull(),
+    scope_category_id: uuid("scope_category_id"),
+    scope_seller_tier: text("scope_seller_tier"),
+    valid_from: timestamp("valid_from").defaultNow().notNull(),
+    valid_to: timestamp("valid_to"),
+    priority: integer("priority").default(100).notNull(),
+    is_active: boolean("is_active").default(true).notNull(),
+    mode: feeRuleModeEnum("mode").default("PERCENT").notNull(),
+    default_value: decimal("default_value", { precision: 12, scale: 4 }).default("0").notNull(),
+    created_at: timestamp("created_at").defaultNow().notNull(),
+    updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const platform_fee_rule_brackets = pgTable("platform_fee_rule_brackets", {
+    id: uuid("id").defaultRandom().primaryKey(),
+    rule_id: uuid("rule_id")
+        .notNull()
+        .references(() => platform_fee_rules.id, { onDelete: "cascade" }),
+    min_price: decimal("min_price", { precision: 12, scale: 2 }).default("0").notNull(),
+    max_price: decimal("max_price", { precision: 12, scale: 2 }),
+    value: decimal("value", { precision: 12, scale: 4 }).notNull(),
+    value_mode: feeValueModeEnum("value_mode").default("PERCENT").notNull(),
+});
+
+export const platformFeeRulesRelations = relations(platform_fee_rules, ({ many }) => ({
+    brackets: many(platform_fee_rule_brackets),
+}));
+
+export const platformFeeRuleBracketsRelations = relations(platform_fee_rule_brackets, ({ one }) => ({
+    rule: one(platform_fee_rules, {
+        fields: [platform_fee_rule_brackets.rule_id],
+        references: [platform_fee_rules.id],
+    }),
+}));
+
+// ============================================
+// MON-03: DOUBLE-ENTRY LEDGER
+// ============================================
+export const ledgerAccountTypeEnum = pgEnum("ledger_account_type", [
+    "PLATFORM",
+    "USER_WALLET",
+    "ESCROW",
+    "EXTERNAL",
+]);
+
+export const ledger_accounts = pgTable("ledger_accounts", {
+    id: uuid("id").defaultRandom().primaryKey(),
+    type: ledgerAccountTypeEnum("type").notNull(),
+    owner_user_id: text("owner_user_id").references(() => users.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    currency: text("currency").default("IDR").notNull(),
+    created_at: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const ledger_entries = pgTable("ledger_entries", {
+    id: uuid("id").defaultRandom().primaryKey(),
+    entry_group_id: uuid("entry_group_id").notNull(),
+    account_id: uuid("account_id")
+        .notNull()
+        .references(() => ledger_accounts.id, { onDelete: "restrict" }),
+    debit: decimal("debit", { precision: 14, scale: 2 }).default("0").notNull(),
+    credit: decimal("credit", { precision: 14, scale: 2 }).default("0").notNull(),
+    currency: text("currency").default("IDR").notNull(),
+    ref_type: text("ref_type").notNull(),
+    ref_id: text("ref_id").notNull(),
+    memo: text("memo"),
+    created_at: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const ledgerAccountsRelations = relations(ledger_accounts, ({ many }) => ({
+    entries: many(ledger_entries),
+}));
+
+export const ledgerEntriesRelations = relations(ledger_entries, ({ one }) => ({
+    account: one(ledger_accounts, {
+        fields: [ledger_entries.account_id],
+        references: [ledger_accounts.id],
+    }),
+}));
+
+// ============================================
+// MON-04: VOUCHER ENGINE
+// ============================================
+export const voucherTypeEnum = pgEnum("voucher_type", ["PERCENT", "FIXED", "FREE_SHIPPING"]);
+
+export const vouchers = pgTable("vouchers", {
+    id: uuid("id").defaultRandom().primaryKey(),
+    code: text("code").notNull().unique(),
+    type: voucherTypeEnum("type").notNull(),
+    value: decimal("value", { precision: 12, scale: 2 }).default("0").notNull(),
+    max_uses: integer("max_uses"),
+    max_uses_per_user: integer("max_uses_per_user").default(1).notNull(),
+    valid_from: timestamp("valid_from").defaultNow().notNull(),
+    valid_to: timestamp("valid_to"),
+    min_order_amount: decimal("min_order_amount", { precision: 12, scale: 2 }),
+    scope: jsonb("scope"),
+    is_active: boolean("is_active").default(true).notNull(),
+    created_at: timestamp("created_at").defaultNow().notNull(),
+    updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const voucher_redemptions = pgTable("voucher_redemptions", {
+    id: uuid("id").defaultRandom().primaryKey(),
+    voucher_id: uuid("voucher_id")
+        .notNull()
+        .references(() => vouchers.id, { onDelete: "cascade" }),
+    user_id: text("user_id")
+        .notNull()
+        .references(() => users.id, { onDelete: "cascade" }),
+    order_id: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
+    applied_amount: decimal("applied_amount", { precision: 12, scale: 2 }).notNull(),
+    redeemed_at: timestamp("redeemed_at").defaultNow().notNull(),
+});
+
+export const vouchersRelations = relations(vouchers, ({ many }) => ({
+    redemptions: many(voucher_redemptions),
+}));
+
+export const voucherRedemptionsRelations = relations(voucher_redemptions, ({ one }) => ({
+    voucher: one(vouchers, {
+        fields: [voucher_redemptions.voucher_id],
+        references: [vouchers.id],
+    }),
+    user: one(users, {
+        fields: [voucher_redemptions.user_id],
+        references: [users.id],
+    }),
+}));
 
 // ============================================
 // CONVERSATIONS TABLE
@@ -367,7 +791,7 @@ export const messages = pgTable(
 // ============================================
 // RELATIONS
 // ============================================
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ one, many }) => ({
     products: many(products),
     addresses: many(addresses),
     carts: many(carts),
@@ -376,6 +800,12 @@ export const usersRelations = relations(users, ({ many }) => ({
     orders_as_seller: many(orders, { relationName: "seller_orders" }),
     sessions: many(sessions),
     accounts: many(accounts),
+    sellerKyc: one(seller_kyc, {
+        fields: [users.id],
+        references: [seller_kyc.user_id],
+        relationName: "seller_kyc_profile",
+    }),
+    reviewedSellerKyc: many(seller_kyc, { relationName: "seller_kyc_reviewer" }),
 }));
 
 export const productsRelations = relations(products, ({ one, many }) => ({
@@ -387,6 +817,7 @@ export const productsRelations = relations(products, ({ one, many }) => ({
         fields: [products.category_id],
         references: [categories.id],
     }),
+    variants: many(product_variants),
     cart_items: many(carts),
     wishlist_items: many(wishlists),
     order_items: many(order_items),
@@ -446,6 +877,10 @@ export const cartsRelations = relations(carts, ({ one }) => ({
         fields: [carts.product_id],
         references: [products.id],
     }),
+    variant: one(product_variants, {
+        fields: [carts.variant_id],
+        references: [product_variants.id],
+    }),
 }));
 
 export const wishlistsRelations = relations(wishlists, ({ one }) => ({
@@ -467,6 +902,10 @@ export const orderItemsRelations = relations(order_items, ({ one }) => ({
     product: one(products, {
         fields: [order_items.product_id],
         references: [products.id],
+    }),
+    variant: one(product_variants, {
+        fields: [order_items.variant_id],
+        references: [product_variants.id],
     }),
 }));
 
@@ -530,6 +969,7 @@ export const notifications = pgTable(
         type: notificationTypeEnum("type").notNull(),
         title: text("title").notNull(),
         message: text("message").notNull(),
+        idempotency_key: text("idempotency_key"),
         data: jsonb("data"), // Additional data like order_id, product_id, etc.
         read: boolean("read").default(false).notNull(),
         read_at: timestamp("read_at"),
@@ -538,6 +978,7 @@ export const notifications = pgTable(
     (table) => ({
         user_id_idx: index("idx_notifications_user_id").on(table.user_id),
         user_read_idx: index("idx_notifications_user_read").on(table.user_id, table.read),
+        idempotency_idx: uniqueIndex("idx_notifications_idempotency_key").on(table.idempotency_key),
     })
 );
 
@@ -622,6 +1063,9 @@ export const disputes = pgTable(
         resolution: text("resolution"),
         resolved_at: timestamp("resolved_at"),
         resolved_by: text("resolved_by"),
+        response_due_at: timestamp("response_due_at"),
+        resolution_due_at: timestamp("resolution_due_at"),
+        escalation_count: integer("escalation_count").default(0).notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
         updated_at: timestamp("updated_at").defaultNow().notNull(),
     },
@@ -629,6 +1073,8 @@ export const disputes = pgTable(
         order_id_idx: index("idx_disputes_order_id").on(table.order_id),
         reporter_id_idx: index("idx_disputes_reporter_id").on(table.reporter_id),
         status_idx: index("idx_disputes_status").on(table.status),
+        response_due_at_idx: index("idx_disputes_response_due_at").on(table.response_due_at),
+        resolution_due_at_idx: index("idx_disputes_resolution_due_at").on(table.resolution_due_at),
     })
 );
 
@@ -730,11 +1176,13 @@ export const reviewsRelations = relations(reviews, ({ one }) => ({
     }),
 }));
 
-export const productVariantsRelations = relations(product_variants, ({ one }) => ({
+export const productVariantsRelations = relations(product_variants, ({ one, many }) => ({
     product: one(products, {
         fields: [product_variants.product_id],
         references: [products.id],
     }),
+    cart_items: many(carts),
+    order_items: many(order_items),
 }));
 
 export const disputesRelations = relations(disputes, ({ one }) => ({
@@ -832,6 +1280,63 @@ export const filesRelations = relations(files, ({ one }) => ({
     uploader: one(users, {
         fields: [files.uploaded_by],
         references: [users.id],
+    }),
+}));
+
+// ============================================
+// SELLER KYC TABLE
+// ============================================
+export const seller_kyc = pgTable(
+    "seller_kyc",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        user_id: text("user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        tier: sellerTierEnum("tier").default("T0").notNull(),
+        status: kycStatusEnum("status").default("NOT_SUBMITTED").notNull(),
+        ktp_file_id: uuid("ktp_file_id").references(() => files.id, { onDelete: "set null" }),
+        selfie_file_id: uuid("selfie_file_id").references(() => files.id, { onDelete: "set null" }),
+        business_doc_file_id: uuid("business_doc_file_id").references(() => files.id, { onDelete: "set null" }),
+        submitted_at: timestamp("submitted_at"),
+        reviewed_at: timestamp("reviewed_at"),
+        reviewer_id: text("reviewer_id").references(() => users.id, { onDelete: "set null" }),
+        notes: text("notes"),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+        updated_at: timestamp("updated_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        user_id_idx: uniqueIndex("idx_seller_kyc_user_id").on(table.user_id),
+        tier_idx: index("idx_seller_kyc_tier").on(table.tier),
+        status_idx: index("idx_seller_kyc_status").on(table.status),
+    })
+);
+
+export const sellerKycRelations = relations(seller_kyc, ({ one }) => ({
+    seller: one(users, {
+        fields: [seller_kyc.user_id],
+        references: [users.id],
+        relationName: "seller_kyc_profile",
+    }),
+    reviewer: one(users, {
+        fields: [seller_kyc.reviewer_id],
+        references: [users.id],
+        relationName: "seller_kyc_reviewer",
+    }),
+    ktpFile: one(files, {
+        fields: [seller_kyc.ktp_file_id],
+        references: [files.id],
+        relationName: "seller_kyc_ktp_file",
+    }),
+    selfieFile: one(files, {
+        fields: [seller_kyc.selfie_file_id],
+        references: [files.id],
+        relationName: "seller_kyc_selfie_file",
+    }),
+    businessDocFile: one(files, {
+        fields: [seller_kyc.business_doc_file_id],
+        references: [files.id],
+        relationName: "seller_kyc_business_doc_file",
     }),
 }));
 
