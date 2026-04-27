@@ -65,6 +65,12 @@ export function Navbar() {
                     <Link href="/brands" className="hover:text-brand-primary hover:border-b-2 hover:border-slate-200 px-1 py-2.5 transition-all">
                         Brands
                     </Link>
+                    <Link href="/compare" className="hover:text-brand-primary hover:border-b-2 hover:border-slate-200 px-1 py-2.5 transition-all">
+                        Compare
+                    </Link>
+                    <Link href="/affiliate" className="hover:text-brand-primary hover:border-b-2 hover:border-slate-200 px-1 py-2.5 transition-all">
+                        Affiliate
+                    </Link>
                     <Link
                         href="/seller/products/add"
                         className="text-orange-600 hover:text-orange-700 px-1 py-2.5 ml-auto flex items-center gap-1 transition-colors font-bold"

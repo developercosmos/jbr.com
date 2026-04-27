@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { User, MapPin, Package2, Heart, Settings, Verified, Loader2 } from "lucide-react";
+import { User, MapPin, Package2, Heart, Settings, Verified, Loader2, Trophy, Megaphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { authClient } from "@/lib/auth-client";
 
@@ -27,6 +27,16 @@ const navItems = [
         label: "Wishlist",
         href: "/profile/wishlist",
         icon: Heart,
+    },
+    {
+        label: "Profil Pemain",
+        href: "/profile/player",
+        icon: Trophy,
+    },
+    {
+        label: "Afiliasi",
+        href: "/affiliate",
+        icon: Megaphone,
     },
     {
         label: "Pengaturan Akun",

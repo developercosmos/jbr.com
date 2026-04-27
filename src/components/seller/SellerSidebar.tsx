@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, PackagePlus, ShoppingBag, BarChart3, Zap, Store } from "lucide-react";
+import { LayoutDashboard, PackagePlus, ShoppingBag, BarChart3, Zap, Store, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
@@ -29,6 +29,11 @@ const baseNavItems: NavItem[] = [
         href: "/seller/orders",
         icon: ShoppingBag,
         // Badge will be fetched dynamically
+    },
+    {
+        label: "Penawaran",
+        href: "/seller/offers",
+        icon: Tag,
     },
     {
         label: "Analytics",
