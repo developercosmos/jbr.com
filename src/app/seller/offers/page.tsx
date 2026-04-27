@@ -1,5 +1,6 @@
 import { listSellerOffers } from "@/actions/offers";
-import { canAccessSellerCenter, getSellerProfileByUserId } from "@/actions/seller";
+import { getSellerProfileByUserId } from "@/actions/seller";
+import { canAccessSellerCenter } from "@/lib/seller";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";

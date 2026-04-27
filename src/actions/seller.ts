@@ -3,6 +3,7 @@
 import { db } from "@/db";
 import { addresses, notifications, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import { canAccessSellerCenter, normalizeStoreSlug } from "@/lib/seller";
 import { headers } from "next/headers";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -46,19 +47,6 @@ async function getCurrentUser() {
     }
 
     return session.user;
-}
-
-export function normalizeStoreSlug(input: string) {
-    return input
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 80);
-}
-
-export function canAccessSellerCenter(status: string | null | undefined) {
-    return status === "ACTIVE" || status === "VACATION" || status === "PENDING_REVIEW";
 }
 
 export async function getSellerProfileByUserId(userId: string) {

@@ -66,7 +66,7 @@ function getMonthRange(referenceDate = new Date()) {
     return { start, end };
 }
 
-export function getSellerTierCap(tier: "T0" | "T1" | "T2") {
+function getSellerTierCap(tier: "T0" | "T1" | "T2") {
     return sellerTierCaps[tier];
 }
 

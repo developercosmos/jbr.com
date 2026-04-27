@@ -1,5 +1,6 @@
 import { getUserAddresses } from "@/actions/address";
-import { checkStoreSlugAvailability, getSellerProfileByUserId, normalizeStoreSlug } from "@/actions/seller";
+import { checkStoreSlugAvailability, getSellerProfileByUserId } from "@/actions/seller";
+import { normalizeStoreSlug } from "@/lib/seller";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";

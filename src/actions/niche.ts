@@ -14,12 +14,12 @@ async function getCurrentUser() {
     return session.user;
 }
 
-export const WEIGHT_CLASSES = ["2U", "3U", "4U", "5U", "6U"] as const;
-export const BALANCES = ["HEAD_HEAVY", "EVEN", "HEAD_LIGHT"] as const;
-export const SHAFT_FLEXES = ["STIFF", "MEDIUM", "FLEXIBLE"] as const;
-export const GRIP_SIZES = ["G2", "G3", "G4", "G5", "G6"] as const;
-export const PLAYER_LEVELS = ["BEGINNER", "INTERMEDIATE", "ADVANCED", "PRO"] as const;
-export const PLAY_STYLES = ["OFFENSIVE", "DEFENSIVE", "ALL_AROUND", "DOUBLES_FRONT", "DOUBLES_BACK"] as const;
+const WEIGHT_CLASSES = ["2U", "3U", "4U", "5U", "6U"] as const;
+const BALANCES = ["HEAD_HEAVY", "EVEN", "HEAD_LIGHT"] as const;
+const SHAFT_FLEXES = ["STIFF", "MEDIUM", "FLEXIBLE"] as const;
+const GRIP_SIZES = ["G2", "G3", "G4", "G5", "G6"] as const;
+const PLAYER_LEVELS = ["BEGINNER", "INTERMEDIATE", "ADVANCED", "PRO"] as const;
+const PLAY_STYLES = ["OFFENSIVE", "DEFENSIVE", "ALL_AROUND", "DOUBLES_FRONT", "DOUBLES_BACK"] as const;
 
 const specSearchSchema = z.object({
     weight_class: z.array(z.enum(WEIGHT_CLASSES)).optional(),

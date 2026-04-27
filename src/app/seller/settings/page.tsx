@@ -1,6 +1,7 @@
 import { Save, Upload, MapPin, Store } from "lucide-react";
 import Image from "next/image";
-import { canAccessSellerCenter, getSellerProfileByUserId } from "@/actions/seller";
+import { getSellerProfileByUserId } from "@/actions/seller";
+import { canAccessSellerCenter } from "@/lib/seller";
 import { getCurrentSellerKyc } from "@/actions/kyc";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";

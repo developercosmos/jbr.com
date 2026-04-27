@@ -1,6 +1,7 @@
 import { TrendingUp, ShoppingBag, DollarSign, ArrowUpRight, Calendar, Package } from "lucide-react";
 import { getSellerStats, getRecentSellerOrders } from "@/actions/orders";
-import { canAccessSellerCenter, getSellerProfileByUserId } from "@/actions/seller";
+import { getSellerProfileByUserId } from "@/actions/seller";
+import { canAccessSellerCenter } from "@/lib/seller";
 import { auth } from "@/lib/auth";
 import Image from "next/image";
 import { headers } from "next/headers";

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Store, MapPin, Landmark, Loader2, ShieldCheck } from "lucide-react";
-import { activateSellerProfile, checkStoreSlugAvailability, normalizeStoreSlug } from "@/actions/seller";
+import { activateSellerProfile, checkStoreSlugAvailability } from "@/actions/seller";
+import { normalizeStoreSlug } from "@/lib/seller";
 
 interface AddressOption {
     id: string;

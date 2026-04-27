@@ -11,7 +11,7 @@ function addHours(base: Date, hours: number) {
     return new Date(base.getTime() + hours * 60 * 60 * 1000);
 }
 
-export function computeDisputeSla(createdAt: Date = new Date()) {
+function computeDisputeSla(createdAt: Date = new Date()) {
     return {
         responseDueAt: addHours(createdAt, RESPONSE_HOURS),
         resolutionDueAt: addHours(createdAt, RESOLUTION_HOURS),

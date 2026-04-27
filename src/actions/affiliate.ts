@@ -16,7 +16,7 @@ import { z } from "zod";
 
 const ATTRIBUTION_WINDOW_DAYS = Number(process.env.AFFILIATE_ATTRIBUTION_DAYS || 30);
 const DEFAULT_COMMISSION_RATE = Number(process.env.AFFILIATE_DEFAULT_RATE || 5);
-export const AFFILIATE_COOKIE = "jbr_aff";
+const AFFILIATE_COOKIE = "jbr_aff";
 const RESERVED_CODES = new Set(["admin", "api", "seller", "buyer", "support", "auth"]);
 
 async function getCurrentUser() {

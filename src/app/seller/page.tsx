@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Search, Bell, Plus, TrendingUp, ShoppingBag, Package, Star, ArrowRight, Truck, AlertTriangle, ChevronRight } from "lucide-react";
 import { getSellerStats, getRecentSellerOrders } from "@/actions/orders";
-import { canAccessSellerCenter, getSellerProfileByUserId } from "@/actions/seller";
+import { getSellerProfileByUserId } from "@/actions/seller";
+import { canAccessSellerCenter } from "@/lib/seller";
 import { auth } from "@/lib/auth";
 import Image from "next/image";
 import { headers } from "next/headers";

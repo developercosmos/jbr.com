@@ -1,7 +1,8 @@
 import { getCategories } from "@/actions/categories";
 import { getUserAddresses } from "@/actions/address";
 import { getBrands } from "@/actions/products";
-import { canAccessSellerCenter, getSellerProfileByUserId } from "@/actions/seller";
+import { getSellerProfileByUserId } from "@/actions/seller";
+import { canAccessSellerCenter } from "@/lib/seller";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
