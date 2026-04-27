@@ -28,8 +28,37 @@ interface SearchFiltersPanelProps {
         maxPrice?: string;
         condition?: string;
         gender?: string;
+        weightClass?: string;
+        balance?: string;
+        shaftFlex?: string;
+        gripSize?: string;
     };
 }
+
+const WEIGHT_OPTIONS: FilterOption[] = [
+    { value: "2U", label: "2U (~90g)" },
+    { value: "3U", label: "3U (85-89g)" },
+    { value: "4U", label: "4U (80-84g)" },
+    { value: "5U", label: "5U (75-79g)" },
+    { value: "6U", label: "6U (<75g)" },
+];
+const BALANCE_OPTIONS: FilterOption[] = [
+    { value: "HEAD_HEAVY", label: "Head Heavy" },
+    { value: "EVEN", label: "Even" },
+    { value: "HEAD_LIGHT", label: "Head Light" },
+];
+const SHAFT_OPTIONS: FilterOption[] = [
+    { value: "STIFF", label: "Stiff" },
+    { value: "MEDIUM", label: "Medium" },
+    { value: "FLEXIBLE", label: "Flexible" },
+];
+const GRIP_OPTIONS: FilterOption[] = [
+    { value: "G2", label: "G2" },
+    { value: "G3", label: "G3" },
+    { value: "G4", label: "G4" },
+    { value: "G5", label: "G5" },
+    { value: "G6", label: "G6" },
+];
 
 export function SearchFiltersPanel({
     categories,
@@ -45,7 +74,31 @@ export function SearchFiltersPanel({
         price: true,
         condition: true,
         gender: true,
+        weightClass: true,
+        balance: true,
+        shaftFlex: false,
+        gripSize: false,
     });
+
+    function toggleCsvValue(key: "weightClass" | "balance" | "shaftFlex" | "gripSize", value: string) {
+        const params = new URLSearchParams(searchParams.toString());
+        const existing = (params.get(key) ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+        const next = existing.includes(value)
+            ? existing.filter((v) => v !== value)
+            : [...existing, value];
+        if (next.length === 0) {
+            params.delete(key);
+        } else {
+            params.set(key, next.join(","));
+        }
+        params.delete("page");
+        router.push(`/search?${params.toString()}`);
+    }
+
+    function isCsvValueActive(rawValue: string | undefined, value: string): boolean {
+        if (!rawValue) return false;
+        return rawValue.split(",").map((s) => s.trim()).includes(value);
+    }
 
     const [minPrice, setMinPrice] = useState(currentFilters.minPrice || "");
     const [maxPrice, setMaxPrice] = useState(currentFilters.maxPrice || "");
@@ -218,7 +271,7 @@ export function SearchFiltersPanel({
             </div>
 
             {/* Gender Filter */}
-            <div>
+            <div className="border-b border-slate-100">
                 <button
                     onClick={() => toggleSection("gender")}
                     className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
@@ -235,8 +288,8 @@ export function SearchFiltersPanel({
                         <button
                             onClick={() => applyFilter("gender", null)}
                             className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${!currentFilters.gender
-                                    ? "bg-brand-primary text-white"
-                                    : "hover:bg-slate-100 text-slate-700"
+                                ? "bg-brand-primary text-white"
+                                : "hover:bg-slate-100 text-slate-700"
                                 }`}
                         >
                             Semua
@@ -246,8 +299,8 @@ export function SearchFiltersPanel({
                                 key={g.value}
                                 onClick={() => applyFilter("gender", g.value)}
                                 className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${currentFilters.gender === g.value
-                                        ? "bg-brand-primary text-white"
-                                        : "hover:bg-slate-100 text-slate-700"
+                                    ? "bg-brand-primary text-white"
+                                    : "hover:bg-slate-100 text-slate-700"
                                     }`}
                             >
                                 {g.label}
@@ -256,6 +309,54 @@ export function SearchFiltersPanel({
                     </div>
                 )}
             </div>
+
+            {/* NICHE-02: Spec filters */}
+            {(["weightClass", "balance", "shaftFlex", "gripSize"] as const).map((key) => {
+                const meta = {
+                    weightClass: { label: "Bobot (Weight)", options: WEIGHT_OPTIONS },
+                    balance: { label: "Balance", options: BALANCE_OPTIONS },
+                    shaftFlex: { label: "Shaft Flex", options: SHAFT_OPTIONS },
+                    gripSize: { label: "Grip Size", options: GRIP_OPTIONS },
+                }[key];
+                const isLast = key === "gripSize";
+                return (
+                    <div key={key} className={isLast ? undefined : "border-b border-slate-100"}>
+                        <button
+                            onClick={() => toggleSection(key)}
+                            className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                        >
+                            <span className="font-medium text-slate-700">{meta.label}</span>
+                            {openSections[key] ? (
+                                <ChevronUp className="w-4 h-4 text-slate-400" />
+                            ) : (
+                                <ChevronDown className="w-4 h-4 text-slate-400" />
+                            )}
+                        </button>
+                        {openSections[key] && (
+                            <div className="px-4 pb-4 grid grid-cols-1 gap-1.5">
+                                {meta.options.map((opt) => {
+                                    const active = isCsvValueActive(currentFilters[key], opt.value);
+                                    return (
+                                        <label
+                                            key={opt.value}
+                                            className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-sm transition-colors ${active ? "bg-brand-primary/10 text-brand-primary" : "hover:bg-slate-100 text-slate-700"
+                                                }`}
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={active}
+                                                onChange={() => toggleCsvValue(key, opt.value)}
+                                                className="rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
+                                            />
+                                            <span>{opt.label}</span>
+                                        </label>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
         </div>
     );
 }
