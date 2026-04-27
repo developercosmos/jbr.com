@@ -34,6 +34,29 @@ function emit(level: Level, msg: string, fields?: Record<string, unknown>) {
         ...fields,
     };
 
+    // TECH-03: forward error/warn to Sentry when SENTRY_DSN is configured.
+    // No-op gracefully if @sentry/nextjs isn't initialized.
+    if ((level === "error" || level === "warn") && process.env.SENTRY_DSN) {
+        // Lazy import so dev/local builds without DSN don't pay the cost.
+        import("@sentry/nextjs")
+            .then((Sentry) => {
+                if (level === "error") {
+                    Sentry.captureMessage(msg, {
+                        level: "error",
+                        extra: { ...fields, requestId: currentRequestId },
+                    });
+                } else {
+                    Sentry.captureMessage(msg, {
+                        level: "warning",
+                        extra: { ...fields, requestId: currentRequestId },
+                    });
+                }
+            })
+            .catch(() => {
+                // Sentry not loaded; fall through to console.
+            });
+    }
+
     const isDev = process.env.NODE_ENV !== "production";
     if (isDev) {
         const tag = level.toUpperCase();
