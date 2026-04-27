@@ -9,6 +9,29 @@ import { eq, desc, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+// Product images may be:
+//   - absolute URLs (https://cdn.example.com/foo.jpg)
+//   - same-app private paths (/api/files/<uuid>)
+//   - legacy relative paths from local storage (/uploads/...)
+// Reject only obviously bogus values; any string starting with "/" or having a
+// parseable URL is accepted.
+const productImageSchema = z
+    .string()
+    .min(1, "URL gambar tidak boleh kosong")
+    .max(2048, "URL gambar terlalu panjang")
+    .refine(
+        (value) => {
+            if (value.startsWith("/")) return true;
+            try {
+                const parsed = new URL(value);
+                return parsed.protocol === "http:" || parsed.protocol === "https:";
+            } catch {
+                return false;
+            }
+        },
+        { message: "URL gambar tidak valid" }
+    );
+
 // Validation schemas
 const createProductSchema = z.object({
     title: z.string().min(3).max(200),
@@ -22,7 +45,7 @@ const createProductSchema = z.object({
     weight_grams: z.number().positive().optional(),
     stock: z.number().int().positive().default(1),
     category_id: z.string().uuid().optional(),
-    images: z.array(z.string().url()).default([]),
+    images: z.array(productImageSchema).default([]),
 });
 
 const updateProductSchema = createProductSchema.partial().extend({
