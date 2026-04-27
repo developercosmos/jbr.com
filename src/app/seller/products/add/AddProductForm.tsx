@@ -46,6 +46,28 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
 
     const [uploading, setUploading] = useState(false);
 
+    const getErrorMessage = (err: unknown, fallback: string) => {
+        if (err instanceof Error && err.message.trim()) {
+            return err.message;
+        }
+
+        if (typeof err === "string" && err.trim()) {
+            return err;
+        }
+
+        if (err && typeof err === "object") {
+            const maybeError = err as { message?: unknown; error?: unknown };
+            if (typeof maybeError.message === "string" && maybeError.message.trim()) {
+                return maybeError.message;
+            }
+            if (typeof maybeError.error === "string" && maybeError.error.trim()) {
+                return maybeError.error;
+            }
+        }
+
+        return fallback;
+    };
+
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files || files.length === 0) return;
@@ -76,7 +98,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
             const urls = await Promise.all(uploadPromises);
             setImages((prev) => [...prev, ...urls]);
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Upload gagal");
+            setError(getErrorMessage(err, "Upload gagal"));
         } finally {
             setUploading(false);
             e.target.value = "";
@@ -156,7 +178,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                 router.refresh();
             }, 1000);
         } catch (err) {
-            setError(err instanceof Error ? err.message : "Gagal menyimpan produk. Silakan coba lagi.");
+            setError(getErrorMessage(err, "Gagal menyimpan produk. Silakan coba lagi."));
         } finally {
             setLoading(false);
         }
@@ -650,7 +672,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                                 <button
                                     type="button"
                                     onClick={() => handleSubmit(false)}
-                                    disabled={loading || !title || !price || images.length === 0 || !hasPickupAddress}
+                                    disabled={loading}
                                     className="w-full py-3.5 px-4 bg-brand-primary hover:bg-blue-600 disabled:bg-slate-400 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm tracking-wide transition-all shadow-lg shadow-brand-primary/25 flex justify-center items-center gap-2"
                                 >
                                     {loading ? (
@@ -665,7 +687,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                                 <button
                                     type="button"
                                     onClick={() => handleSubmit(true)}
-                                    disabled={loading || !title || !price || images.length === 0}
+                                    disabled={loading}
                                     className="w-full py-3.5 px-4 bg-transparent border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-black/20 text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-xl font-medium text-sm transition-all disabled:opacity-50"
                                 >
                                     Simpan sebagai Draft
