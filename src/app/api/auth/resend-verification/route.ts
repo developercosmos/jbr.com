@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { users, verifications } from "@/db/schema";
+import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { sendVerificationEmail } from "@/lib/email";
-import crypto from "crypto";
+import { auth } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
     try {
         const { email } = await request.json();
+        const normalizedEmail = typeof email === "string" ? email.toLowerCase().trim() : "";
 
-        if (!email) {
+        if (!normalizedEmail) {
             return NextResponse.json(
                 { error: "Email diperlukan" },
                 { status: 400 }
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
         // Find the user
         const user = await db.query.users.findFirst({
-            where: eq(users.email, email),
+            where: eq(users.email, normalizedEmail),
         });
 
         if (!user) {
@@ -34,23 +34,11 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Generate new verification token
-        const token = crypto.randomBytes(32).toString("hex");
-        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
-        // Delete any existing verification for this email
-        await db.delete(verifications).where(eq(verifications.identifier, email));
-
-        // Insert new verification token
-        await db.insert(verifications).values({
-            id: crypto.randomUUID(),
-            identifier: email,
-            value: token,
-            expires_at: expiresAt,
+        await auth.api.sendVerificationEmail({
+            body: {
+                email: normalizedEmail,
+            },
         });
-
-        // Send verification email
-        await sendVerificationEmail(email, token, user.name || undefined);
 
         return NextResponse.json({ success: true });
     } catch (error) {

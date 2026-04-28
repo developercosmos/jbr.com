@@ -4,7 +4,13 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { verifyEmail as verifyLegacyEmail } from "@/actions/auth-email";
 import { authClient } from "@/lib/auth-client";
+
+function shouldTryLegacyVerification(message: string) {
+    const normalized = message.toLowerCase();
+    return normalized.includes("invalid token") || normalized.includes("token expired") || normalized.includes("token");
+}
 
 function VerifyEmailContent() {
     const searchParams = useSearchParams();
@@ -25,6 +31,19 @@ function VerifyEmailContent() {
                 const result = await authClient.verifyEmail({ query: { token } });
 
                 if (result.error) {
+                    if (shouldTryLegacyVerification(result.error.message || "")) {
+                        const legacyResult = await verifyLegacyEmail(token);
+                        if (legacyResult.success) {
+                            setStatus("success");
+                            setMessage("Email Anda berhasil diverifikasi!");
+                            return;
+                        }
+
+                        setStatus("error");
+                        setMessage(legacyResult.error || result.error.message || "Verifikasi gagal.");
+                        return;
+                    }
+
                     setStatus("error");
                     setMessage(result.error.message || "Verifikasi gagal.");
                 } else {
@@ -32,6 +51,19 @@ function VerifyEmailContent() {
                     setMessage("Email Anda berhasil diverifikasi!");
                 }
             } catch (error: any) {
+                if (shouldTryLegacyVerification(error?.message || "")) {
+                    const legacyResult = await verifyLegacyEmail(token);
+                    if (legacyResult.success) {
+                        setStatus("success");
+                        setMessage("Email Anda berhasil diverifikasi!");
+                        return;
+                    }
+
+                    setStatus("error");
+                    setMessage(legacyResult.error || error.message || "Terjadi kesalahan saat verifikasi.");
+                    return;
+                }
+
                 setStatus("error");
                 setMessage(error.message || "Terjadi kesalahan saat verifikasi.");
             }

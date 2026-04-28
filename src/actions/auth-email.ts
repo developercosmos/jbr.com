@@ -5,9 +5,9 @@ import { users, verifications, accounts } from "@/db/schema";
 import { eq, and, gt } from "drizzle-orm";
 import {
     sendPasswordResetEmail,
-    sendWelcomeEmail,
-    sendVerificationEmail
+    sendWelcomeEmail
 } from "@/lib/email";
+import { auth } from "@/lib/auth";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
@@ -138,29 +138,11 @@ export async function requestEmailVerification(userId: string) {
             return { success: false, error: "Email sudah terverifikasi." };
         }
 
-        // Generate token
-        const token = crypto.randomBytes(32).toString("hex");
-        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
-        // Delete existing verification tokens
-        await db.delete(verifications).where(
-            and(
-                eq(verifications.value, `email_verify:${user.email.toLowerCase()}`)
-            )
-        );
-
-        // Insert new token
-        await db.insert(verifications).values({
-            id: crypto.randomUUID(),
-            identifier: token,
-            value: `email_verify:${user.email.toLowerCase()}`,
-            expires_at: expiresAt,
-            created_at: new Date(),
-            updated_at: new Date(),
+        await auth.api.sendVerificationEmail({
+            body: {
+                email: user.email,
+            },
         });
-
-        // Send email
-        await sendVerificationEmail(user.email, token, user.name || undefined);
 
         return { success: true };
     } catch (error) {
