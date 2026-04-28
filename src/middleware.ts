@@ -91,7 +91,7 @@ function getClientIp(request: NextRequest): string | null {
     return null;
 }
 
-function shouldApplyGlobalRateLimit(pathname: string, method: string): boolean {
+function shouldApplyGlobalRateLimit(pathname: string, method: string, request: NextRequest): boolean {
     const upperMethod = method.toUpperCase();
 
     // Better Auth polls this endpoint on focus/refresh to keep client session fresh.
@@ -99,6 +99,16 @@ function shouldApplyGlobalRateLimit(pathname: string, method: string): boolean {
     if (
         upperMethod === "GET" &&
         (pathname === "/api/auth/get-session" || pathname === "/api/auth/session" || pathname === "/api/auth/list-sessions")
+    ) {
+        return false;
+    }
+
+    // Next.js 15 RSC: client router sends POST requests to page URLs with the
+    // RSC: 1 or Next-Router-Prefetch: 1 header to fetch server component payloads.
+    // These are internal framework requests, not user-initiated writes — exempt them.
+    if (
+        upperMethod === "POST" &&
+        (request.headers.get("RSC") === "1" || request.headers.get("Next-Router-Prefetch") === "1" || request.headers.get("Next-Router-State-Tree") !== null)
     ) {
         return false;
     }
@@ -150,6 +160,14 @@ export function middleware(request: NextRequest) {
     const now = Date.now();
     const method = request.method.toUpperCase();
 
+    // Next.js internal RSC navigation POSTs — skip all rate limiting.
+    const isNextRsc =
+        method === "POST" &&
+        (request.headers.get("RSC") === "1" ||
+            request.headers.get("Next-Router-Prefetch") === "1" ||
+            request.headers.get("Next-Router-State-Tree") !== null);
+
+    if (!isNextRsc) {
     for (const tier of ENDPOINT_RATE_TIERS) {
         if (tier.test(pathname, method)) {
             const decision = checkRateLimit(`${ip}|${tier.tier}`, tier.limit, now);
@@ -167,7 +185,7 @@ export function middleware(request: NextRequest) {
         }
     }
 
-    if (ip && shouldApplyGlobalRateLimit(pathname, method)) {
+    if (ip && shouldApplyGlobalRateLimit(pathname, method, request)) {
         const globalDecision = checkRateLimit(`${ip}|global`, RATE_LIMIT_MAX_REQUESTS, now);
         if (!globalDecision.ok) {
             return new NextResponse("Too Many Requests", {
@@ -179,6 +197,7 @@ export function middleware(request: NextRequest) {
             });
         }
     }
+    } // end !isNextRsc
 
     // 4. Add security headers that aren't set by nginx (defense in depth)
     const response = NextResponse.next();
