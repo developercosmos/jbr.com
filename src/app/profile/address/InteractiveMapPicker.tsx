@@ -8,6 +8,7 @@ interface InteractiveMapPickerProps {
     lat: number;
     lon: number;
     onPick: (coords: { lat: number; lon: number }) => void;
+    showControls?: boolean;
 }
 
 function MapClickHandler({ onPick }: { onPick: (coords: { lat: number; lon: number }) => void }) {
@@ -30,7 +31,7 @@ function RecenterMap({ lat, lon }: { lat: number; lon: number }) {
     return null;
 }
 
-export function InteractiveMapPicker({ lat, lon, onPick }: InteractiveMapPickerProps) {
+export function InteractiveMapPicker({ lat, lon, onPick, showControls = true }: InteractiveMapPickerProps) {
     const center: LatLngExpression = [lat, lon];
 
     return (
@@ -39,7 +40,8 @@ export function InteractiveMapPicker({ lat, lon, onPick }: InteractiveMapPickerP
             zoom={16}
             scrollWheelZoom
             className="w-full h-full"
-            attributionControl
+            attributionControl={showControls}
+            zoomControl={showControls}
         >
             <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

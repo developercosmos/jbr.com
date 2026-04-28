@@ -94,6 +94,7 @@ export function AddressMapPreview({ addressText, latitude, longitude, className 
                     <InteractiveMapPicker
                         lat={lat!}
                         lon={lon!}
+                        showControls={false}
                         onPick={() => {
                             // Preview-only map; pin changes happen in the dialog.
                         }}
