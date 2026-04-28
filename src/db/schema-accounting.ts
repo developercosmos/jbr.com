@@ -437,3 +437,26 @@ export const accounting_audit_log = pgTable(
     })
 );
 
+// ============================================================
+// Phase 15 — Period snapshot
+// Mirrors web/drizzle/0022_period_snapshot.sql
+// ============================================================
+export const accounting_period_snapshot = pgTable(
+    "accounting_period_snapshot",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        period_id: uuid("period_id")
+            .notNull()
+            .references(() => accounting_periods.id, { onDelete: "cascade" }),
+        report: text("report").notNull(),
+        payload: jsonb("payload").notNull(),
+        totals: jsonb("totals"),
+        captured_at: timestamp("captured_at").defaultNow().notNull(),
+        captured_by: text("captured_by").references(() => users.id, { onDelete: "set null" }),
+    },
+    (t) => ({
+        period_idx: index("idx_acc_period_snap_period").on(t.period_id),
+        report_idx: index("idx_acc_period_snap_report").on(t.report),
+    })
+);
+

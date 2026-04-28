@@ -223,6 +223,15 @@ export async function closePeriodAction(formData: FormData): Promise<void> {
             locked_by: period.locked_by ?? session.userId,
         })
         .where(eq(accounting_periods.id, periodId));
+
+    // Capture immutable snapshot of TB / P&L / BS / Cash Flow at close time.
+    try {
+        const { capturePeriodSnapshots } = await import("./period-snapshot");
+        await capturePeriodSnapshots(periodId, session.userId);
+    } catch (e) {
+        console.error("[closePeriodAction] snapshot failed:", e instanceof Error ? e.message : String(e));
+    }
+
     const { recordFinanceAudit } = await import("./audit");
     await recordFinanceAudit({
         action: "PERIOD_CLOSE",

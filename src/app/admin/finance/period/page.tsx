@@ -110,6 +110,14 @@ export default async function PeriodLifecyclePage() {
                                                             Close Wizard →
                                                         </Link>
                                                     )}
+                                                    {p.status === "CLOSED" && (
+                                                        <Link
+                                                            href={`/admin/finance/period/${p.id}/snapshot`}
+                                                            className="rounded-md bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200 px-2.5 py-1 text-xs font-medium hover:bg-indigo-100"
+                                                        >
+                                                            Snapshot
+                                                        </Link>
+                                                    )}
                                                     {p.status !== "OPEN" && (
                                                         <form action={reopenPeriodAction}>
                                                             <input type="hidden" name="period_id" value={p.id} />
