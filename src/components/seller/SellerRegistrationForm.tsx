@@ -195,7 +195,14 @@ export function SellerRegistrationForm({ addresses, initialName, initialSlugAvai
                             className="block w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-primary"
                             placeholder="Contoh: BCA a.n. Nama Anda"
                         />
-                        <p className="text-sm text-slate-500">Placeholder ini akan dipakai sementara sampai flow KYC tier 1 siap.</p>
+                        <p className="text-sm text-slate-500">
+                            Cukup tulis bank dan nama pemilik (mis. BCA a.n. Budi Santoso). Untuk membuka batas
+                            transaksi yang lebih besar, ajukan{" "}
+                            <Link href="/seller/settings#kyc" className="text-brand-primary hover:underline font-medium">
+                                verifikasi KYC tier 1 atau 2
+                            </Link>{" "}
+                            di pengaturan toko setelah aktivasi.
+                        </p>
                     </div>
 
                     <div className="space-y-2 md:col-span-2">
