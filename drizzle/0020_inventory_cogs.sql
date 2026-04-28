@@ -54,8 +54,8 @@ CREATE INDEX IF NOT EXISTS "idx_inv_mov_journal"   ON "inventory_movements" ("jo
 -- ------------------------------------------------------------
 -- COA seeds for 1P module (idempotent)
 -- ------------------------------------------------------------
-INSERT INTO "coa_accounts" ("code","name","class","normal_balance","is_postable","tax_kind","description") VALUES
-    ('13100','Persediaan Barang 1P','ASSET','DEBIT', true, NULL, 'Stok 1P (dikelola platform); valuasi MOVING_AVG/FIFO'),
-    ('21100','Utang Dagang Vendor 1P','LIABILITY','CREDIT', true, NULL, 'Hutang ke pemasok 1P (PO/GR matched)'),
-    ('51100','HPP Barang 1P','COGS','DEBIT', true, NULL, 'Beban pokok penjualan barang 1P (proporsional dengan revenue 1P)')
-ON CONFLICT ("code") DO NOTHING;
+INSERT INTO "coa_accounts" ("code","name","class","normal_balance","is_postable","tax_kind","description","book") VALUES
+    ('13100','Persediaan Barang 1P','ASSET','DEBIT', true, NULL, 'Stok 1P (dikelola platform); valuasi MOVING_AVG/FIFO','PLATFORM'),
+    ('21100','Utang Dagang Vendor 1P','LIABILITY','CREDIT', true, NULL, 'Hutang ke pemasok 1P (PO/GR matched)','PLATFORM'),
+    ('51100','HPP Barang 1P','COGS','DEBIT', true, NULL, 'Beban pokok penjualan barang 1P (proporsional dengan revenue 1P)','PLATFORM')
+ON CONFLICT ("book","code") DO NOTHING;

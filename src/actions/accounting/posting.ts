@@ -125,6 +125,8 @@ export interface OrderReleaseItem {
     affiliateCommission?: number;
     affiliateUserId?: string | null;
     saleKind?: "AGENT_3P" | "PRINCIPAL_1P";
+    /** Required when saleKind === 'PRINCIPAL_1P' to drive auto-COGS posting. */
+    inventoryItemId?: string | null;
 }
 
 export interface PostOrderReleaseInput {
@@ -244,6 +246,29 @@ export async function postOrderRelease(
                     .onConflictDoNothing();
             } catch {
                 // Sales register write is best-effort — never block journal flow.
+            }
+        }
+
+        // Auto-COGS for PRINCIPAL_1P items (Phase 9). Best-effort: never
+        // block the release flow. Idempotency keyed by orderItemId.
+        for (const row of itemFeeBreakdown) {
+            if (row.item.saleKind !== "PRINCIPAL_1P" || !row.item.inventoryItemId) continue;
+            try {
+                const { postCogsOnSale } = await import("./inventory-posting");
+                await postCogsOnSale({
+                    itemId: row.item.inventoryItemId,
+                    qty: row.item.qty,
+                    refType: "ORDER_ITEM",
+                    refId: row.item.orderItemId,
+                    memo: `Auto-COGS for order ${input.orderId} item ${row.item.orderItemId}`,
+                    occurredAt: input.completedAt,
+                    idempotencyKey: `COGS:ORDER:${input.orderId}:ITEM:${row.item.orderItemId}`,
+                });
+            } catch (e) {
+                console.error(
+                    `[postOrderRelease] auto-COGS failed for order=${input.orderId} item=${row.item.orderItemId}:`,
+                    e instanceof Error ? e.message : String(e)
+                );
             }
         }
     }
