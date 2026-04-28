@@ -34,7 +34,7 @@ function fmtIDR(n: number): string {
 }
 
 export default async function InventoryDashboardPage() {
-    const session = await requireAdminFinanceReader();
+    await requireAdminFinanceReader();
 
     let items: ItemRow[] = [];
     let movements: MovementRow[] = [];
@@ -88,28 +88,24 @@ export default async function InventoryDashboardPage() {
                             </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 shrink-0">
-                            {session.canWrite && (
-                              <>
-                                <Link
-                                    href="/admin/finance/inventory/items/new"
-                                    className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-brand-primary hover:text-brand-primary"
-                                >
-                                    + Item
-                                </Link>
-                                <Link
-                                    href="/admin/finance/inventory/receipt"
-                                    className="rounded-md bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
-                                >
-                                    + Receipt
-                                </Link>
-                                <Link
-                                    href="/admin/finance/inventory/adjustment"
-                                    className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-brand-primary hover:text-brand-primary"
-                                >
-                                    + Adjustment
-                                </Link>
-                              </>
-                            )}
+                            <Link
+                                href="/admin/finance/inventory/items/new"
+                                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-brand-primary hover:text-brand-primary"
+                            >
+                                + Item
+                            </Link>
+                            <Link
+                                href="/admin/finance/inventory/receipt"
+                                className="rounded-md bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+                            >
+                                + Receipt
+                            </Link>
+                            <Link
+                                href="/admin/finance/inventory/adjustment"
+                                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-brand-primary hover:text-brand-primary"
+                            >
+                                + Adjustment
+                            </Link>
                         </div>
                     </div>
                 </header>

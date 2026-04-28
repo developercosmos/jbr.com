@@ -5,7 +5,7 @@ import { addresses, notifications, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { canAccessSellerCenter, normalizeStoreSlug } from "@/lib/seller";
 import { headers } from "next/headers";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -152,15 +152,14 @@ export async function activateSellerProfile(input: z.infer<typeof activateSeller
         return { success: false as const, error: "Alamat pickup tidak valid" };
     }
 
+    // Combine the two pickup-address updates into a single CASE statement so
+    // we issue one round-trip instead of two.
     await db
         .update(addresses)
-        .set({ is_default_pickup: false })
+        .set({
+            is_default_pickup: sql`CASE WHEN ${addresses.id} = ${validated.pickupAddressId} THEN true ELSE false END`,
+        })
         .where(eq(addresses.user_id, sessionUser.id));
-
-    await db
-        .update(addresses)
-        .set({ is_default_pickup: true })
-        .where(eq(addresses.id, validated.pickupAddressId));
 
     const [updatedUser] = await db
         .update(users)
@@ -175,38 +174,46 @@ export async function activateSellerProfile(input: z.infer<typeof activateSeller
         .where(eq(users.id, sessionUser.id))
         .returning();
 
-    await db.insert(notifications).values({
-        user_id: sessionUser.id,
-        type: "SELLER_ACTIVATED",
-        title: "Akun Seller Aktif",
-        message: `Toko ${validated.storeName} berhasil dibuat dan siap mulai berjualan.`,
-        idempotency_key: `SELLER_ACTIVATED:${sessionUser.id}`,
-        data: {
-            store_slug: validated.storeSlug,
-            store_status: updatedUser.store_status,
-        },
-    });
-
+    // Fan out notification inserts in parallel — the seller's own activation
+    // notification and the admin review notifications are independent.
     const admins = await db.query.users.findMany({
         where: eq(users.role, "ADMIN"),
         columns: { id: true },
     });
 
+    const notificationInserts: Promise<unknown>[] = [
+        db.insert(notifications).values({
+            user_id: sessionUser.id,
+            type: "SELLER_ACTIVATED",
+            title: "Akun Seller Aktif",
+            message: `Toko ${validated.storeName} berhasil dibuat dan siap mulai berjualan.`,
+            idempotency_key: `SELLER_ACTIVATED:${sessionUser.id}`,
+            data: {
+                store_slug: validated.storeSlug,
+                store_status: updatedUser.store_status,
+            },
+        }),
+    ];
+
     if (updatedUser.store_status === "PENDING_REVIEW") {
         for (const admin of admins) {
-            await db.insert(notifications).values({
-                user_id: admin.id,
-                type: "SELLER_REVIEW_NEEDED",
-                title: "Seller Baru Perlu Review",
-                message: `${validated.storeName} baru saja mengaktifkan toko dan menunggu review admin.`,
-                idempotency_key: `SELLER_REVIEW_NEEDED:${sessionUser.id}:${admin.id}`,
-                data: {
-                    seller_id: sessionUser.id,
-                    store_slug: validated.storeSlug,
-                },
-            });
+            notificationInserts.push(
+                db.insert(notifications).values({
+                    user_id: admin.id,
+                    type: "SELLER_REVIEW_NEEDED",
+                    title: "Seller Baru Perlu Review",
+                    message: `${validated.storeName} baru saja mengaktifkan toko dan menunggu review admin.`,
+                    idempotency_key: `SELLER_REVIEW_NEEDED:${sessionUser.id}:${admin.id}`,
+                    data: {
+                        seller_id: sessionUser.id,
+                        store_slug: validated.storeSlug,
+                    },
+                })
+            );
         }
     }
+
+    await Promise.all(notificationInserts);
 
     revalidatePath("/seller");
     revalidatePath("/seller/register");

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Store, MapPin, Landmark, Loader2, ShieldCheck } from "lucide-react";
 import { activateSellerProfile, checkStoreSlugAvailability } from "@/actions/seller";
@@ -27,7 +26,6 @@ interface SellerRegistrationFormProps {
 }
 
 export function SellerRegistrationForm({ addresses, initialName, initialSlugAvailability }: SellerRegistrationFormProps) {
-    const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [slugStatus, setSlugStatus] = useState<{ checking: boolean; available: boolean | null; message: string }>({
         checking: false,
@@ -90,8 +88,11 @@ export function SellerRegistrationForm({ addresses, initialName, initialSlugAvai
             try {
                 const result = await activateSellerProfile(formData);
                 if (result.success) {
-                    router.push(result.redirectTo);
-                    router.refresh();
+                    // Hard-navigate so the user doesn't sit watching the
+                    // spinner while React waits for the destination page to
+                    // stream in. The destination page will load with its own
+                    // skeleton/loader.
+                    window.location.assign(result.redirectTo);
                 } else {
                     setMessage(result.error || "Gagal mengaktifkan akun seller.");
                 }
