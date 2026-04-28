@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calculator, FileBarChart, Scale, BookOpen, Download, ShieldCheck, Settings as SettingsIcon, CalendarClock, NotebookPen, Banknote, Store } from "lucide-react";
+import { Calculator, FileBarChart, Scale, BookOpen, Download, ShieldCheck, Settings as SettingsIcon, CalendarClock, NotebookPen, Banknote, Store, Package } from "lucide-react";
 import { requireAdminFinanceSession } from "@/lib/admin-finance";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +64,12 @@ const cards = [
         title: "Sub-Ledger Seller",
         desc: "Saldo wallet seller (akun 22000), gross sales, komisi platform & payouts YTD.",
         icon: Store,
+    },
+    {
+        href: "/admin/finance/inventory",
+        title: "Inventory 1P",
+        desc: "Persediaan barang first-party (akun 13100) dan HPP 1P (51100). Metode kos MOVING_AVG.",
+        icon: Package,
     },
 ];
 

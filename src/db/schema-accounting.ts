@@ -341,3 +341,74 @@ export const accounting_settings = pgTable(
         ),
     })
 );
+
+// ============================================================
+// Phase 8 — 1P Inventory + COGS (sub-ledger)
+// Mirrors web/drizzle/0020_inventory_cogs.sql
+// ============================================================
+
+export const inventoryMovementKindEnum = pgEnum("inventory_movement_kind", [
+    "RECEIPT",     // Pembelian / penerimaan barang dari vendor
+    "ADJUSTMENT",  // Stock opname positif/negatif
+    "ISSUE",       // Pengeluaran karena penjualan (HPP) atau loss
+    "RETURN_IN",   // Retur dari customer (kembali ke gudang)
+    "RETURN_OUT",  // Retur ke vendor
+]);
+
+export const inventoryCostMethodEnum = pgEnum("inventory_cost_method", [
+    "MOVING_AVG",
+    "FIFO",
+]);
+
+// Master item (1P SKU) — independent from marketplace `products` table because 1P stock
+// can pre-exist before product listing and may include components/raw materials.
+export const inventory_items = pgTable(
+    "inventory_items",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        sku: text("sku").notNull(),
+        name: text("name").notNull(),
+        product_id: uuid("product_id"), // optional FK to marketplace products (set when listed)
+        cost_method: inventoryCostMethodEnum("cost_method").default("MOVING_AVG").notNull(),
+        unit: text("unit").default("PCS").notNull(),
+        // Real-time aggregate cache (recomputed on every movement)
+        on_hand_qty: numeric("on_hand_qty", { precision: 18, scale: 4 }).default("0").notNull(),
+        avg_unit_cost: numeric("avg_unit_cost", { precision: 18, scale: 4 }).default("0").notNull(),
+        on_hand_value: numeric("on_hand_value", { precision: 18, scale: 2 }).default("0").notNull(),
+        is_active: boolean("is_active").default(true).notNull(),
+        notes: text("notes"),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+        updated_at: timestamp("updated_at").defaultNow().notNull(),
+    },
+    (t) => ({
+        sku_idx: index("idx_inv_items_sku").on(t.sku),
+        product_idx: index("idx_inv_items_product").on(t.product_id),
+    })
+);
+
+// Movements log — append-only, every change posts a paired GL journal.
+export const inventory_movements = pgTable(
+    "inventory_movements",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        item_id: uuid("item_id")
+            .notNull()
+            .references(() => inventory_items.id, { onDelete: "restrict" }),
+        kind: inventoryMovementKindEnum("kind").notNull(),
+        qty: numeric("qty", { precision: 18, scale: 4 }).notNull(), // signed: + receipt/return_in/adj+, - issue/return_out/adj-
+        unit_cost: numeric("unit_cost", { precision: 18, scale: 4 }).notNull(),
+        total_cost: numeric("total_cost", { precision: 18, scale: 2 }).notNull(), // qty * unit_cost (signed)
+        ref_type: text("ref_type"), // e.g. 'PURCHASE_ORDER','ORDER_ITEM','OPNAME'
+        ref_id: text("ref_id"),
+        journal_id: uuid("journal_id").references(() => journals.id, { onDelete: "set null" }),
+        memo: text("memo"),
+        created_by: text("created_by").references(() => users.id, { onDelete: "set null" }),
+        occurred_at: timestamp("occurred_at").defaultNow().notNull(),
+    },
+    (t) => ({
+        item_time_idx: index("idx_inv_mov_item_time").on(t.item_id, t.occurred_at),
+        kind_time_idx: index("idx_inv_mov_kind_time").on(t.kind, t.occurred_at),
+        journal_idx: index("idx_inv_mov_journal").on(t.journal_id),
+    })
+);
+
