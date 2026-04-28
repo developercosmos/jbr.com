@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calculator, FileBarChart, Scale, BookOpen, Download, ShieldCheck, Settings as SettingsIcon, CalendarClock, NotebookPen, Banknote, Store, Package } from "lucide-react";
+import { Calculator, FileBarChart, Scale, BookOpen, Download, ShieldCheck, Settings as SettingsIcon, CalendarClock, NotebookPen, Banknote, Store, Package, History } from "lucide-react";
 import { requireAdminFinanceSession } from "@/lib/admin-finance";
 
 export const dynamic = "force-dynamic";
@@ -70,6 +70,12 @@ const cards = [
         title: "Inventory 1P",
         desc: "Persediaan barang first-party (akun 13100) dan HPP 1P (51100). Metode kos MOVING_AVG.",
         icon: Package,
+    },
+    {
+        href: "/admin/finance/audit",
+        title: "Audit Log",
+        desc: "Riwayat perubahan setting, periode, jurnal manual, dan inventory oleh admin keuangan.",
+        icon: History,
     },
 ];
 

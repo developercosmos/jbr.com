@@ -230,9 +230,17 @@ export function middleware(request: NextRequest) {
     }
 
     // Prevent caching of sensitive pages
-    if (pathname.startsWith("/profile") || pathname.startsWith("/seller") || pathname.startsWith("/admin")) {
+    if (
+        pathname.startsWith("/profile") ||
+        pathname.startsWith("/seller") ||
+        pathname.startsWith("/admin") ||
+        pathname.startsWith("/affiliate")
+    ) {
         response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
         response.headers.set("Pragma", "no-cache");
+        if (pathname.startsWith("/admin")) {
+            response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+        }
     }
 
     return response;

@@ -60,6 +60,17 @@ export async function updateAccountingSettingAction(formData: FormData): Promise
             updatedBy: session.userId,
             notes: notes || undefined,
         });
+        try {
+            const { recordFinanceAudit } = await import("./audit");
+            await recordFinanceAudit({
+                action: "SETTING_UPDATE",
+                actorId: session.userId,
+                actorEmail: session.email,
+                targetType: "setting",
+                targetId: key,
+                payload: { key, type, value: parsed, effectiveFrom: effectiveFrom || null, notes: notes || null },
+            });
+        } catch {}
         revalidatePath("/admin/finance/settings");
         return { ok: true };
     } catch (err) {

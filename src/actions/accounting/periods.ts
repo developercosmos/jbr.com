@@ -183,6 +183,15 @@ export async function lockPeriodAction(formData: FormData): Promise<void> {
         .update(accounting_periods)
         .set({ status: "LOCKED", locked_at: new Date(), locked_by: session.userId })
         .where(eq(accounting_periods.id, periodId));
+    const { recordFinanceAudit } = await import("./audit");
+    await recordFinanceAudit({
+        action: "PERIOD_LOCK",
+        actorId: session.userId,
+        actorEmail: session.email,
+        targetType: "period",
+        targetId: periodId,
+        payload: { previousStatus: period.status, book: period.book, year: period.year, month: period.month },
+    });
     revalidatePath("/admin/finance/period");
 }
 
@@ -214,6 +223,15 @@ export async function closePeriodAction(formData: FormData): Promise<void> {
             locked_by: period.locked_by ?? session.userId,
         })
         .where(eq(accounting_periods.id, periodId));
+    const { recordFinanceAudit } = await import("./audit");
+    await recordFinanceAudit({
+        action: "PERIOD_CLOSE",
+        actorId: session.userId,
+        actorEmail: session.email,
+        targetType: "period",
+        targetId: periodId,
+        payload: { previousStatus: period.status, book: period.book, year: period.year, month: period.month, drift: checklist.drift },
+    });
     revalidatePath("/admin/finance/period");
 }
 
@@ -222,7 +240,7 @@ export async function closePeriodAction(formData: FormData): Promise<void> {
  * requireAdminFinanceSession(). All re-opens are auditable via session.userId.
  */
 export async function reopenPeriodAction(formData: FormData): Promise<void> {
-    await requireAdminFinanceSession();
+    const session = await requireAdminFinanceSession();
     const periodId = String(formData.get("period_id") ?? "");
     if (!periodId) throw new Error("period_id required");
     const period = await getPeriodOrThrow(periodId);
@@ -231,6 +249,15 @@ export async function reopenPeriodAction(formData: FormData): Promise<void> {
         .update(accounting_periods)
         .set({ status: "OPEN", locked_at: null, locked_by: null, closed_at: null, closed_by: null })
         .where(eq(accounting_periods.id, periodId));
+    const { recordFinanceAudit } = await import("./audit");
+    await recordFinanceAudit({
+        action: "PERIOD_REOPEN",
+        actorId: session.userId,
+        actorEmail: session.email,
+        targetType: "period",
+        targetId: periodId,
+        payload: { previousStatus: period.status, book: period.book, year: period.year, month: period.month },
+    });
     revalidatePath("/admin/finance/period");
 }
 

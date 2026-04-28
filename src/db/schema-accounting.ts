@@ -412,3 +412,28 @@ export const inventory_movements = pgTable(
     })
 );
 
+// ============================================================
+// Phase 10 — Finance audit log
+// Mirrors web/drizzle/0021_finance_audit_log.sql
+// ============================================================
+export const accounting_audit_log = pgTable(
+    "accounting_audit_log",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        action: text("action").notNull(),
+        actor_id: text("actor_id").references(() => users.id, { onDelete: "set null" }),
+        actor_email: text("actor_email"),
+        target_type: text("target_type"),
+        target_id: text("target_id"),
+        payload: jsonb("payload"),
+        ip: text("ip"),
+        user_agent: text("user_agent"),
+        occurred_at: timestamp("occurred_at").defaultNow().notNull(),
+    },
+    (t) => ({
+        action_time_idx: index("idx_acc_audit_action_time").on(t.action, t.occurred_at),
+        actor_time_idx: index("idx_acc_audit_actor_time").on(t.actor_id, t.occurred_at),
+        target_idx: index("idx_acc_audit_target").on(t.target_type, t.target_id),
+    })
+);
+

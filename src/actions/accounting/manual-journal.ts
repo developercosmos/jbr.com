@@ -109,6 +109,16 @@ export async function postManualJournalAction(formData: FormData): Promise<void>
         lines,
     });
 
+    const { recordFinanceAudit } = await import("./audit");
+    await recordFinanceAudit({
+        action: "JOURNAL_MANUAL_POST",
+        actorId: session.userId,
+        actorEmail: session.email,
+        targetType: "journal",
+        targetId: result.journalId,
+        payload: { journalNo: result.journalNo, description, postedAt, lineCount: lines.length },
+    });
+
     revalidatePath("/admin/finance/journals");
     redirect(`/admin/finance/journals/new?ok=${encodeURIComponent(result.journalNo)}`);
 }
