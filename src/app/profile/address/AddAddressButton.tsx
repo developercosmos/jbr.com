@@ -1,11 +1,13 @@
 "use client";
 
-import { Plus, X, Loader2 } from "lucide-react";
+import { Plus, X, Loader2, MapPin } from "lucide-react";
 import { useState, useTransition } from "react";
 import { createAddress } from "@/actions/address";
+import { MapLocationDialog } from "./MapLocationDialog";
 
 export function AddAddressButton() {
     const [isOpen, setIsOpen] = useState(false);
+    const [isMapOpen, setIsMapOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState("");
 
@@ -15,9 +17,18 @@ export function AddAddressButton() {
         phone: "",
         full_address: "",
         postal_code: "",
+        latitude: "",
+        longitude: "",
         is_default_shipping: false,
         is_default_pickup: false,
     });
+
+    const previewLat = Number(formData.latitude);
+    const previewLon = Number(formData.longitude);
+    const hasCoordinates = Number.isFinite(previewLat) && Number.isFinite(previewLon);
+    const mapPreviewUrl = hasCoordinates
+        ? `https://www.openstreetmap.org/export/embed.html?bbox=${previewLon - 0.003}%2C${previewLat - 0.003}%2C${previewLon + 0.003}%2C${previewLat + 0.003}&layer=mapnik&marker=${previewLat}%2C${previewLon}`
+        : null;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -36,6 +47,8 @@ export function AddAddressButton() {
                     phone: formData.phone,
                     full_address: formData.full_address,
                     postal_code: formData.postal_code || undefined,
+                    latitude: formData.latitude || undefined,
+                    longitude: formData.longitude || undefined,
                     is_default_shipping: formData.is_default_shipping,
                     is_default_pickup: formData.is_default_pickup,
                 });
@@ -46,6 +59,8 @@ export function AddAddressButton() {
                     phone: "",
                     full_address: "",
                     postal_code: "",
+                    latitude: "",
+                    longitude: "",
                     is_default_shipping: false,
                     is_default_pickup: false,
                 });
@@ -147,6 +162,41 @@ export function AddAddressButton() {
                             </div>
 
                             <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                    Titik Lokasi
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsMapOpen(true)}
+                                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-800 hover:border-brand-primary transition-colors"
+                                >
+                                    <div className="h-28 relative">
+                                        {mapPreviewUrl ? (
+                                            <iframe
+                                                title="Preview lokasi alamat"
+                                                src={mapPreviewUrl}
+                                                className="absolute inset-0 w-full h-full border-0"
+                                                loading="lazy"
+                                                referrerPolicy="no-referrer-when-downgrade"
+                                            />
+                                        ) : (
+                                            <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-sm">
+                                                Klik untuk pilih titik lokasi
+                                            </div>
+                                        )}
+                                        <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
+                                            <MapPin className="w-6 h-6 text-white drop-shadow" />
+                                        </div>
+                                    </div>
+                                </button>
+                                <p className="text-xs text-slate-500 mt-2">
+                                    {hasCoordinates
+                                        ? `Koordinat: ${previewLat.toFixed(6)}, ${previewLon.toFixed(6)}`
+                                        : "Belum ada titik. Sistem akan mencoba dari alamat atau lokasi perangkat."}
+                                </p>
+                            </div>
+
+                            <div>
                                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                                     Kode Pos
                                 </label>
@@ -210,6 +260,21 @@ export function AddAddressButton() {
                             </div>
                         </form>
                     </div>
+
+                    <MapLocationDialog
+                        open={isMapOpen}
+                        onClose={() => setIsMapOpen(false)}
+                        addressText={formData.full_address}
+                        initialLatitude={formData.latitude || null}
+                        initialLongitude={formData.longitude || null}
+                        onSelect={(coords) => {
+                            setFormData((prev) => ({
+                                ...prev,
+                                latitude: coords.latitude,
+                                longitude: coords.longitude,
+                            }));
+                        }}
+                    />
                 </div>
             )}
         </>

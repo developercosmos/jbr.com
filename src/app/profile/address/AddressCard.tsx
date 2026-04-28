@@ -3,6 +3,7 @@
 import { CheckCircle, Truck, Package, Phone, MapPin, Trash2, X, Loader2 } from "lucide-react";
 import { deleteAddress, setDefaultAddress, updateAddress } from "@/actions/address";
 import { useState, useTransition } from "react";
+import { MapLocationDialog } from "./MapLocationDialog";
 
 interface Address {
     id: string;
@@ -21,12 +22,16 @@ export function AddressCard({ address }: { address: Address }) {
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState("");
     const [isEditOpen, setIsEditOpen] = useState(false);
+    const [isMapPreviewOpen, setIsMapPreviewOpen] = useState(false);
+    const [isEditMapOpen, setIsEditMapOpen] = useState(false);
     const [formData, setFormData] = useState({
         label: address.label,
         recipient_name: address.recipient_name,
         phone: address.phone,
         full_address: address.full_address,
         postal_code: address.postal_code || "",
+        latitude: address.latitude || "",
+        longitude: address.longitude || "",
         is_default_shipping: Boolean(address.is_default_shipping),
         is_default_pickup: Boolean(address.is_default_pickup),
     });
@@ -60,6 +65,8 @@ export function AddressCard({ address }: { address: Address }) {
             phone: address.phone,
             full_address: address.full_address,
             postal_code: address.postal_code || "",
+            latitude: address.latitude || "",
+            longitude: address.longitude || "",
             is_default_shipping: Boolean(address.is_default_shipping),
             is_default_pickup: Boolean(address.is_default_pickup),
         });
@@ -89,8 +96,8 @@ export function AddressCard({ address }: { address: Address }) {
                     phone: formData.phone,
                     full_address: formData.full_address,
                     postal_code: formData.postal_code || undefined,
-                    latitude: address.latitude || undefined,
-                    longitude: address.longitude || undefined,
+                    latitude: formData.latitude || undefined,
+                    longitude: formData.longitude || undefined,
                     is_default_shipping: formData.is_default_shipping,
                     is_default_pickup: formData.is_default_pickup,
                 });
@@ -129,14 +136,16 @@ export function AddressCard({ address }: { address: Address }) {
     const lat = address.latitude ? Number(address.latitude) : NaN;
     const lon = address.longitude ? Number(address.longitude) : NaN;
     const hasCoordinates = Number.isFinite(lat) && Number.isFinite(lon);
-    const encodedAddressQuery = encodeURIComponent(address.full_address);
-
     const mapEmbedUrl = hasCoordinates
         ? `https://www.openstreetmap.org/export/embed.html?bbox=${lon - 0.005}%2C${lat - 0.005}%2C${lon + 0.005}%2C${lat + 0.005}&layer=mapnik&marker=${lat}%2C${lon}`
         : null;
-    const mapLinkUrl = hasCoordinates
-        ? `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`
-        : `https://www.openstreetmap.org/search?query=${encodedAddressQuery}`;
+
+    const editLat = Number(formData.latitude);
+    const editLon = Number(formData.longitude);
+    const hasEditCoordinates = Number.isFinite(editLat) && Number.isFinite(editLon);
+    const editMapPreviewUrl = hasEditCoordinates
+        ? `https://www.openstreetmap.org/export/embed.html?bbox=${editLon - 0.003}%2C${editLat - 0.003}%2C${editLon + 0.003}%2C${editLat + 0.003}&layer=mapnik&marker=${editLat}%2C${editLon}`
+        : null;
 
     return (
         <div className={`relative flex flex-col p-5 rounded-xl bg-white dark:bg-surface-dark border transition-all ${isPrimary
@@ -188,12 +197,11 @@ export function AddressCard({ address }: { address: Address }) {
                         <span>{address.phone}</span>
                     </div>
                 </div>
-                <a
-                    href={mapLinkUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                <button
+                    type="button"
+                    onClick={() => setIsMapPreviewOpen(true)}
                     className="w-full sm:w-32 h-20 rounded-lg overflow-hidden relative border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 group"
-                    title="Buka di OpenStreetMap"
+                    title="Lihat lokasi"
                 >
                     {mapEmbedUrl ? (
                         <iframe
@@ -209,7 +217,7 @@ export function AddressCard({ address }: { address: Address }) {
                     <div className="absolute inset-0 bg-black/10 group-hover:bg-black/25 transition-colors flex items-center justify-center">
                         <MapPin className="w-5 h-5 text-white drop-shadow" />
                     </div>
-                </a>
+                </button>
             </div>
 
             {/* Error Message */}
@@ -334,6 +342,41 @@ export function AddressCard({ address }: { address: Address }) {
                                 />
                             </div>
 
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                                    Titik Lokasi
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsEditMapOpen(true)}
+                                    className="w-full rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-800 hover:border-brand-primary transition-colors"
+                                >
+                                    <div className="h-28 relative">
+                                        {editMapPreviewUrl ? (
+                                            <iframe
+                                                title={`Preview lokasi ${formData.label}`}
+                                                src={editMapPreviewUrl}
+                                                className="absolute inset-0 w-full h-full border-0"
+                                                loading="lazy"
+                                                referrerPolicy="no-referrer-when-downgrade"
+                                            />
+                                        ) : (
+                                            <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-sm">
+                                                Klik untuk pilih titik lokasi
+                                            </div>
+                                        )}
+                                        <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
+                                            <MapPin className="w-6 h-6 text-white drop-shadow" />
+                                        </div>
+                                    </div>
+                                </button>
+                                <p className="text-xs text-slate-500 mt-2">
+                                    {hasEditCoordinates
+                                        ? `Koordinat: ${editLat.toFixed(6)}, ${editLon.toFixed(6)}`
+                                        : "Belum ada titik. Sistem akan mencoba dari alamat atau lokasi perangkat."}
+                                </p>
+                            </div>
+
                             <div className="flex flex-col gap-3 pt-2">
                                 <label className="flex items-center gap-3 cursor-pointer">
                                     <input
@@ -386,6 +429,29 @@ export function AddressCard({ address }: { address: Address }) {
                     </div>
                 </div>
             )}
+
+            <MapLocationDialog
+                open={isMapPreviewOpen}
+                onClose={() => setIsMapPreviewOpen(false)}
+                addressText={address.full_address}
+                initialLatitude={address.latitude || null}
+                initialLongitude={address.longitude || null}
+            />
+
+            <MapLocationDialog
+                open={isEditMapOpen}
+                onClose={() => setIsEditMapOpen(false)}
+                addressText={formData.full_address}
+                initialLatitude={formData.latitude || null}
+                initialLongitude={formData.longitude || null}
+                onSelect={(coords) => {
+                    setFormData((prev) => ({
+                        ...prev,
+                        latitude: coords.latitude,
+                        longitude: coords.longitude,
+                    }));
+                }}
+            />
         </div>
     );
 }
