@@ -25,6 +25,8 @@ export async function runSearchTermRollup(): Promise<SearchTermRollupResult> {
         const dayIso = day.toISOString().slice(0, 10);
         const next = new Date(day);
         next.setUTCDate(next.getUTCDate() + 1);
+        const dayIsoFull = day.toISOString();
+        const nextIsoFull = next.toISOString();
 
         const aggregates = await db
             .select({
@@ -38,8 +40,8 @@ export async function runSearchTermRollup(): Promise<SearchTermRollupResult> {
             .where(
                 and(
                     sql`${product_events.search_term} IS NOT NULL`,
-                    sql`${product_events.occurred_at} >= ${day}`,
-                    sql`${product_events.occurred_at} < ${next}`
+                    sql`${product_events.occurred_at} >= ${dayIsoFull}::timestamp`,
+                    sql`${product_events.occurred_at} < ${nextIsoFull}::timestamp`
                 )
             )
             .groupBy(products.seller_id, product_events.search_term, product_events.event_type);

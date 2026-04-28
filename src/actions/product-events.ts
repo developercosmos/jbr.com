@@ -123,6 +123,8 @@ export async function runProductEventRollup(): Promise<ProductEventRollupResult>
         const dayIso = day.toISOString().slice(0, 10);
         const next = new Date(day);
         next.setUTCDate(next.getUTCDate() + 1);
+        const dayIsoFull = day.toISOString();
+        const nextIsoFull = next.toISOString();
 
         const aggregates = await db
             .select({
@@ -131,7 +133,7 @@ export async function runProductEventRollup(): Promise<ProductEventRollupResult>
                 count: sql<number>`count(*)`,
             })
             .from(product_events)
-            .where(and(sql`${product_events.occurred_at} >= ${day}`, sql`${product_events.occurred_at} < ${next}`))
+            .where(and(sql`${product_events.occurred_at} >= ${dayIsoFull}::timestamp`, sql`${product_events.occurred_at} < ${nextIsoFull}::timestamp`))
             .groupBy(product_events.product_id, product_events.event_type);
 
         for (const row of aggregates) {
@@ -151,13 +153,16 @@ export async function runProductEventRollup(): Promise<ProductEventRollupResult>
         }
     }
 
-    // Prune raw events older than retention window.
+    // Prune raw events older than retention window. pg driver requires ISO
+    // string binding for timestamp columns, not a JS Date instance.
     const cutoff = new Date();
     cutoff.setUTCDate(cutoff.getUTCDate() - retentionDays);
-    await db.delete(product_events).where(lt(product_events.occurred_at, cutoff));
+    await db.execute(sql`DELETE FROM product_events WHERE occurred_at < ${cutoff.toISOString()}::timestamp`);
 
     return { daysProcessed: ranges.length, rowsUpserted, eventsRetainedDays: retentionDays };
 }
+
+void lt;
 
 /**
  * ANLY-02 funnel data per seller. Returns per-event-type sums for the seller's
