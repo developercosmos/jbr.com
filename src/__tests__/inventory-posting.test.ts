@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { simulateMovingAverage } from "@/actions/accounting/inventory-posting";
+import { simulateMovingAverage } from "@/actions/accounting/inventory-internal";
 
 describe("Inventory — moving-average cost (Phase 8)", () => {
     it("single receipt", () => {

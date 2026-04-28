@@ -293,36 +293,10 @@ export async function postInventoryAdjustment(
 }
 
 // ----------------------------------------------------------------
-// Helpers exported for tests / scripts (pure)
+// Pure helpers for tests/scripts re-exported from inventory-internal.ts
+// (cannot live here because "use server" forbids non-async exports).
 // ----------------------------------------------------------------
 
-export interface MovingAvgState {
-    qtyOnHand: number;
-    valueOnHand: number;
-}
+// (Tests should import `simulateMovingAverage` directly from
+//  ./inventory-internal, not from this file.)
 
-/** Pure simulation of moving-average update for a sequence of movements.
- *  Used by unit tests to verify cost math without DB. */
-export function simulateMovingAverage(
-    movements: Array<{ qty: number; unitCost: number }>
-): MovingAvgState & { avg: number } {
-    let qty = 0;
-    let value = 0;
-    for (const m of movements) {
-        if (m.qty > 0) {
-            qty += m.qty;
-            value += m.qty * m.unitCost;
-        } else if (m.qty < 0) {
-            const avg = qty > 0 ? value / qty : 0;
-            qty += m.qty;
-            value += m.qty * avg;
-            if (qty < 0) qty = 0;
-            if (value < 0) value = 0;
-        }
-    }
-    return {
-        qtyOnHand: round4(qty),
-        valueOnHand: round2(value),
-        avg: qty > 0 ? round4(value / qty) : 0,
-    };
-}
