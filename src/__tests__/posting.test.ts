@@ -1,7 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { _internal } from "../actions/accounting/posting";
-
-const { r2, deriveFeeTax } = _internal;
+import { r2, deriveFeeTax } from "../actions/accounting/posting-internal";
 
 describe("posting.deriveFeeTax", () => {
     it("returns gross as DPP and 0 PPN when entity is non-PKP", () => {

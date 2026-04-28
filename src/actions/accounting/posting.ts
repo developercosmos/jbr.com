@@ -19,52 +19,12 @@ import { db } from "@/db";
 import { sales_register } from "@/db/schema";
 import { postJournal, type PostJournalResult, type JournalLineInput } from "./journals";
 import { getSetting } from "./settings";
+import { r2, deriveFeeTax } from "./posting-internal";
 
 // ---------------------------------------------------------------------------
-// Internal helpers
+// Internal helpers (pure r2/deriveFeeTax live in ./posting-internal so this
+// "use server" module only exports async functions, per Next.js requirement).
 // ---------------------------------------------------------------------------
-
-/** Round a number to 2 decimals using HALF_EVEN (banker's). */
-function r2(n: number): number {
-    if (!Number.isFinite(n)) throw new Error(`amount not finite: ${n}`);
-    const sign = n < 0 ? -1 : 1;
-    const abs = Math.abs(n);
-    const scaled = abs * 100;
-    const floor = Math.floor(scaled);
-    const diff = scaled - floor;
-    let rounded: number;
-    if (diff > 0.5) rounded = floor + 1;
-    else if (diff < 0.5) rounded = floor;
-    else rounded = floor % 2 === 0 ? floor : floor + 1;
-    return (sign * rounded) / 100;
-}
-
-/**
- * Derive DPP & PPN from a gross fee amount given the configured PPN rate
- * and method. Pure function — exported for testing via `_internal`.
- *
- * INCLUSIVE: gross = DPP + PPN  → DPP = gross / (1 + rate); PPN = gross - DPP
- * EXCLUSIVE: gross = DPP        → PPN added separately = gross * rate
- */
-function deriveFeeTax(
-    grossFee: number,
-    ppnRate: number,
-    method: "INCLUSIVE" | "EXCLUSIVE",
-    isPkp: boolean
-): { dpp: number; ppn: number } {
-    if (!isPkp || ppnRate <= 0 || grossFee <= 0) {
-        return { dpp: r2(grossFee), ppn: 0 };
-    }
-    if (method === "INCLUSIVE") {
-        const dpp = r2(grossFee / (1 + ppnRate));
-        const ppn = r2(grossFee - dpp);
-        return { dpp, ppn };
-    }
-    // EXCLUSIVE
-    const dpp = r2(grossFee);
-    const ppn = r2(grossFee * ppnRate);
-    return { dpp, ppn };
-}
 
 interface TaxContext {
     isPkp: boolean;
@@ -612,9 +572,6 @@ export async function postAffiliateCommissionReverse(input: {
 }
 
 // ---------------------------------------------------------------------------
-// Internal exports for tests
+// Internal exports for tests are NOT allowed in "use server" files. Tests
+// import the pure helpers directly from ./posting-internal.
 // ---------------------------------------------------------------------------
-export const _internal = {
-    r2,
-    deriveFeeTax,
-};
