@@ -47,7 +47,9 @@ const ENDPOINT_RATE_TIERS: Array<{
         },
         {
             tier: "password-reset",
-            test: (p) => p.startsWith("/auth/forgot-password") || p.startsWith("/auth/reset-password"),
+            test: (p, m) =>
+                (p.startsWith("/auth/forgot-password") || p.startsWith("/auth/reset-password")) &&
+                (m === "POST" || m === "PUT" || m === "PATCH" || m === "DELETE"),
             limit: 5,
         },
         {
@@ -93,10 +95,6 @@ function shouldApplyGlobalRateLimit(pathname: string, method: string): boolean {
     const upperMethod = method.toUpperCase();
 
     if (pathname.startsWith("/api/")) {
-        return true;
-    }
-
-    if (pathname.startsWith("/auth/")) {
         return true;
     }
 
