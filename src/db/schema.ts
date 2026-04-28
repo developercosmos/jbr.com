@@ -59,6 +59,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
     "SELLER_REVIEW_NEEDED",
     "WISHLIST_PRICE_DROP",
     "CART_ABANDONMENT_REMINDER",
+    "SELLER_WEEKLY_DIGEST",
     "SYSTEM",
 ]);
 
@@ -411,6 +412,77 @@ export const wishlist_price_baselines = pgTable(
         pk: uniqueIndex("wishlist_price_baselines_pkey").on(table.user_id, table.product_id),
     })
 );
+
+// ============================================
+// ANLY-01: PRODUCT EVENTS (impression/click/cart/checkout/purchase)
+// ============================================
+export const product_events = pgTable(
+    "product_events",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        product_id: uuid("product_id")
+            .notNull()
+            .references(() => products.id, { onDelete: "cascade" }),
+        user_id: text("user_id").references(() => users.id, { onDelete: "set null" }),
+        session_id: text("session_id"),
+        event_type: text("event_type").notNull(),
+        source: text("source"),
+        search_term: text("search_term"),
+        referrer: text("referrer"),
+        occurred_at: timestamp("occurred_at").defaultNow().notNull(),
+        meta: jsonb("meta"),
+    },
+    (table) => ({
+        product_type_time_idx: index("idx_product_events_product_type_time").on(
+            table.product_id,
+            table.event_type,
+            table.occurred_at
+        ),
+        occurred_at_idx: index("idx_product_events_occurred_at").on(table.occurred_at),
+    })
+);
+
+export const product_event_daily = pgTable(
+    "product_event_daily",
+    {
+        product_id: uuid("product_id")
+            .notNull()
+            .references(() => products.id, { onDelete: "cascade" }),
+        date: text("date").notNull(),
+        event_type: text("event_type").notNull(),
+        count: integer("count").default(0).notNull(),
+    },
+    (table) => ({
+        pk: uniqueIndex("product_event_daily_pk").on(table.product_id, table.date, table.event_type),
+        date_idx: index("idx_product_event_daily_date").on(table.date),
+    })
+);
+
+export const seller_search_terms_daily = pgTable(
+    "seller_search_terms_daily",
+    {
+        seller_id: text("seller_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        date: text("date").notNull(),
+        term: text("term").notNull(),
+        click_count: integer("click_count").default(0).notNull(),
+        impression_count: integer("impression_count").default(0).notNull(),
+    },
+    (table) => ({
+        pk: uniqueIndex("seller_search_terms_daily_pk").on(table.seller_id, table.date, table.term),
+        seller_date_idx: index("idx_seller_search_terms_seller_date").on(table.seller_id, table.date),
+    })
+);
+
+export const seller_digest_log = pgTable("seller_digest_log", {
+    seller_id: text("seller_id")
+        .primaryKey()
+        .references(() => users.id, { onDelete: "cascade" }),
+    last_sent_at: timestamp("last_sent_at"),
+    last_period_start: text("last_period_start"),
+    last_period_end: text("last_period_end"),
+});
 
 // ============================================
 // ORDERS TABLE

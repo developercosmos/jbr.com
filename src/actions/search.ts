@@ -3,6 +3,12 @@
 import { db } from "@/db";
 import { products, categories } from "@/db/schema";
 import { eq, ilike, or, and, sql, desc, asc, inArray, gte } from "drizzle-orm";
+import { getSearchBackend } from "@/lib/search-backend";
+import { logger } from "@/lib/logger";
+
+function isMeilisearchActive() {
+    return process.env.SEARCH_BACKEND === "meilisearch" && !!process.env.MEILISEARCH_HOST;
+}
 
 function getSearchVariants(query: string): string[] {
     const base = query.trim().toLowerCase();
@@ -43,7 +49,90 @@ interface SearchFilters {
     minTensionLbs?: number;
 }
 
+async function searchProductsViaMeilisearch(filters: SearchFilters) {
+    const limit = filters.limit ?? 24;
+    const offset = ((filters.page ?? 1) - 1) * limit;
+
+    const meiliFilters: Record<string, string | string[]> = {};
+    if (filters.condition) meiliFilters.condition = filters.condition;
+    if (filters.gender) meiliFilters.gender = filters.gender;
+    if (filters.weightClass && filters.weightClass.length > 0) meiliFilters.weightClass = filters.weightClass;
+    if (filters.balance && filters.balance.length > 0) meiliFilters.balance = filters.balance;
+    if (filters.shaftFlex && filters.shaftFlex.length > 0) meiliFilters.shaftFlex = filters.shaftFlex;
+    if (filters.gripSize && filters.gripSize.length > 0) meiliFilters.gripSize = filters.gripSize;
+
+    const backend = getSearchBackend();
+    const start = Date.now();
+    const result = await backend.query({
+        q: filters.query ?? "",
+        limit,
+        offset,
+        filters: meiliFilters,
+        facets: ["weightClass", "balance", "shaftFlex", "gripSize", "condition", "gender"],
+    });
+    logger.info("search:meilisearch_query", {
+        q: filters.query ?? "",
+        durationMs: Date.now() - start,
+        hitCount: result.hits.length,
+        estimatedTotal: result.estimatedTotal,
+    });
+
+    const page = filters.page ?? 1;
+    const total = result.estimatedTotal;
+
+    if (result.hits.length === 0) {
+        return {
+            products: [],
+            total,
+            page,
+            totalPages: Math.ceil(total / limit),
+            hasMore: page * limit < total,
+            facets: result.facetDistribution ?? null,
+        };
+    }
+
+    // Hydrate from DB for fields not stored in the index (images, stock, etc.)
+    const ids = result.hits.map((h) => h.id);
+    const conditions = [eq(products.status, "PUBLISHED"), inArray(products.id, ids)];
+    if (filters.minPrice !== undefined) conditions.push(sql`CAST(${products.price} AS NUMERIC) >= ${filters.minPrice}`);
+    if (filters.maxPrice !== undefined) conditions.push(sql`CAST(${products.price} AS NUMERIC) <= ${filters.maxPrice}`);
+    if (filters.category) {
+        const categoryRecord = await db.query.categories.findFirst({ where: eq(categories.slug, filters.category) });
+        if (categoryRecord) conditions.push(eq(products.category_id, categoryRecord.id));
+    }
+
+    const rows = await db.query.products.findMany({
+        where: and(...conditions),
+        with: {
+            category: true,
+            seller: { columns: { id: true, name: true, image: true, store_name: true, store_slug: true } },
+        },
+    });
+
+    // Preserve Meilisearch ranking order.
+    const indexById = new Map(rows.map((row) => [row.id, row]));
+    const ordered = ids.map((id) => indexById.get(id)).filter(Boolean) as typeof rows;
+
+    return {
+        products: ordered,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit),
+        hasMore: page * limit < total,
+        facets: result.facetDistribution ?? null,
+    };
+}
+
 export async function searchProducts(filters: SearchFilters) {
+    if (isMeilisearchActive()) {
+        try {
+            return await searchProductsViaMeilisearch(filters);
+        } catch (error) {
+            logger.warn("search:meilisearch_fallback_to_postgres", { error: String(error) });
+            // Fall through to Postgres path on adapter failure.
+        }
+    }
+
     const {
         query,
         category,

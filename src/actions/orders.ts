@@ -216,6 +216,19 @@ export async function createOrderFromCart(input: z.infer<typeof createOrderSchem
                     })
                     .where(eq(products.id, item.product.id));
             }
+
+            // ANLY-01: record PURCHASE event for funnel + top-products analytics.
+            try {
+                const { recordProductEvent } = await import("@/actions/product-events");
+                await recordProductEvent({
+                    productId: item.product.id,
+                    eventType: "PURCHASE",
+                    source: "checkout",
+                    meta: { order_id: order.id, quantity: item.quantity },
+                });
+            } catch {
+                // analytics non-critical
+            }
         }
 
         createdOrders.push(order);

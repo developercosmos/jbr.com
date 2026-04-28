@@ -32,9 +32,21 @@ export interface IndexableProduct {
     gripSize?: string | null;
 }
 
+export interface SearchQueryResult {
+    hits: SearchHit[];
+    estimatedTotal: number;
+    facetDistribution?: Record<string, Record<string, number>>;
+}
+
 export interface SearchBackend {
     name: string;
-    query(opts: { q: string; limit?: number; offset?: number; filters?: Record<string, string | string[]> }): Promise<SearchHit[]>;
+    query(opts: {
+        q: string;
+        limit?: number;
+        offset?: number;
+        filters?: Record<string, string | string[]>;
+        facets?: string[];
+    }): Promise<SearchQueryResult>;
     indexProduct?(product: IndexableProduct): Promise<void>;
     deleteProduct?(productId: string): Promise<void>;
     bulkIndex?(products: IndexableProduct[]): Promise<void>;
@@ -44,10 +56,10 @@ const PRODUCTS_INDEX = "products";
 
 class PostgresFallback implements SearchBackend {
     name = "postgres";
-    async query(): Promise<SearchHit[]> {
+    async query(): Promise<SearchQueryResult> {
         // Stub: real Postgres search lives in actions/search.ts. This adapter
         // exists so callers can compile against the interface uniformly.
-        return [];
+        return { hits: [], estimatedTotal: 0 };
     }
 }
 
@@ -72,14 +84,17 @@ class MeilisearchAdapter implements SearchBackend {
         limit?: number;
         offset?: number;
         filters?: Record<string, string | string[]>;
-    }): Promise<SearchHit[]> {
+        facets?: string[];
+    }): Promise<SearchQueryResult> {
         try {
             const c = await this.client();
             const filterParts: string[] = [];
             if (opts.filters) {
                 for (const [k, v] of Object.entries(opts.filters)) {
                     if (Array.isArray(v)) {
-                        filterParts.push(`${k} IN [${v.map((s) => JSON.stringify(s)).join(", ")}]`);
+                        if (v.length > 0) {
+                            filterParts.push(`${k} IN [${v.map((s) => JSON.stringify(s)).join(", ")}]`);
+                        }
                     } else if (v) {
                         filterParts.push(`${k} = ${JSON.stringify(v)}`);
                     }
@@ -89,15 +104,21 @@ class MeilisearchAdapter implements SearchBackend {
                 limit: opts.limit ?? 24,
                 offset: opts.offset ?? 0,
                 filter: filterParts.length > 0 ? filterParts : undefined,
+                facets: opts.facets,
             });
-            return (result.hits as Array<{ id: string; slug: string; title: string }>).map((h) => ({
+            const hits = (result.hits as Array<{ id: string; slug: string; title: string }>).map((h) => ({
                 id: h.id,
                 slug: h.slug,
                 title: h.title,
             }));
+            return {
+                hits,
+                estimatedTotal: typeof result.estimatedTotalHits === "number" ? result.estimatedTotalHits : hits.length,
+                facetDistribution: (result.facetDistribution ?? undefined) as Record<string, Record<string, number>> | undefined,
+            };
         } catch (error) {
             logger.error("search:meilisearch_query_failed", { error: String(error) });
-            return [];
+            return { hits: [], estimatedTotal: 0 };
         }
     }
 
@@ -153,6 +174,28 @@ class MeilisearchAdapter implements SearchBackend {
             logger.error("search:meilisearch_bulk_index_failed", { count: products.length, error: String(error) });
         }
     }
+}
+
+/**
+ * SRCH-03 reconcile: ensure index document count matches DB published count.
+ * Called from cron/trust-sweeps. Re-bulk-indexes if drift detected.
+ */
+export async function reconcileSearchIndex(loadAllPublished: () => Promise<IndexableProduct[]>): Promise<{
+    indexed: number;
+    skipped: boolean;
+    reason?: string;
+}> {
+    const driver = process.env.SEARCH_BACKEND ?? "postgres";
+    if (driver !== "meilisearch") {
+        return { indexed: 0, skipped: true, reason: "driver_not_meilisearch" };
+    }
+    const backend = getSearchBackend();
+    if (!backend.bulkIndex) return { indexed: 0, skipped: true, reason: "adapter_lacks_bulk_index" };
+
+    const products = await loadAllPublished();
+    await backend.bulkIndex(products);
+    logger.info("search:reconcile_complete", { driver, indexed: products.length });
+    return { indexed: products.length, skipped: false };
 }
 
 let singleton: SearchBackend | null = null;

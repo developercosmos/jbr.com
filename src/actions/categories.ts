@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { eq, desc, count, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { cached, invalidatePrefix } from "@/lib/cache";
 
 // Get current user with admin check
 async function requireAdmin() {
@@ -32,10 +33,15 @@ async function requireAdmin() {
 // ============================================
 
 export async function getCategories() {
-    const allCategories = await db.query.categories.findMany({
-        orderBy: [desc(categories.created_at)],
+    return cached("catalog:categories:v1", 300, async () => {
+        return db.query.categories.findMany({
+            orderBy: [desc(categories.created_at)],
+        });
     });
-    return allCategories;
+}
+
+export async function invalidateCategoriesCache() {
+    await invalidatePrefix("catalog:categories");
 }
 
 export async function getCategoriesWithCount() {

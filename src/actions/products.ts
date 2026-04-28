@@ -77,6 +77,39 @@ async function getCurrentUser() {
 // PRODUCT ACTIONS
 // ============================================
 
+// SRCH-03: index sync helper. Lazy-imports search backend to avoid pulling
+// Meilisearch client into action bundles where unused.
+async function syncProductToIndex(productId: string, op: "upsert" | "delete") {
+    if (process.env.SEARCH_BACKEND !== "meilisearch") return;
+    try {
+        const { getSearchBackend } = await import("@/lib/search-backend");
+        const backend = getSearchBackend();
+        if (op === "delete") {
+            await backend.deleteProduct?.(productId);
+            return;
+        }
+        const row = await db.query.products.findFirst({ where: eq(products.id, productId) });
+        if (!row || row.status !== "PUBLISHED") {
+            await backend.deleteProduct?.(productId);
+            return;
+        }
+        await backend.indexProduct?.({
+            id: row.id,
+            slug: row.slug,
+            title: row.title,
+            description: row.description,
+            brand: row.brand,
+            price: row.price,
+            weightClass: row.weight_class,
+            balance: row.balance,
+            shaftFlex: row.shaft_flex,
+            gripSize: row.grip_size,
+        });
+    } catch {
+        // Sync errors are non-fatal — the nightly reconcile will fix drift.
+    }
+}
+
 export async function createProduct(input: z.infer<typeof createProductSchema>) {
     const user = await getCurrentUser();
     await ensureCurrentUserCanSell();
@@ -124,6 +157,7 @@ export async function updateProduct(input: z.infer<typeof updateProductSchema>) 
 
     revalidatePath("/seller/products");
     revalidatePath(`/product/${product.slug}`);
+    void syncProductToIndex(product.id, "upsert");
     return { success: true, product };
 }
 
@@ -142,6 +176,7 @@ export async function deleteProduct(productId: string) {
     await db.delete(products).where(eq(products.id, productId));
 
     revalidatePath("/seller/products");
+    void syncProductToIndex(productId, "delete");
     return { success: true };
 }
 
@@ -386,22 +421,25 @@ export async function getProductCount(filters: ProductFilters = {}): Promise<num
 }
 
 export async function getBrands(): Promise<{ name: string; count: number }[]> {
-    const result = await db
-        .select({
-            brand: products.brand,
-            count: count(),
-        })
-        .from(products)
-        .where(and(
-            eq(products.status, "PUBLISHED"),
-            sql`${products.brand} IS NOT NULL AND ${products.brand} != ''`
-        ))
-        .groupBy(products.brand)
-        .orderBy(desc(count()));
+    const { cached } = await import("@/lib/cache");
+    return cached("catalog:brands:v1", 300, async () => {
+        const result = await db
+            .select({
+                brand: products.brand,
+                count: count(),
+            })
+            .from(products)
+            .where(and(
+                eq(products.status, "PUBLISHED"),
+                sql`${products.brand} IS NOT NULL AND ${products.brand} != ''`
+            ))
+            .groupBy(products.brand)
+            .orderBy(desc(count()));
 
-    return result.map((r) => ({
-        name: r.brand || "Unknown",
-        count: r.count,
-    }));
+        return result.map((r) => ({
+            name: r.brand || "Unknown",
+            count: r.count,
+        }));
+    });
 }
 

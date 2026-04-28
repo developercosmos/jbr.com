@@ -158,6 +158,20 @@ type NotifyInput =
         itemTitles: string[];
         voucherCode?: string;
         idempotencyKey?: string;
+    }
+    | {
+        event: "SELLER_WEEKLY_DIGEST";
+        recipientUserId: string;
+        recipientEmail: string;
+        recipientName: string | null;
+        periodStart: string;
+        periodEnd: string;
+        impressions: number;
+        clicks: number;
+        purchases: number;
+        conversionPct: number;
+        topProducts: Array<{ title: string; slug: string; purchases: number }>;
+        idempotencyKey?: string;
     };
 
 function getIdempotencyKey(input: NotifyInput) {
@@ -196,6 +210,8 @@ function getIdempotencyKey(input: NotifyInput) {
         }
         case "CART_ABANDONMENT_REMINDER":
             return `${input.event}:${input.cartId}:${input.stage}`;
+        case "SELLER_WEEKLY_DIGEST":
+            return `${input.event}:${input.recipientUserId}:${input.periodEnd}`;
     }
 }
 
@@ -395,6 +411,20 @@ export async function notify(input: NotifyInput) {
                 stage: input.stage,
                 voucher_code: input.voucherCode,
                 item_count: input.itemTitles.length,
+            };
+            break;
+        case "SELLER_WEEKLY_DIGEST":
+            type = "SELLER_WEEKLY_DIGEST";
+            title = "Ringkasan toko 7 hari terakhir";
+            message = `${input.impressions.toLocaleString("id-ID")} impression · ${input.clicks.toLocaleString("id-ID")} klik · ${input.purchases.toLocaleString("id-ID")} pesanan · ${input.conversionPct.toFixed(2)}% konversi.`;
+            data = {
+                period_start: input.periodStart,
+                period_end: input.periodEnd,
+                impressions: input.impressions,
+                clicks: input.clicks,
+                purchases: input.purchases,
+                conversion_pct: input.conversionPct,
+                top_products: input.topProducts,
             };
             break;
     }

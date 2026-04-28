@@ -6,6 +6,10 @@ import { runOfferExpirySweep } from "@/actions/offers";
 import { clearAttributionsForCompletedOrders } from "@/actions/affiliate";
 import { runWishlistPriceDropSweep } from "@/actions/wishlist-alerts";
 import { runCartAbandonmentSweep } from "@/actions/cart-abandonment";
+import { runProductEventRollup } from "@/actions/product-events";
+import { runSearchTermRollup } from "@/actions/search-terms";
+import { runSellerWeeklyDigestSweep } from "@/actions/seller-digest";
+import { runSearchIndexReconcile } from "@/actions/search-index-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +30,19 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        const [escrow, dispute, reputation, offers, affiliate, wishlistAlerts, abandonment] = await Promise.all([
+        const [
+            escrow,
+            dispute,
+            reputation,
+            offers,
+            affiliate,
+            wishlistAlerts,
+            abandonment,
+            eventRollup,
+            searchTermRollup,
+            sellerDigest,
+            searchIndexReconcile,
+        ] = await Promise.all([
             runEscrowAutoRelease(),
             runDisputeSlaSweep(),
             recomputeAllSellerRatingsForActiveSellers(),
@@ -34,6 +50,10 @@ export async function POST(request: NextRequest) {
             clearAttributionsForCompletedOrders(),
             runWishlistPriceDropSweep(),
             runCartAbandonmentSweep(),
+            runProductEventRollup(),
+            runSearchTermRollup(),
+            runSellerWeeklyDigestSweep(),
+            runSearchIndexReconcile(),
         ]);
 
         return NextResponse.json({
@@ -45,6 +65,10 @@ export async function POST(request: NextRequest) {
             affiliate,
             wishlistAlerts,
             abandonment,
+            eventRollup,
+            searchTermRollup,
+            sellerDigest,
+            searchIndexReconcile,
             ranAt: new Date().toISOString(),
         });
     } catch (error) {

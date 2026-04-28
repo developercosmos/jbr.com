@@ -1,4 +1,5 @@
-import { TrendingUp, ShoppingBag, DollarSign, ArrowUpRight, Calendar, Package } from "lucide-react";
+import Link from "next/link";
+import { TrendingUp, ShoppingBag, DollarSign, ArrowUpRight, Calendar, Package, BarChart3 } from "lucide-react";
 import { getSellerStats, getRecentSellerOrders } from "@/actions/orders";
 import { getSellerProfileByUserId } from "@/actions/seller";
 import { canAccessSellerCenter } from "@/lib/seller";
@@ -62,6 +63,13 @@ export default async function SellerAnalyticsPage() {
                         <p className="text-slate-500 dark:text-slate-400">
                             Pantau performa penjualan dan pertumbuhan toko Anda.
                         </p>
+                        <Link
+                            href="/seller/analytics/funnel"
+                            className="inline-flex items-center gap-1.5 mt-2 text-sm font-medium text-brand-primary hover:underline"
+                        >
+                            <BarChart3 className="w-4 h-4" />
+                            Lihat funnel + search terms detail →
+                        </Link>
                     </div>
                     <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2 bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-lg p-1">

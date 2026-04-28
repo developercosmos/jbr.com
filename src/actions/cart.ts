@@ -116,6 +116,14 @@ export async function addToCart(productId: string, quantity = 1, variantId?: str
         })
         .returning();
 
+    // ANLY-01: log ADD_TO_CART event for funnel analytics. Best-effort.
+    try {
+        const { recordProductEvent } = await import("@/actions/product-events");
+        await recordProductEvent({ productId, eventType: "ADD_TO_CART", source: "pdp" });
+    } catch {
+        // ignore — analytics is non-critical
+    }
+
     revalidatePath("/cart");
     return { success: true, cartItem };
 }
