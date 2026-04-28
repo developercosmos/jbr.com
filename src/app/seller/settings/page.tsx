@@ -1,4 +1,4 @@
-import { Save, Upload, MapPin, Store } from "lucide-react";
+import { Save, Upload, MapPin, Store, PartyPopper } from "lucide-react";
 import Image from "next/image";
 import { getSellerProfileByUserId } from "@/actions/seller";
 import { canAccessSellerCenter } from "@/lib/seller";
@@ -8,7 +8,14 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import KycSection from "./KycSection";
 
-export default async function SellerSettingsPage() {
+interface PageProps {
+    searchParams: Promise<{ welcome?: string }>;
+}
+
+export default async function SellerSettingsPage({ searchParams }: PageProps) {
+    const params = await searchParams;
+    const isWelcome = params.welcome === "1";
+
     const session = await auth.api.getSession({
         headers: await headers(),
     });
@@ -39,6 +46,23 @@ export default async function SellerSettingsPage() {
                         Kelola informasi toko, branding, dan alamat pengiriman.
                     </p>
                 </div>
+
+                {isWelcome && (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-900/20 p-5 flex items-start gap-3">
+                        <PartyPopper className="w-6 h-6 text-emerald-600 flex-shrink-0" />
+                        <div className="space-y-1">
+                            <h3 className="font-bold text-emerald-900 dark:text-emerald-100">
+                                Toko Anda berhasil diaktifkan!
+                            </h3>
+                            <p className="text-sm text-emerald-700 dark:text-emerald-200">
+                                Status awal: <strong>{currentTier}</strong> dengan limit transaksi bulanan{" "}
+                                {currentTier === "T0" ? "Rp 10.000.000" : currentTier === "T1" ? "Rp 50.000.000" : "Rp 250.000.000"}.
+                                Untuk membuka limit lebih besar dan mendapat lencana verifikasi, ajukan KYC tier 1 (KTP + selfie)
+                                atau tier 2 (+ dokumen bisnis) di section di bawah ini.
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 {/* Store Profile Section */}
                 <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">

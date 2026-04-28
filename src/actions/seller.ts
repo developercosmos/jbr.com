@@ -188,7 +188,10 @@ export async function activateSellerProfile(input: z.infer<typeof activateSeller
 
     return {
         success: true,
-        redirectTo: "/seller",
+        // Land directly on the KYC section after activation so the seller can
+        // immediately upgrade from T0 to T1/T2 instead of having to discover
+        // the option in /seller/settings on their own.
+        redirectTo: "/seller/settings?welcome=1#kyc",
         storeStatus: updatedUser.store_status,
     };
 }
