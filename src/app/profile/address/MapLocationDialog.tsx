@@ -1,7 +1,8 @@
 "use client";
 
-import { Loader2, LocateFixed, MapPin, Search, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Loader2, LocateFixed, Search, X } from "lucide-react";
+import dynamic from "next/dynamic";
+import { useCallback, useEffect, useState } from "react";
 
 interface CoordinatesPayload {
     latitude: string;
@@ -22,19 +23,21 @@ const DEFAULT_CENTER = {
     lon: 106.816666,
 };
 
+const InteractiveMapPicker = dynamic(
+    () => import("./InteractiveMapPicker").then((mod) => mod.InteractiveMapPicker),
+    {
+        ssr: false,
+        loading: () => (
+            <div className="absolute inset-0 flex items-center justify-center text-slate-500">
+                Memuat peta...
+            </div>
+        ),
+    }
+);
+
 function toFiniteNumber(value?: string | null) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : null;
-}
-
-function toMapUrls(lat: number, lon: number) {
-    const delta = 0.008;
-    const bbox = `${lon - delta}%2C${lat - delta}%2C${lon + delta}%2C${lat + delta}`;
-
-    return {
-        embedUrl: `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat}%2C${lon}`,
-        openUrl: `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`,
-    };
 }
 
 export function MapLocationDialog({
@@ -53,15 +56,13 @@ export function MapLocationDialog({
 
     const hasCoordinates = lat !== null && lon !== null;
 
-    const mapUrls = useMemo(() => {
-        if (!hasCoordinates) {
-            return null;
-        }
+    const setPickedCoordinates = useCallback((nextLat: number, nextLon: number) => {
+        setLat(nextLat);
+        setLon(nextLon);
+        setError("");
+    }, []);
 
-        return toMapUrls(lat, lon);
-    }, [hasCoordinates, lat, lon]);
-
-    const resolveFromAddress = async () => {
+    const resolveFromAddress = useCallback(async () => {
         if (!addressText?.trim()) {
             setError("Alamat belum diisi. Isi alamat terlebih dahulu.");
             return;
@@ -89,8 +90,7 @@ export function MapLocationDialog({
                 throw new Error("Koordinat dari alamat tidak valid.");
             }
 
-            setLat(nextLat);
-            setLon(nextLon);
+            setPickedCoordinates(nextLat, nextLon);
         } catch (err) {
             const message = err instanceof Error && err.message.trim()
                 ? err.message
@@ -99,12 +99,29 @@ export function MapLocationDialog({
         } finally {
             setResolvingAddress(false);
         }
-    };
+    }, [addressText, setPickedCoordinates]);
 
-    const resolveFromBrowserLocation = () => {
+    const resolveFromBrowserLocation = useCallback(async () => {
         if (!navigator.geolocation) {
             setError("Browser tidak mendukung akses lokasi.");
             return;
+        }
+
+        if (!window.isSecureContext) {
+            setError("Akses lokasi membutuhkan koneksi HTTPS yang aman.");
+            return;
+        }
+
+        if (navigator.permissions?.query) {
+            try {
+                const permission = await navigator.permissions.query({ name: "geolocation" });
+                if (permission.state === "denied") {
+                    setError("Izin lokasi diblokir di browser. Aktifkan izin lokasi lalu coba lagi.");
+                    return;
+                }
+            } catch {
+                // Continue with geolocation request when permissions API is unavailable.
+            }
         }
 
         setLocating(true);
@@ -112,22 +129,30 @@ export function MapLocationDialog({
 
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                setLat(position.coords.latitude);
-                setLon(position.coords.longitude);
+                setPickedCoordinates(position.coords.latitude, position.coords.longitude);
                 setLocating(false);
             },
             (geoError) => {
-                const message = geoError.message?.trim() || "Izin lokasi ditolak atau gagal mendapatkan lokasi.";
+                let message = geoError.message?.trim() || "Gagal mendapatkan lokasi.";
+
+                if (geoError.code === 1) {
+                    message = "Akses lokasi ditolak. Pastikan izin lokasi browser sudah aktif.";
+                } else if (geoError.code === 2) {
+                    message = "Lokasi tidak tersedia. Coba lagi atau pilih titik manual di peta.";
+                } else if (geoError.code === 3) {
+                    message = "Permintaan lokasi timeout. Coba lagi atau pilih titik manual di peta.";
+                }
+
                 setError(message);
                 setLocating(false);
             },
             {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 30000,
+                enableHighAccuracy: false,
+                timeout: 20000,
+                maximumAge: 0,
             }
         );
-    };
+    }, [setPickedCoordinates]);
 
     useEffect(() => {
         if (!open) {
@@ -151,8 +176,7 @@ export function MapLocationDialog({
         if (addressText?.trim()) {
             void resolveFromAddress();
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open]);
+    }, [addressText, initialLatitude, initialLongitude, open, resolveFromAddress]);
 
     if (!open) {
         return null;
@@ -198,18 +222,6 @@ export function MapLocationDialog({
                             {locating ? <Loader2 className="w-4 h-4 animate-spin" /> : <LocateFixed className="w-4 h-4" />}
                             Gunakan Lokasi Saya
                         </button>
-
-                        {mapUrls && (
-                            <a
-                                href={mapUrls.openUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-brand-primary hover:text-brand-primary"
-                            >
-                                <MapPin className="w-4 h-4" />
-                                Buka di OSM
-                            </a>
-                        )}
                     </div>
 
                     {error && (
@@ -219,13 +231,13 @@ export function MapLocationDialog({
                     )}
 
                     <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 h-[360px] bg-slate-100 dark:bg-slate-800 relative">
-                        {mapUrls ? (
-                            <iframe
-                                title="Peta Lokasi"
-                                src={mapUrls.embedUrl}
-                                className="absolute inset-0 w-full h-full border-0"
-                                loading="lazy"
-                                referrerPolicy="no-referrer-when-downgrade"
+                        {hasCoordinates ? (
+                            <InteractiveMapPicker
+                                lat={lat}
+                                lon={lon}
+                                onPick={(coords) => {
+                                    setPickedCoordinates(coords.lat, coords.lon);
+                                }}
                             />
                         ) : (
                             <div className="absolute inset-0 flex items-center justify-center text-slate-500">
@@ -233,6 +245,9 @@ export function MapLocationDialog({
                             </div>
                         )}
                     </div>
+                    <p className="text-xs text-slate-500 -mt-1">
+                        Klik langsung pada peta untuk meletakkan pin di lokasi yang diinginkan.
+                    </p>
 
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <p className="text-xs text-slate-500">
