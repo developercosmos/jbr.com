@@ -76,14 +76,38 @@ export default async function InventoryDashboardPage() {
                     <Link href="/admin/finance" className="text-sm text-brand-primary hover:underline">
                         ← Finance Hub
                     </Link>
-                    <h1 className="mt-2 text-2xl font-heading font-bold uppercase tracking-tight text-slate-900">
-                        Inventory 1P (Persediaan)
-                    </h1>
-                    <p className="mt-1 text-sm text-slate-600">
-                        Sub-ledger persediaan barang first-party. Akun GL: <code>13100</code> Persediaan,
-                        <code className="ml-1">21100</code> Utang Vendor, <code className="ml-1">51100</code> HPP 1P.
-                        Metode kos: MOVING_AVG.
-                    </p>
+                    <div className="mt-2 flex items-start justify-between gap-4">
+                        <div>
+                            <h1 className="text-2xl font-heading font-bold uppercase tracking-tight text-slate-900">
+                                Inventory 1P (Persediaan)
+                            </h1>
+                            <p className="mt-1 text-sm text-slate-600">
+                                Sub-ledger persediaan barang first-party. Akun GL: <code>13100</code> Persediaan,
+                                <code className="ml-1">21100</code> Utang Vendor, <code className="ml-1">51100</code> HPP 1P.
+                                Metode kos: MOVING_AVG.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 shrink-0">
+                            <Link
+                                href="/admin/finance/inventory/items/new"
+                                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-brand-primary hover:text-brand-primary"
+                            >
+                                + Item
+                            </Link>
+                            <Link
+                                href="/admin/finance/inventory/receipt"
+                                className="rounded-md bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+                            >
+                                + Receipt
+                            </Link>
+                            <Link
+                                href="/admin/finance/inventory/adjustment"
+                                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-brand-primary hover:text-brand-primary"
+                            >
+                                + Adjustment
+                            </Link>
+                        </div>
+                    </div>
                 </header>
 
                 {!migrationApplied && (
