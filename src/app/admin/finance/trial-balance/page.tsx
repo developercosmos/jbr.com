@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Download, Printer } from "lucide-react";
-import { requireAdminFinanceSession } from "@/lib/admin-finance";
+import { requireAdminFinanceReader } from "@/lib/admin-finance";
 import { getTrialBalance } from "@/actions/accounting/reports";
 import { formatIdr } from "@/lib/format-idr";
 
@@ -22,7 +22,7 @@ function defaultRange() {
 export default async function AdminTrialBalancePage(props: {
     searchParams: Promise<{ from?: string; to?: string; book?: string }>;
 }) {
-    await requireAdminFinanceSession();
+    await requireAdminFinanceReader();
     const sp = await props.searchParams;
     const def = defaultRange();
     const fromStr = sp.from ?? def.from;

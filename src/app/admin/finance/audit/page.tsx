@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { History } from "lucide-react";
-import { requireAdminFinanceSession } from "@/lib/admin-finance";
+import { requireAdminFinanceReader } from "@/lib/admin-finance";
 import { listFinanceAudit } from "@/actions/accounting/audit";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +28,7 @@ function badgeClass(action: string): string {
 export default async function AdminFinanceAuditPage(props: {
     searchParams: Promise<{ action?: string; limit?: string }>;
 }) {
-    await requireAdminFinanceSession();
+    await requireAdminFinanceReader();
     const sp = await props.searchParams;
     const action = sp.action?.trim() || undefined;
     const limit = Math.min(Math.max(parseInt(sp.limit ?? "200", 10) || 200, 25), 500);

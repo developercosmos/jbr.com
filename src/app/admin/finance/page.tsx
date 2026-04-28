@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { Calculator, FileBarChart, Scale, BookOpen, Download, ShieldCheck, Settings as SettingsIcon, CalendarClock, NotebookPen, Banknote, Store, Package, History } from "lucide-react";
-import { requireAdminFinanceSession } from "@/lib/admin-finance";
+import { Calculator, FileBarChart, Scale, BookOpen, Download, ShieldCheck, Settings as SettingsIcon, CalendarClock, NotebookPen, Banknote, Store, Package, History, Users as UsersIcon } from "lucide-react";
+import { requireAdminFinanceReader } from "@/lib/admin-finance";
 
 export const dynamic = "force-dynamic";
 
@@ -77,10 +77,18 @@ const cards = [
         desc: "Riwayat perubahan setting, periode, jurnal manual, dan inventory oleh admin keuangan.",
         icon: History,
     },
+    {
+        href: "/admin/finance/access",
+        title: "Akses & Role",
+        desc: "Kelola FINANCE_VIEWER (akses baca-saja). Hanya admin yang dapat mengubah daftar.",
+        icon: UsersIcon,
+        adminOnly: true,
+    },
 ];
 
 export default async function AdminFinancePage() {
-    await requireAdminFinanceSession();
+    const session = await requireAdminFinanceReader();
+    const visibleCards = cards.filter((c) => !("adminOnly" in c && c.adminOnly) || session.canWrite);
 
     return (
         <div className="flex-1 p-8">
@@ -95,7 +103,7 @@ export default async function AdminFinancePage() {
                 </header>
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    {cards.map((c) => (
+                    {visibleCards.map((c) => (
                         <Link
                             key={c.href}
                             href={c.href}

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireAdminFinanceSession } from "@/lib/admin-finance";
+import { requireAdminFinanceReader } from "@/lib/admin-finance";
 import {
     listPeriodsWithStats,
     lockPeriodAction,
@@ -26,7 +26,7 @@ const STATUS_PILL: Record<string, string> = {
 };
 
 export default async function PeriodLifecyclePage() {
-    await requireAdminFinanceSession();
+    await requireAdminFinanceReader();
     const periods = await listPeriodsWithStats("PLATFORM");
 
     return (

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Store } from "lucide-react";
-import { requireAdminFinanceSession } from "@/lib/admin-finance";
+import { requireAdminFinanceReader } from "@/lib/admin-finance";
 import { listSellerLedgerSummaries } from "@/actions/accounting/seller-ledger";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ export default async function AdminSellerLedgerPage({
 }: {
     searchParams: Promise<{ year?: string }>;
 }) {
-    await requireAdminFinanceSession();
+    await requireAdminFinanceReader();
     const sp = await searchParams;
     const year = Number(sp.year) || new Date().getUTCFullYear();
     const rows = await listSellerLedgerSummaries(year);

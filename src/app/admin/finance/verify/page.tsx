@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ShieldCheck, AlertTriangle } from "lucide-react";
-import { requireAdminFinanceSession } from "@/lib/admin-finance";
+import { requireAdminFinanceReader } from "@/lib/admin-finance";
 import { verifyGlIntegrity } from "@/actions/accounting/verify";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminFinanceVerifyPage(props: {
     searchParams: Promise<{ recon?: string }>;
 }) {
-    await requireAdminFinanceSession();
+    await requireAdminFinanceReader();
     const sp = await props.searchParams;
     const includeRecon = sp.recon !== "0";
     const report = await verifyGlIntegrity({ includeReconciliation: includeRecon });

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireAdminFinanceSession } from "@/lib/admin-finance";
+import { requireAdminFinanceReader } from "@/lib/admin-finance";
 import {
     getAffiliateLedgerHistory,
     getAffiliateLedgerSummary,
@@ -19,7 +19,7 @@ export default async function AdminAffiliateLedgerDetailPage({
     params: Promise<{ affiliateId: string }>;
     searchParams: Promise<{ year?: string }>;
 }) {
-    await requireAdminFinanceSession();
+    await requireAdminFinanceReader();
     const { affiliateId } = await params;
     if (!affiliateId) notFound();
     const sp = await searchParams;

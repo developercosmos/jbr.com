@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Download, Printer } from "lucide-react";
-import { requireAdminFinanceSession } from "@/lib/admin-finance";
+import { requireAdminFinanceReader } from "@/lib/admin-finance";
 import { getProfitLoss, type ProfitLossSection } from "@/actions/accounting/reports";
 import { formatIdr } from "@/lib/format-idr";
 
@@ -59,7 +59,7 @@ function SectionRows({ section }: { section: ProfitLossSection }) {
 export default async function AdminProfitLossPage(props: {
     searchParams: Promise<{ from?: string; to?: string; book?: string }>;
 }) {
-    await requireAdminFinanceSession();
+    await requireAdminFinanceReader();
     const sp = await props.searchParams;
     const def = defaultRange();
     const fromStr = sp.from ?? def.from;

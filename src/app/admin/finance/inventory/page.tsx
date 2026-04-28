@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
-import { requireAdminFinanceSession } from "@/lib/admin-finance";
+import { requireAdminFinanceReader } from "@/lib/admin-finance";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +34,7 @@ function fmtIDR(n: number): string {
 }
 
 export default async function InventoryDashboardPage() {
-    await requireAdminFinanceSession();
+    const session = await requireAdminFinanceReader();
 
     let items: ItemRow[] = [];
     let movements: MovementRow[] = [];
@@ -88,24 +88,28 @@ export default async function InventoryDashboardPage() {
                             </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 shrink-0">
-                            <Link
-                                href="/admin/finance/inventory/items/new"
-                                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-brand-primary hover:text-brand-primary"
-                            >
-                                + Item
-                            </Link>
-                            <Link
-                                href="/admin/finance/inventory/receipt"
-                                className="rounded-md bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
-                            >
-                                + Receipt
-                            </Link>
-                            <Link
-                                href="/admin/finance/inventory/adjustment"
-                                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-brand-primary hover:text-brand-primary"
-                            >
-                                + Adjustment
-                            </Link>
+                            {session.canWrite && (
+                              <>
+                                <Link
+                                    href="/admin/finance/inventory/items/new"
+                                    className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-brand-primary hover:text-brand-primary"
+                                >
+                                    + Item
+                                </Link>
+                                <Link
+                                    href="/admin/finance/inventory/receipt"
+                                    className="rounded-md bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+                                >
+                                    + Receipt
+                                </Link>
+                                <Link
+                                    href="/admin/finance/inventory/adjustment"
+                                    className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-brand-primary hover:text-brand-primary"
+                                >
+                                    + Adjustment
+                                </Link>
+                              </>
+                            )}
                         </div>
                     </div>
                 </header>

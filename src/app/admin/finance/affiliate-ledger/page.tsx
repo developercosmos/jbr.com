@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Banknote } from "lucide-react";
-import { requireAdminFinanceSession } from "@/lib/admin-finance";
+import { requireAdminFinanceReader } from "@/lib/admin-finance";
 import { listAffiliateLedgerSummaries } from "@/actions/accounting/affiliate-ledger";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ export default async function AdminAffiliateLedgerPage({
 }: {
     searchParams: Promise<{ year?: string }>;
 }) {
-    await requireAdminFinanceSession();
+    await requireAdminFinanceReader();
     const sp = await searchParams;
     const year = Number(sp.year) || new Date().getUTCFullYear();
     const rows = await listAffiliateLedgerSummaries(year);

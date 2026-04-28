@@ -1,4 +1,4 @@
-import { requireAdminFinanceSession } from "@/lib/admin-finance";
+import { requireAdminFinanceReader } from "@/lib/admin-finance";
 import { getProfitLoss, type ProfitLossSection } from "@/actions/accounting/reports";
 import { formatIdr } from "@/lib/format-idr";
 import PrintShell from "../../_print/PrintShell";
@@ -56,7 +56,7 @@ function Section({ s }: { s: ProfitLossSection }) {
 export default async function ProfitLossPrintPage(props: {
     searchParams: Promise<{ from?: string; to?: string; book?: string; auto?: string }>;
 }) {
-    await requireAdminFinanceSession();
+    await requireAdminFinanceReader();
     const sp = await props.searchParams;
     const def = defaultRange();
     const fromStr = sp.from ?? def.from;

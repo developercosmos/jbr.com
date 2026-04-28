@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { requireAdminFinanceSession } from "@/lib/admin-finance";
+import { requireAdminFinanceReader } from "@/lib/admin-finance";
 import {
     getTrialBalance,
     getProfitLoss,
@@ -26,7 +26,7 @@ export async function GET(
     req: NextRequest,
     ctx: { params: Promise<{ report: string }> }
 ) {
-    await requireAdminFinanceSession();
+    await requireAdminFinanceReader();
     const { report } = await ctx.params;
     const sp = req.nextUrl.searchParams;
     const book = bookOf(req);

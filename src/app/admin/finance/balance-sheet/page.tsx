@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Download, Printer } from "lucide-react";
-import { requireAdminFinanceSession } from "@/lib/admin-finance";
+import { requireAdminFinanceReader } from "@/lib/admin-finance";
 import { getBalanceSheet, type ProfitLossSection } from "@/actions/accounting/reports";
 import { formatIdr } from "@/lib/format-idr";
 
@@ -51,7 +51,7 @@ function SectionTable({ title, section, extra }: { title: string; section: Profi
 export default async function AdminBalanceSheetPage(props: {
     searchParams: Promise<{ asOf?: string; book?: string }>;
 }) {
-    await requireAdminFinanceSession();
+    await requireAdminFinanceReader();
     const sp = await props.searchParams;
     const asOfStr = sp.asOf ?? todayStr();
     const book = (sp.book === "SELLER" ? "SELLER" : "PLATFORM") as "PLATFORM" | "SELLER";
