@@ -29,6 +29,13 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Server Actions default to a 1MB body cap which is too small for KYC
+  // document uploads (KTP/selfie/business doc — up to 8MB each).
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "10mb",
+    },
+  },
   images: {
     // TECH-04: image pipeline. Next/Image handles on-demand resize and format
     // conversion (WebP/AVIF) automatically. Allowed remote sources below; CDN
