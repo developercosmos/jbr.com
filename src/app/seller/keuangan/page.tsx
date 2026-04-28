@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Download, TrendingUp, ShoppingBag, RefreshCcw, Wallet } from "lucide-react";
+import { Download, TrendingUp, ShoppingBag, RefreshCcw, Wallet, Printer } from "lucide-react";
 import { requireSellerFinanceSession } from "@/lib/seller-finance";
 import { getSellerSalesSummary, getSellerSalesDetail } from "@/actions/accounting/reports";
 import { formatIdr } from "@/lib/format-idr";
@@ -38,6 +38,7 @@ export default async function SellerKeuanganPage(props: {
     ]);
 
     const exportHref = `/api/seller/keuangan/export/sales?from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}`;
+    const printHref = `/seller/keuangan/statement/print?from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}`;
 
     const stats = [
         {
@@ -91,6 +92,9 @@ export default async function SellerKeuanganPage(props: {
                         </Link>
                         <Link href={exportHref} className="inline-flex items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90">
                             <Download className="w-4 h-4" /> Export CSV
+                        </Link>
+                        <Link href={printHref} target="_blank" className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-brand-primary hover:text-brand-primary">
+                            <Printer className="w-4 h-4" /> Cetak PDF
                         </Link>
                     </div>
                 </div>
