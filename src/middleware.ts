@@ -91,6 +91,19 @@ function getClientIp(request: NextRequest): string | null {
     return null;
 }
 
+function isNextInternalPost(request: NextRequest): boolean {
+    // Next.js 16 fires POSTs from the framework for: RSC payload fetches, prefetches,
+    // server actions, and router-state hydration. They all carry one of these
+    // headers; exempt them from rate limiting so normal browsing/admin doesn't 429.
+    return (
+        request.headers.get("RSC") === "1" ||
+        request.headers.get("Next-Router-Prefetch") === "1" ||
+        request.headers.get("Next-Router-State-Tree") !== null ||
+        request.headers.get("Next-Action") !== null ||
+        request.headers.get("Next-Url") !== null
+    );
+}
+
 function shouldApplyGlobalRateLimit(pathname: string, method: string, request: NextRequest): boolean {
     const upperMethod = method.toUpperCase();
 
@@ -103,13 +116,9 @@ function shouldApplyGlobalRateLimit(pathname: string, method: string, request: N
         return false;
     }
 
-    // Next.js 15 RSC: client router sends POST requests to page URLs with the
-    // RSC: 1 or Next-Router-Prefetch: 1 header to fetch server component payloads.
-    // These are internal framework requests, not user-initiated writes — exempt them.
-    if (
-        upperMethod === "POST" &&
-        (request.headers.get("RSC") === "1" || request.headers.get("Next-Router-Prefetch") === "1" || request.headers.get("Next-Router-State-Tree") !== null)
-    ) {
+    // Next.js 16 internal POSTs (RSC fetch, prefetch, server actions, router state)
+    // are framework-driven, not user-initiated writes — exempt them.
+    if (upperMethod === "POST" && isNextInternalPost(request)) {
         return false;
     }
 
@@ -160,12 +169,10 @@ export function middleware(request: NextRequest) {
     const now = Date.now();
     const method = request.method.toUpperCase();
 
-    // Next.js internal RSC navigation POSTs — skip all rate limiting.
-    const isNextRsc =
-        method === "POST" &&
-        (request.headers.get("RSC") === "1" ||
-            request.headers.get("Next-Router-Prefetch") === "1" ||
-            request.headers.get("Next-Router-State-Tree") !== null);
+    // Next.js 16 framework-internal POSTs (RSC, prefetch, server actions, router
+    // state) are exempt from BOTH endpoint-tier and global rate limits. They are
+    // framework-driven, not user-initiated traffic.
+    const isNextRsc = method === "POST" && isNextInternalPost(request);
 
     if (!isNextRsc) {
     for (const tier of ENDPOINT_RATE_TIERS) {
