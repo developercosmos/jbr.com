@@ -364,34 +364,22 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                                     <label className="block text-sm font-medium mb-2 text-slate-500 dark:text-slate-400">
                                         Merek
                                     </label>
-                                    <div className="relative">
-                                        <select
-                                            className="w-full appearance-none rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary py-3 px-4 pr-10"
-                                            value={brand}
-                                            onChange={(e) => setBrand(e.target.value)}
-                                        >
-                                            <option value="">Pilih Merek</option>
-                                            {brands.length > 0 ? (
-                                                brands.map((b) => (
-                                                    <option key={b} value={b}>{b}</option>
-                                                ))
-                                            ) : (
-                                                <>
-                                                    <option value="Yonex">Yonex</option>
-                                                    <option value="Li-Ning">Li-Ning</option>
-                                                    <option value="Victor">Victor</option>
-                                                    <option value="Mizuno">Mizuno</option>
-                                                    <option value="Apacs">Apacs</option>
-                                                    <option value="Kawasaki">Kawasaki</option>
-                                                    <option value="Flypower">Flypower</option>
-                                                    <option value="Lainnya">Lainnya</option>
-                                                </>
-                                            )}
-                                        </select>
-                                        <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-slate-500">
-                                            <ChevronDown className="w-4 h-4" />
-                                        </div>
-                                    </div>
+                                    <input
+                                        className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary py-3 px-4 placeholder-slate-400"
+                                        type="text"
+                                        list="product-brand-suggestions"
+                                        placeholder="Ketik merek atau pilih dari suggestion"
+                                        value={brand}
+                                        onChange={(e) => setBrand(e.target.value)}
+                                    />
+                                    <datalist id="product-brand-suggestions">
+                                        {brands.map((suggestedBrand) => (
+                                            <option key={suggestedBrand} value={suggestedBrand} />
+                                        ))}
+                                    </datalist>
+                                    <p className="text-xs text-slate-400 mt-2">
+                                        Suggestion merek diambil dari produk yang sudah ada di database. Anda tetap bisa mengetik merek baru.
+                                    </p>
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
