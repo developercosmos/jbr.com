@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Bell, Check, CheckCheck } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from "@/actions/notifications";
 import { useHeaderCounters } from "@/hooks/useHeaderCounters";
 
@@ -12,12 +13,91 @@ type NotificationBellProps = {
     isAuthenticated: boolean;
 };
 
+/**
+ * Map a notification's type + data payload to the route the user should land
+ * on. Returns null when the notification has no actionable target (e.g. SYSTEM
+ * announcements) — in that case we still mark-as-read on click but don't
+ * navigate.
+ *
+ * Server-side `notify()` writes structured `data` for each event:
+ *   - ORDER_*       → { order_id, order_number }
+ *   - REVIEW_*      → { review_id, product_id }
+ *   - DISPUTE_*     → { dispute_id, order_id, order_number }
+ *   - OFFER_*       → { offer_id, product_title }
+ *   - SELLER_*      → { seller_id, store_slug }
+ */
+function getNotificationHref(notification: Notification): string | null {
+    const data = (notification.data ?? {}) as Record<string, unknown>;
+    const orderId = typeof data.order_id === "string" ? data.order_id : null;
+    const productId = typeof data.product_id === "string" ? data.product_id : null;
+    const disputeId = typeof data.dispute_id === "string" ? data.dispute_id : null;
+    const sellerId = typeof data.seller_id === "string" ? data.seller_id : null;
+    const storeSlug = typeof data.store_slug === "string" ? data.store_slug : null;
+
+    switch (notification.type) {
+        case "ORDER_CREATED":
+        case "PAYMENT_SUCCESS":
+        case "ORDER_SHIPPED":
+        case "ORDER_DELIVERED":
+        case "ORDER_COMPLETED":
+            return orderId ? `/profile/orders/${orderId}` : "/profile/orders";
+        case "REVIEW_RECEIVED":
+        case "NEW_REVIEW":
+            return "/seller/reviews";
+        case "REVIEW_REPLY":
+            return productId ? `/product/${productId}` : "/profile/orders";
+        case "NEW_MESSAGE":
+            return "/messages";
+        case "DISPUTE_OPENED":
+        case "DISPUTE_UPDATED":
+            return disputeId
+                ? `/admin/disputes?id=${disputeId}`
+                : (orderId ? `/profile/orders/${orderId}` : "/admin/disputes");
+        case "OFFER_RECEIVED":
+            return "/seller/offers";
+        case "OFFER_ACCEPTED":
+            return "/profile/offers";
+        case "AFFILIATE_CONVERSION":
+        case "PAYOUT_PROCESSED":
+            return "/affiliate";
+        case "SELLER_ACTIVATED":
+            return storeSlug ? `/store/${storeSlug}` : "/seller";
+        case "SELLER_REVIEW_NEEDED":
+            return sellerId ? `/admin/users?highlight=${sellerId}` : "/admin/users";
+        case "SYSTEM":
+        default:
+            return null;
+    }
+}
+
 export function NotificationBell({ isAuthenticated }: NotificationBellProps) {
     const [isOpen, setIsOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const router = useRouter();
     const { unreadNotificationCount, refreshCounters } = useHeaderCounters(isAuthenticated);
+
+    function handleNotificationClick(notification: Notification) {
+        // Optimistically mark as read locally so the row fades immediately.
+        if (!notification.read) {
+            setNotifications((prev) =>
+                prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
+            );
+            // Fire-and-forget server update; failures don't block navigation.
+            markNotificationAsRead(notification.id)
+                .then(() => refreshCounters())
+                .catch((error) => {
+                    console.error("Failed to mark notification as read:", error);
+                });
+        }
+
+        const href = getNotificationHref(notification);
+        setIsOpen(false);
+        if (href) {
+            router.push(href);
+        }
+    }
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -153,37 +233,52 @@ export function NotificationBell({ isAuthenticated }: NotificationBellProps) {
                                 <p>Belum ada notifikasi</p>
                             </div>
                         ) : (
-                            notifications.map((notification) => (
-                                <div
-                                    key={notification.id}
-                                    className={`p-4 border-b border-slate-100 hover:bg-slate-50 transition-colors ${!notification.read ? "bg-blue-50/50" : ""
-                                        }`}
-                                >
-                                    <div className="flex gap-3">
-                                        <span className="text-xl">{getNotificationIcon(notification.type)}</span>
-                                        <div className="flex-1 min-w-0">
-                                            <p className={`text-sm ${!notification.read ? "font-semibold" : ""} text-slate-900`}>
-                                                {notification.title}
-                                            </p>
-                                            <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
-                                                {notification.message}
-                                            </p>
-                                            <p className="text-xs text-slate-400 mt-1">
-                                                {formatTime(notification.created_at)}
-                                            </p>
+                            notifications.map((notification) => {
+                                const hasTarget = getNotificationHref(notification) !== null;
+                                return (
+                                    <button
+                                        type="button"
+                                        key={notification.id}
+                                        onClick={() => handleNotificationClick(notification)}
+                                        className={`w-full text-left p-4 border-b border-slate-100 hover:bg-slate-50 transition-colors ${!notification.read ? "bg-blue-50/50" : ""} ${hasTarget ? "cursor-pointer" : "cursor-default"}`}
+                                    >
+                                        <div className="flex gap-3">
+                                            <span className="text-xl">{getNotificationIcon(notification.type)}</span>
+                                            <div className="flex-1 min-w-0">
+                                                <p className={`text-sm ${!notification.read ? "font-semibold" : ""} text-slate-900`}>
+                                                    {notification.title}
+                                                </p>
+                                                <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">
+                                                    {notification.message}
+                                                </p>
+                                                <p className="text-xs text-slate-400 mt-1">
+                                                    {formatTime(notification.created_at)}
+                                                </p>
+                                            </div>
+                                            {!notification.read && (
+                                                <span
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleMarkAsRead(notification.id);
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === "Enter" || e.key === " ") {
+                                                            e.stopPropagation();
+                                                            handleMarkAsRead(notification.id);
+                                                        }
+                                                    }}
+                                                    className="p-1 hover:bg-slate-200 rounded transition-colors flex-shrink-0"
+                                                    aria-label="Tandai dibaca tanpa membuka"
+                                                >
+                                                    <Check className="w-4 h-4 text-slate-400" />
+                                                </span>
+                                            )}
                                         </div>
-                                        {!notification.read && (
-                                            <button
-                                                onClick={() => handleMarkAsRead(notification.id)}
-                                                className="p-1 hover:bg-slate-200 rounded transition-colors"
-                                                aria-label="Mark as read"
-                                            >
-                                                <Check className="w-4 h-4 text-slate-400" />
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            ))
+                                    </button>
+                                );
+                            })
                         )}
                     </div>
 
