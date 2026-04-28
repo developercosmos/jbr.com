@@ -67,6 +67,43 @@ const ENDPOINT_RATE_TIERS: Array<{
         },
     ];
 
+function getClientIp(request: NextRequest): string | null {
+    const forwardedFor = request.headers.get("x-forwarded-for");
+    if (forwardedFor) {
+        const firstIp = forwardedFor.split(",")[0]?.trim();
+        if (firstIp) {
+            return firstIp;
+        }
+    }
+
+    const realIp = request.headers.get("x-real-ip")?.trim();
+    if (realIp) {
+        return realIp;
+    }
+
+    const cloudflareIp = request.headers.get("cf-connecting-ip")?.trim();
+    if (cloudflareIp) {
+        return cloudflareIp;
+    }
+
+    return null;
+}
+
+function shouldApplyGlobalRateLimit(pathname: string, method: string): boolean {
+    const upperMethod = method.toUpperCase();
+
+    if (pathname.startsWith("/api/")) {
+        return true;
+    }
+
+    if (pathname.startsWith("/auth/")) {
+        return true;
+    }
+
+    // Keep write operations protected even outside /api to prevent abuse on server actions.
+    return upperMethod !== "GET" && upperMethod !== "HEAD" && upperMethod !== "OPTIONS";
+}
+
 function checkRateLimit(key: string, limit: number, now: number): { ok: true } | { ok: false; retryAfter: number } {
     const data = ipRequestCounts.get(key);
     if (!data || now > data.resetTime) {
@@ -83,9 +120,7 @@ function checkRateLimit(key: string, limit: number, now: number): { ok: true } |
 export function middleware(request: NextRequest) {
     const { pathname, search } = request.nextUrl;
     const userAgent = request.headers.get("user-agent") || "";
-    const ip = request.headers.get("x-forwarded-for")?.split(",")[0] ||
-        request.headers.get("x-real-ip") ||
-        "unknown";
+    const ip = getClientIp(request);
 
     // 1. Block suspicious user agents
     for (const pattern of BLOCKED_USER_AGENTS) {
@@ -125,15 +160,17 @@ export function middleware(request: NextRequest) {
         }
     }
 
-    const globalDecision = checkRateLimit(`${ip}|global`, RATE_LIMIT_MAX_REQUESTS, now);
-    if (!globalDecision.ok) {
-        return new NextResponse("Too Many Requests", {
-            status: 429,
-            headers: {
-                "Retry-After": String(globalDecision.retryAfter),
-                "X-RateLimit-Tier": "global",
-            },
-        });
+    if (ip && shouldApplyGlobalRateLimit(pathname, method)) {
+        const globalDecision = checkRateLimit(`${ip}|global`, RATE_LIMIT_MAX_REQUESTS, now);
+        if (!globalDecision.ok) {
+            return new NextResponse("Too Many Requests", {
+                status: 429,
+                headers: {
+                    "Retry-After": String(globalDecision.retryAfter),
+                    "X-RateLimit-Tier": "global",
+                },
+            });
+        }
     }
 
     // 4. Add security headers that aren't set by nginx (defense in depth)
