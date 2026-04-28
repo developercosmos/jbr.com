@@ -85,9 +85,14 @@ export default async function SellerKeuanganPage(props: {
                             Ringkasan penjualan toko <strong>{session.storeName}</strong>. Data berasal dari sales register PSAK.
                         </p>
                     </div>
-                    <Link href={exportHref} className="inline-flex items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90">
-                        <Download className="w-4 h-4" /> Export CSV
-                    </Link>
+                    <div className="flex items-center gap-2">
+                        <Link href="/seller/keuangan/ledger" className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-brand-primary hover:text-brand-primary">
+                            <Wallet className="w-4 h-4" /> Wallet & Mutasi GL
+                        </Link>
+                        <Link href={exportHref} className="inline-flex items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90">
+                            <Download className="w-4 h-4" /> Export CSV
+                        </Link>
+                    </div>
                 </div>
 
                 <form className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calculator, FileBarChart, Scale, BookOpen, Download, ShieldCheck, Settings as SettingsIcon, CalendarClock, NotebookPen, Banknote } from "lucide-react";
+import { Calculator, FileBarChart, Scale, BookOpen, Download, ShieldCheck, Settings as SettingsIcon, CalendarClock, NotebookPen, Banknote, Store } from "lucide-react";
 import { requireAdminFinanceSession } from "@/lib/admin-finance";
 
 export const dynamic = "force-dynamic";
@@ -58,6 +58,12 @@ const cards = [
         title: "Sub-Ledger Affiliate",
         desc: "Saldo wallet komisi per affiliate (akun 22200) + YTD pajak dipotong.",
         icon: Banknote,
+    },
+    {
+        href: "/admin/finance/seller-ledger",
+        title: "Sub-Ledger Seller",
+        desc: "Saldo wallet seller (akun 22000), gross sales, komisi platform & payouts YTD.",
+        icon: Store,
     },
 ];
 
