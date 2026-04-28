@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState, useRef, useEffect, useTransition } from "react";
 import { ChevronDown, LogIn, User, LogOut, Settings, Store, ShieldCheck, Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { serverSignOut } from "@/actions/auth";
 
 type NavbarUser = {
@@ -25,6 +25,7 @@ export function NavbarUserArea({ user, isPending }: NavbarUserAreaProps) {
     const [isLoggingOut, startLogout] = useTransition();
     const dropdownRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
+    const pathname = usePathname();
 
     // Keep initial server/client markup stable to avoid hydration mismatch
     useEffect(() => {
@@ -41,6 +42,14 @@ export function NavbarUserArea({ user, isPending }: NavbarUserAreaProps) {
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
+
+    // Close dropdown when route changes (server-side or client navigation).
+    // Without this, navigating via the dropdown's <Link> items leaves the menu
+    // open after the new page renders if the trigger's onClick state update
+    // races with the route transition.
+    useEffect(() => {
+        setIsOpen(false);
+    }, [pathname]);
 
     const handleLogout = () => {
         startLogout(async () => {
@@ -74,7 +83,11 @@ export function NavbarUserArea({ user, isPending }: NavbarUserAreaProps) {
     const isAdmin = user.role === "ADMIN";
 
     return (
-        <div className="relative" ref={dropdownRef}>
+        // relative + z-[60]: lift the whole user-area stacking context above the
+        // sibling secondary nav row inside <nav>. Without this, items in the
+        // dropdown that overlap the secondary nav vertically can have their
+        // clicks intercepted by the secondary-row links underneath them.
+        <div className="relative z-[60]" ref={dropdownRef}>
             {/* Trigger Button */}
             <button
                 onClick={() => setIsOpen(!isOpen)}
@@ -103,8 +116,15 @@ export function NavbarUserArea({ user, isPending }: NavbarUserAreaProps) {
             </button>
 
             {/* Dropdown Menu */}
+            {/*
+              z-[100] not z-50: the parent <nav> contains a sibling secondary
+              navigation row that paints after this trigger in DOM order. With
+              equal z-index, that later sibling overlays our dropdown and
+              intercepts clicks on the upper rows. Bumping above 50 keeps the
+              menu clickable across all items.
+            */}
             {isOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-50">
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 py-2 z-[100]">
                     {/* User Info */}
                     <div className="px-4 py-2 border-b border-slate-100">
                         <p className="font-bold text-slate-900 text-sm truncate">{user.name}</p>
