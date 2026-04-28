@@ -74,6 +74,17 @@ export const auth = betterAuth({
             createdAt: "created_at",
             updatedAt: "updated_at",
         },
+        // Expose extra columns through session.user so the client can read
+        // `session.user.role` for admin gating, `tier` for KYC banding, etc.
+        additionalFields: {
+            role: { type: "string", required: false, defaultValue: "USER", input: false },
+            tier: { type: "string", required: false, defaultValue: "T0", input: false },
+            phone: { type: "string", required: false, input: false },
+            locale: { type: "string", required: false, defaultValue: "id-ID", input: false },
+            store_slug: { type: "string", required: false, input: false },
+            store_name: { type: "string", required: false, input: false },
+            store_status: { type: "string", required: false, input: false },
+        },
     },
     session: {
         modelName: "sessions",

@@ -49,7 +49,7 @@ export function Navbar() {
                                     name: session.user.name,
                                     email: session.user.email,
                                     image: session.user.image,
-                                    role: (session.user as { role?: string }).role,
+                                    role: session.user.role,
                                 }
                                 : undefined}
                             isPending={isPending}
