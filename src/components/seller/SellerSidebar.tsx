@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, PackagePlus, ShoppingBag, BarChart3, Zap, Store, Tag } from "lucide-react";
+import { LayoutDashboard, PackagePlus, ShoppingBag, BarChart3, Zap, Store, Tag, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
@@ -39,6 +39,11 @@ const baseNavItems: NavItem[] = [
         label: "Analytics",
         href: "/seller/analytics",
         icon: BarChart3,
+    },
+    {
+        label: "Keuangan",
+        href: "/seller/keuangan",
+        icon: Wallet,
     },
     {
         label: "Store Settings",

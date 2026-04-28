@@ -20,6 +20,7 @@ import {
     Coins,
     Ticket,
     Megaphone,
+    Calculator,
     ArrowRight,
 } from "lucide-react";
 
@@ -87,6 +88,7 @@ export default async function AdminDashboardPage() {
             { href: "/admin/fees", label: "Fees", description: "Platform fee rules", icon: Coins },
             { href: "/admin/vouchers", label: "Vouchers", description: "Promo codes", icon: Ticket },
             { href: "/admin/affiliates", label: "Affiliates", description: "Affiliate accounts & payout", icon: Megaphone },
+            { href: "/admin/finance", label: "Finance / GL", description: "PSAK reports: TB, P&L, Balance Sheet", icon: Calculator },
             { href: "/admin/files", label: "File Manager", description: "Uploads & assets", icon: FileImage },
             { href: "/admin/analytics", label: "Analytics", description: "Platform metrics", icon: BarChart3 },
             { href: "/admin/support", label: "Support", description: "Tickets and inquiries", icon: LifeBuoy },

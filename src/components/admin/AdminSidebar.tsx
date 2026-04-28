@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ShieldCheck, Package, Users, BarChart3, LifeBuoy, Gavel, ShoppingBag, FolderOpen, Settings, FileImage, BadgeCheck, Coins, Ticket, Megaphone } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, Package, Users, BarChart3, LifeBuoy, Gavel, ShoppingBag, FolderOpen, Settings, FileImage, BadgeCheck, Coins, Ticket, Megaphone, Calculator } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AdminSidebarProps {
@@ -68,6 +68,11 @@ const toolItems = [
         label: "Affiliates",
         href: "/admin/affiliates",
         icon: Megaphone,
+    },
+    {
+        label: "Finance / GL",
+        href: "/admin/finance",
+        icon: Calculator,
     },
     {
         label: "File Manager",
