@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Download } from "lucide-react";
+import { Download, Printer } from "lucide-react";
 import { requireAdminFinanceSession } from "@/lib/admin-finance";
 import { getTrialBalance } from "@/actions/accounting/reports";
 import { formatIdr } from "@/lib/format-idr";
@@ -36,6 +36,7 @@ export default async function AdminTrialBalancePage(props: {
     const exportHref = `/api/admin/finance/export/trial-balance?from=${encodeURIComponent(
         fromStr
     )}&to=${encodeURIComponent(toStr)}&book=${book}`;
+    const printHref = `/admin/finance/trial-balance/print?from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}&book=${book}&auto=1`;
 
     return (
         <div className="flex-1 p-8">
@@ -49,12 +50,22 @@ export default async function AdminTrialBalancePage(props: {
                             Trial Balance
                         </h1>
                     </div>
-                    <Link
-                        href={exportHref}
-                        className="inline-flex items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
-                    >
-                        <Download className="w-4 h-4" /> Export CSV
-                    </Link>
+                    <div className="flex items-center gap-2">
+                        <Link
+                            href={exportHref}
+                            className="inline-flex items-center gap-2 rounded-lg bg-brand-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+                        >
+                            <Download className="w-4 h-4" /> Export CSV
+                        </Link>
+                        <Link
+                            href={printHref}
+                            target="_blank"
+                            rel="noopener"
+                            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-brand-primary hover:text-brand-primary"
+                        >
+                            <Printer className="w-4 h-4" /> Print PDF
+                        </Link>
+                    </div>
                 </div>
 
                 <form className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4">
