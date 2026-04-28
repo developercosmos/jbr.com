@@ -4,6 +4,7 @@ import { CheckCircle, Truck, Package, Phone, MapPin, Trash2, X, Loader2 } from "
 import { deleteAddress, setDefaultAddress, updateAddress } from "@/actions/address";
 import { useState, useTransition } from "react";
 import { MapLocationDialog } from "./MapLocationDialog";
+import { AddressMapPreview } from "./AddressMapPreview";
 
 interface Address {
     id: string;
@@ -133,19 +134,9 @@ export function AddressCard({ address }: { address: Address }) {
     };
 
     const isPrimary = address.is_default_shipping || address.is_default_pickup;
-    const lat = address.latitude ? Number(address.latitude) : NaN;
-    const lon = address.longitude ? Number(address.longitude) : NaN;
-    const hasCoordinates = Number.isFinite(lat) && Number.isFinite(lon);
-    const mapEmbedUrl = hasCoordinates
-        ? `https://www.openstreetmap.org/export/embed.html?bbox=${lon - 0.005}%2C${lat - 0.005}%2C${lon + 0.005}%2C${lat + 0.005}&layer=mapnik&marker=${lat}%2C${lon}`
-        : null;
-
     const editLat = Number(formData.latitude);
     const editLon = Number(formData.longitude);
     const hasEditCoordinates = Number.isFinite(editLat) && Number.isFinite(editLon);
-    const editMapPreviewUrl = hasEditCoordinates
-        ? `https://www.openstreetmap.org/export/embed.html?bbox=${editLon - 0.003}%2C${editLat - 0.003}%2C${editLon + 0.003}%2C${editLat + 0.003}&layer=mapnik&marker=${editLat}%2C${editLon}`
-        : null;
 
     return (
         <div className={`relative flex flex-col p-5 rounded-xl bg-white dark:bg-surface-dark border transition-all ${isPrimary
@@ -203,17 +194,12 @@ export function AddressCard({ address }: { address: Address }) {
                     className="w-full sm:w-32 h-20 rounded-lg overflow-hidden relative border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 group"
                     title="Lihat lokasi"
                 >
-                    {mapEmbedUrl ? (
-                        <iframe
-                            title={`Peta ${address.label}`}
-                            src={mapEmbedUrl}
-                            loading="lazy"
-                            className="absolute inset-0 w-full h-full border-0"
-                            referrerPolicy="no-referrer-when-downgrade"
-                        />
-                    ) : (
-                        <div className="absolute inset-0 bg-slate-200 dark:bg-slate-700" />
-                    )}
+                    <AddressMapPreview
+                        addressText={address.full_address}
+                        latitude={address.latitude}
+                        longitude={address.longitude}
+                        className="absolute inset-0"
+                    />
                     <div className="absolute inset-0 bg-black/10 group-hover:bg-black/25 transition-colors flex items-center justify-center">
                         <MapPin className="w-5 h-5 text-white drop-shadow" />
                     </div>
@@ -352,19 +338,12 @@ export function AddressCard({ address }: { address: Address }) {
                                     className="w-full rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-800 hover:border-brand-primary transition-colors"
                                 >
                                     <div className="h-28 relative">
-                                        {editMapPreviewUrl ? (
-                                            <iframe
-                                                title={`Preview lokasi ${formData.label}`}
-                                                src={editMapPreviewUrl}
-                                                className="absolute inset-0 w-full h-full border-0"
-                                                loading="lazy"
-                                                referrerPolicy="no-referrer-when-downgrade"
-                                            />
-                                        ) : (
-                                            <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-sm">
-                                                Klik untuk pilih titik lokasi
-                                            </div>
-                                        )}
+                                        <AddressMapPreview
+                                            addressText={formData.full_address}
+                                            latitude={formData.latitude || null}
+                                            longitude={formData.longitude || null}
+                                            className="absolute inset-0"
+                                        />
                                         <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
                                             <MapPin className="w-6 h-6 text-white drop-shadow" />
                                         </div>

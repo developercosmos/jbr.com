@@ -4,6 +4,7 @@ import { Plus, X, Loader2, MapPin } from "lucide-react";
 import { useState, useTransition } from "react";
 import { createAddress } from "@/actions/address";
 import { MapLocationDialog } from "./MapLocationDialog";
+import { AddressMapPreview } from "./AddressMapPreview";
 
 export function AddAddressButton() {
     const [isOpen, setIsOpen] = useState(false);
@@ -26,10 +27,6 @@ export function AddAddressButton() {
     const previewLat = Number(formData.latitude);
     const previewLon = Number(formData.longitude);
     const hasCoordinates = Number.isFinite(previewLat) && Number.isFinite(previewLon);
-    const mapPreviewUrl = hasCoordinates
-        ? `https://www.openstreetmap.org/export/embed.html?bbox=${previewLon - 0.003}%2C${previewLat - 0.003}%2C${previewLon + 0.003}%2C${previewLat + 0.003}&layer=mapnik&marker=${previewLat}%2C${previewLon}`
-        : null;
-
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
@@ -171,19 +168,12 @@ export function AddAddressButton() {
                                     className="w-full rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-slate-50 dark:bg-slate-800 hover:border-brand-primary transition-colors"
                                 >
                                     <div className="h-28 relative">
-                                        {mapPreviewUrl ? (
-                                            <iframe
-                                                title="Preview lokasi alamat"
-                                                src={mapPreviewUrl}
-                                                className="absolute inset-0 w-full h-full border-0"
-                                                loading="lazy"
-                                                referrerPolicy="no-referrer-when-downgrade"
-                                            />
-                                        ) : (
-                                            <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-sm">
-                                                Klik untuk pilih titik lokasi
-                                            </div>
-                                        )}
+                                        <AddressMapPreview
+                                            addressText={formData.full_address}
+                                            latitude={formData.latitude || null}
+                                            longitude={formData.longitude || null}
+                                            className="absolute inset-0"
+                                        />
                                         <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
                                             <MapPin className="w-6 h-6 text-white drop-shadow" />
                                         </div>
