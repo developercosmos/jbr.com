@@ -5,15 +5,17 @@ import { Bell, Check, CheckCheck } from "lucide-react";
 import Link from "next/link";
 import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from "@/actions/notifications";
 import { useHeaderCounters } from "@/hooks/useHeaderCounters";
+import { useSession } from "@/lib/auth-client";
 
 type Notification = Awaited<ReturnType<typeof getNotifications>>[number];
 
 export function NotificationBell() {
+    const { data: session } = useSession();
     const [isOpen, setIsOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const { unreadNotificationCount, refreshCounters } = useHeaderCounters();
+    const { unreadNotificationCount, refreshCounters } = useHeaderCounters(Boolean(session?.user));
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -29,10 +31,10 @@ export function NotificationBell() {
 
     // Fetch notifications when dropdown opens
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && session?.user) {
             fetchNotifications();
         }
-    }, [isOpen]);
+    }, [isOpen, session?.user]);
 
     const fetchNotifications = async () => {
         setIsLoading(true);

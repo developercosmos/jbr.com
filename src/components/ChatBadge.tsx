@@ -7,7 +7,7 @@ import { useHeaderCounters } from "@/hooks/useHeaderCounters";
 
 export function ChatBadge() {
     const { data: session } = useSession();
-    const { unreadChatCount } = useHeaderCounters();
+    const { unreadChatCount } = useHeaderCounters(Boolean(session?.user));
 
     return (
         <Link href="/messages">

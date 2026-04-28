@@ -12,7 +12,7 @@ type HeaderCounterState = {
     isLoading: boolean;
 };
 
-const pollingIntervalMs = 15000;
+const pollingIntervalMs = 30000;
 
 let state: HeaderCounterState = {
     cartCount: 0,
@@ -24,6 +24,7 @@ let state: HeaderCounterState = {
 const listeners = new Set<() => void>();
 let pollingHandle: ReturnType<typeof setTimeout> | null = null;
 let subscriberCount = 0;
+let activePollingSubscriberCount = 0;
 
 function emit() {
     listeners.forEach((listener) => listener());
@@ -35,6 +36,11 @@ function setState(nextState: Partial<HeaderCounterState>) {
 }
 
 async function refreshCounters() {
+    if (activePollingSubscriberCount === 0) {
+        pollingHandle = null;
+        return;
+    }
+
     if (typeof document !== "undefined" && document.hidden) {
         scheduleNextPoll();
         return;
@@ -61,31 +67,41 @@ async function refreshCounters() {
 }
 
 function scheduleNextPoll() {
-    if (subscriberCount === 0) return;
+    if (activePollingSubscriberCount === 0) {
+        pollingHandle = null;
+        return;
+    }
     pollingHandle = setTimeout(refreshCounters, pollingIntervalMs);
 }
 
 function startPollingIfNeeded() {
-    if (subscriberCount === 1 && pollingHandle === null) {
+    if (activePollingSubscriberCount > 0 && pollingHandle === null) {
         void refreshCounters();
     }
 }
 
 function stopPollingIfIdle() {
-    if (subscriberCount === 0 && pollingHandle) {
+    if (activePollingSubscriberCount === 0 && pollingHandle) {
         clearTimeout(pollingHandle);
         pollingHandle = null;
+        setState({ isLoading: false });
     }
 }
 
-function subscribe(listener: () => void) {
+function subscribe(listener: () => void, enabled: boolean) {
     listeners.add(listener);
     subscriberCount += 1;
+    if (enabled) {
+        activePollingSubscriberCount += 1;
+    }
     startPollingIfNeeded();
 
     return () => {
         listeners.delete(listener);
         subscriberCount = Math.max(0, subscriberCount - 1);
+        if (enabled) {
+            activePollingSubscriberCount = Math.max(0, activePollingSubscriberCount - 1);
+        }
         stopPollingIfIdle();
     };
 }
@@ -98,8 +114,12 @@ function getServerSnapshot() {
     return state;
 }
 
-export function useHeaderCounters() {
-    const counters = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+export function useHeaderCounters(enabled = true) {
+    const counters = useSyncExternalStore(
+        (listener) => subscribe(listener, enabled),
+        getSnapshot,
+        getServerSnapshot
+    );
 
     return {
         ...counters,

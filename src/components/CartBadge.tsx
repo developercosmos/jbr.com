@@ -7,7 +7,7 @@ import { useHeaderCounters } from "@/hooks/useHeaderCounters";
 
 export function CartBadge() {
     const { data: session } = useSession();
-    const { cartCount } = useHeaderCounters();
+    const { cartCount } = useHeaderCounters(Boolean(session?.user));
 
     return (
         <Link href="/cart">
