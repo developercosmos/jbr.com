@@ -4,12 +4,22 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState, useRef, useEffect, useTransition } from "react";
 import { ChevronDown, LogIn, User, LogOut, Settings, Store, ShieldCheck, Loader2 } from "lucide-react";
-import { useSession } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { serverSignOut } from "@/actions/auth";
 
-export function NavbarUserArea() {
-    const { data: session, isPending } = useSession();
+type NavbarUser = {
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+    role?: string;
+};
+
+type NavbarUserAreaProps = {
+    user?: NavbarUser;
+    isPending: boolean;
+};
+
+export function NavbarUserArea({ user, isPending }: NavbarUserAreaProps) {
     const [mounted, setMounted] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const [isLoggingOut, startLogout] = useTransition();
@@ -50,7 +60,7 @@ export function NavbarUserArea() {
         );
     }
 
-    if (!session?.user) {
+    if (!user) {
         return (
             <Link href="/auth/login">
                 <button className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white text-sm font-bold rounded-full hover:bg-blue-600 transition-colors">
@@ -61,8 +71,7 @@ export function NavbarUserArea() {
         );
     }
 
-    const user = session.user;
-    const isAdmin = (user as { role?: string }).role === "ADMIN";
+    const isAdmin = user.role === "ADMIN";
 
     return (
         <div className="relative" ref={dropdownRef}>

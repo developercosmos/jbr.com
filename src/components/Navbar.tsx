@@ -7,8 +7,12 @@ import { ChatBadge } from "./ChatBadge";
 import { CartBadge } from "./CartBadge";
 import { NotificationBell } from "./NotificationBell";
 import { SearchBar } from "./SearchBar";
+import { useSession } from "@/lib/auth-client";
 
 export function Navbar() {
+    const { data: session, isPending } = useSession();
+    const isAuthenticated = Boolean(session?.user);
+
     return (
         <nav className="sticky top-0 z-50 w-full bg-white border-b border-slate-200 shadow-sm">
             <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -31,15 +35,25 @@ export function Navbar() {
                         {/* Icons Group */}
                         <div className="flex items-center gap-1 sm:gap-1 border-r border-slate-200 pr-3 mr-1">
                             {/* Chat */}
-                            <ChatBadge />
+                            <ChatBadge isAuthenticated={isAuthenticated} />
                             {/* Notifications */}
-                            <NotificationBell />
+                            <NotificationBell isAuthenticated={isAuthenticated} />
                             {/* Cart */}
-                            <CartBadge />
+                            <CartBadge isAuthenticated={isAuthenticated} />
                         </div>
 
                         {/* User Profile */}
-                        <NavbarUserArea />
+                        <NavbarUserArea
+                            user={session?.user
+                                ? {
+                                    name: session.user.name,
+                                    email: session.user.email,
+                                    image: session.user.image,
+                                    role: (session.user as { role?: string }).role,
+                                }
+                                : undefined}
+                            isPending={isPending}
+                        />
 
                         {/* Mobile Menu Button */}
                         <button className="md:hidden p-2 text-slate-500 hover:text-brand-primary">
