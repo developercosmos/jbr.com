@@ -3,13 +3,14 @@
 import { useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Trash2, Minus, Plus, Store, Verified, Loader2, Tag, ShieldCheck } from "lucide-react";
-import { removeFromCart, updateCartItemQuantity, clearCart } from "@/actions/cart";
+import { Trash2, Minus, Plus, Store, Verified, Loader2, Tag, ShieldCheck, BookmarkPlus, ShoppingCart } from "lucide-react";
+import { removeFromCart, updateCartItemQuantity, clearCart, moveCartItemToSaved, moveSavedItemToCart } from "@/actions/cart";
 
 // Define the cart item type based on getCart return
 interface CartItemType {
     id: string;
     quantity: number;
+    saved_for_later: boolean;
     variant: {
         id: string;
         name: string;
@@ -42,9 +43,15 @@ interface CartContentProps {
 export function CartContent({ initialItems }: CartContentProps) {
     const [items, setItems] = useState<CartItemType[]>(initialItems);
     const [isPending, startTransition] = useTransition();
+    const [moveError, setMoveError] = useState<string | null>(null);
 
-    // Group items by seller
-    const itemsBySeller = items.reduce((acc, item) => {
+    // REC-03: split active cart from saved-for-later. Subtotal/checkout uses
+    // only active items; saved bucket appears below as a separate panel.
+    const activeItems = items.filter((i) => !i.saved_for_later);
+    const savedItems = items.filter((i) => i.saved_for_later);
+
+    // Group active items by seller
+    const itemsBySeller = activeItems.reduce((acc, item) => {
         const sellerId = item.product.seller.id;
         if (!acc[sellerId]) {
             acc[sellerId] = {
@@ -55,6 +62,30 @@ export function CartContent({ initialItems }: CartContentProps) {
         acc[sellerId].items.push(item);
         return acc;
     }, {} as Record<string, { seller: CartItemType["product"]["seller"]; items: CartItemType[] }>);
+
+    const handleMoveToSaved = (cartItemId: string) => {
+        setMoveError(null);
+        startTransition(async () => {
+            try {
+                await moveCartItemToSaved(cartItemId);
+                setItems((prev) => prev.map((i) => (i.id === cartItemId ? { ...i, saved_for_later: true } : i)));
+            } catch (error) {
+                setMoveError(error instanceof Error ? error.message : "Gagal memindahkan item.");
+            }
+        });
+    };
+
+    const handleMoveToCart = (cartItemId: string) => {
+        setMoveError(null);
+        startTransition(async () => {
+            try {
+                await moveSavedItemToCart(cartItemId);
+                setItems((prev) => prev.map((i) => (i.id === cartItemId ? { ...i, saved_for_later: false } : i)));
+            } catch (error) {
+                setMoveError(error instanceof Error ? error.message : "Gagal memindahkan item.");
+            }
+        });
+    };
 
     const handleUpdateQuantity = (cartItemId: string, newQuantity: number) => {
         startTransition(async () => {
@@ -98,12 +129,12 @@ export function CartContent({ initialItems }: CartContentProps) {
         });
     };
 
-    // Calculate totals
-    const subtotal = items.reduce((sum, item) => {
+    // Calculate totals from active items only (REC-03: saved-for-later excluded).
+    const subtotal = activeItems.reduce((sum, item) => {
         return sum + parseFloat(item.variant?.price ?? item.product.price) * item.quantity;
     }, 0);
 
-    const hasVariantResolutionErrors = items.some(
+    const hasVariantResolutionErrors = activeItems.some(
         (item) => item.product.variants.length > 0 && !item.variant
     );
 
@@ -122,7 +153,8 @@ export function CartContent({ initialItems }: CartContentProps) {
                 {/* Select All / Clear */}
                 <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200 flex items-center justify-between">
                     <span className="text-slate-700 text-base font-medium">
-                        {items.length} item{items.length !== 1 ? "s" : ""} dalam keranjang
+                        {activeItems.length} item{activeItems.length !== 1 ? "s" : ""} di keranjang
+                        {savedItems.length > 0 ? ` · ${savedItems.length} disimpan` : ""}
                     </span>
                     <button
                         onClick={handleClearCart}
@@ -132,6 +164,12 @@ export function CartContent({ initialItems }: CartContentProps) {
                         Hapus Semua
                     </button>
                 </div>
+
+                {moveError && (
+                    <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                        {moveError}
+                    </div>
+                )}
 
                 {/* Items grouped by seller */}
                 {Object.values(itemsBySeller).map(({ seller, items: sellerItems }) => (
@@ -197,14 +235,24 @@ export function CartContent({ initialItems }: CartContentProps) {
 
                                 {/* Actions */}
                                 <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto gap-4">
-                                    <button
-                                        onClick={() => handleRemove(item.id)}
-                                        disabled={isPending}
-                                        className="text-slate-400 hover:text-red-500 transition-colors disabled:opacity-50"
-                                        title="Hapus"
-                                    >
-                                        <Trash2 className="w-5 h-5" />
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => handleMoveToSaved(item.id)}
+                                            disabled={isPending}
+                                            className="text-slate-400 hover:text-brand-primary transition-colors disabled:opacity-50"
+                                            title="Simpan untuk nanti"
+                                        >
+                                            <BookmarkPlus className="w-5 h-5" />
+                                        </button>
+                                        <button
+                                            onClick={() => handleRemove(item.id)}
+                                            disabled={isPending}
+                                            className="text-slate-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                                            title="Hapus"
+                                        >
+                                            <Trash2 className="w-5 h-5" />
+                                        </button>
+                                    </div>
                                     <div className="flex items-center border border-slate-300 rounded-lg overflow-hidden h-8">
                                         <button
                                             onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
@@ -229,6 +277,65 @@ export function CartContent({ initialItems }: CartContentProps) {
                         ))}
                     </div>
                 ))}
+
+                {/* REC-03: Saved for later panel */}
+                {savedItems.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div className="p-4 border-b border-slate-100 flex items-center gap-2">
+                            <BookmarkPlus className="w-4 h-4 text-slate-500" />
+                            <h3 className="font-bold text-slate-900">Disimpan untuk Nanti ({savedItems.length})</h3>
+                        </div>
+                        {savedItems.map((item) => (
+                            <div
+                                key={item.id}
+                                className="p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center border-t border-slate-100 first:border-t-0 opacity-90"
+                            >
+                                <Link href={`/product/${item.product.slug}`}>
+                                    <div className="relative w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 rounded-lg overflow-hidden border border-slate-200 bg-white">
+                                        <Image
+                                            alt={item.product.title}
+                                            className="object-cover"
+                                            src={item.product.images?.[0] || "/placeholder.png"}
+                                            fill
+                                        />
+                                    </div>
+                                </Link>
+                                <div className="flex-1 flex flex-col min-w-0 gap-1">
+                                    <Link href={`/product/${item.product.slug}`}>
+                                        <h4 className="text-slate-800 text-sm font-semibold line-clamp-2 hover:text-brand-primary transition-colors">
+                                            {item.product.title}
+                                        </h4>
+                                    </Link>
+                                    <div className="text-slate-900 text-base font-bold">
+                                        {formatPrice(parseFloat(item.variant?.price ?? item.product.price))}
+                                    </div>
+                                    {item.variant && (
+                                        <p className="text-xs text-slate-500">Varian: {item.variant.name}</p>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => handleMoveToCart(item.id)}
+                                        disabled={isPending}
+                                        className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-brand-primary text-white hover:bg-blue-600 disabled:opacity-50"
+                                        title="Pindah ke keranjang"
+                                    >
+                                        <ShoppingCart className="w-3.5 h-3.5" />
+                                        Beli
+                                    </button>
+                                    <button
+                                        onClick={() => handleRemove(item.id)}
+                                        disabled={isPending}
+                                        className="text-slate-400 hover:text-red-500 transition-colors disabled:opacity-50 p-1.5"
+                                        title="Hapus"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* RIGHT COLUMN: Order Summary */}
@@ -256,7 +363,7 @@ export function CartContent({ initialItems }: CartContentProps) {
                     {/* Price Breakdown */}
                     <div className="flex flex-col gap-3">
                         <div className="flex justify-between items-center text-sm text-slate-600">
-                            <span>Total Harga ({items.length} Barang)</span>
+                            <span>Total Harga ({activeItems.length} Barang)</span>
                             <span>{formatPrice(subtotal)}</span>
                         </div>
                         <div className="flex justify-between items-center text-sm text-slate-600">
@@ -277,13 +384,13 @@ export function CartContent({ initialItems }: CartContentProps) {
                     {/* CTA Button */}
                     <Link href="/checkout">
                         <button
-                            disabled={isPending || items.length === 0 || hasVariantResolutionErrors}
+                            disabled={isPending || activeItems.length === 0 || hasVariantResolutionErrors}
                             className="w-full bg-brand-primary hover:bg-blue-600 disabled:bg-slate-400 text-white font-bold py-3.5 rounded-lg shadow-lg shadow-brand-primary/30 transition-all active:scale-[0.98] flex justify-center items-center gap-2"
                         >
                             {isPending ? (
                                 <Loader2 className="w-5 h-5 animate-spin" />
                             ) : (
-                                `Beli (${items.length})`
+                                `Beli (${activeItems.length})`
                             )}
                         </button>
                     </Link>

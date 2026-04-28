@@ -6,6 +6,12 @@ import { SimilarProducts } from "@/components/product/SimilarProducts";
 import { ProductReviews } from "@/components/product/ProductReviews";
 import { getProductBySlug } from "@/actions/products";
 import { getSellerReputationSummary } from "@/actions/reputation";
+import { PdpRecentlyViewedRecorder } from "@/components/RecentlyViewedStrip";
+
+// CACHE-01: ISR — PDP is anonymous-safe (session-aware bits are all client-side
+// useEffect inside PdpRecentlyViewedRecorder). 5 min revalidate; product
+// mutations call revalidatePath("/product/<slug>") for faster propagation.
+export const revalidate = 300;
 
 interface ProductPageProps {
     params: Promise<{ slug: string }>;
@@ -72,6 +78,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     />
                 </div>
             </div>
+
+            {/* REC-02: record this PDP visit into recently-viewed (server + local) */}
+            <PdpRecentlyViewedRecorder
+                productId={product.id}
+                slug={product.slug}
+                title={product.title}
+                price={product.price}
+                image={product.images?.[0] ?? null}
+            />
 
             {/* Product Reviews */}
             <ProductReviews productId={product.id} />

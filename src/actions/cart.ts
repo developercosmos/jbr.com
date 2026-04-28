@@ -87,11 +87,15 @@ export async function addToCart(productId: string, quantity = 1, variantId?: str
             return { success: false, error: "insufficient_stock" };
         }
 
-        // Update quantity
+        // Update quantity. Adding to cart resets save-for-later state and
+        // refreshes the abandonment timer (ALERT-02 input).
         const [updated] = await db
             .update(carts)
             .set({
                 quantity: nextQuantity,
+                saved_for_later: false,
+                abandonment_state: null,
+                last_mutated_at: new Date(),
             })
             .where(eq(carts.id, existingCartItem.id))
             .returning();
@@ -108,11 +112,42 @@ export async function addToCart(productId: string, quantity = 1, variantId?: str
             product_id: productId,
             variant_id: selectedVariant?.id,
             quantity,
+            last_mutated_at: new Date(),
         })
         .returning();
 
     revalidatePath("/cart");
     return { success: true, cartItem };
+}
+
+// REC-03: move item between active cart and "saved for later" bucket.
+export async function moveCartItemToSaved(cartItemId: string) {
+    const user = await getCurrentUser();
+    await db
+        .update(carts)
+        .set({ saved_for_later: true, last_mutated_at: new Date() })
+        .where(and(eq(carts.id, cartItemId), eq(carts.user_id, user.id)));
+    revalidatePath("/cart");
+    return { success: true };
+}
+
+export async function moveSavedItemToCart(cartItemId: string) {
+    const user = await getCurrentUser();
+    const item = await db.query.carts.findFirst({
+        where: and(eq(carts.id, cartItemId), eq(carts.user_id, user.id)),
+        with: { product: { columns: { stock: true } }, variant: { columns: { stock: true } } },
+    });
+    if (!item) throw new Error("Cart item not found");
+    const stockAvailable = item.variant?.stock ?? item.product.stock;
+    if (stockAvailable < item.quantity) {
+        throw new Error("Stok tidak mencukupi untuk memindahkan item ini ke keranjang.");
+    }
+    await db
+        .update(carts)
+        .set({ saved_for_later: false, abandonment_state: null, last_mutated_at: new Date() })
+        .where(and(eq(carts.id, cartItemId), eq(carts.user_id, user.id)));
+    revalidatePath("/cart");
+    return { success: true };
 }
 
 export async function updateCartItemQuantity(cartItemId: string, quantity: number) {
@@ -142,7 +177,7 @@ export async function updateCartItemQuantity(cartItemId: string, quantity: numbe
 
     const [updated] = await db
         .update(carts)
-        .set({ quantity })
+        .set({ quantity, last_mutated_at: new Date(), abandonment_state: null })
         .where(and(eq(carts.id, cartItemId), eq(carts.user_id, user.id)))
         .returning();
 
@@ -211,8 +246,9 @@ export async function getCartCount(): Promise<number> {
             return 0;
         }
 
+        // Active cart only — exclude saved-for-later from header badge.
         const cartItems = await db.query.carts.findMany({
-            where: eq(carts.user_id, session.user.id),
+            where: and(eq(carts.user_id, session.user.id), eq(carts.saved_for_later, false)),
             columns: { quantity: true },
         });
 

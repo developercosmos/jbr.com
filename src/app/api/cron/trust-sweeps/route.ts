@@ -4,6 +4,8 @@ import { runDisputeSlaSweep } from "@/actions/disputes";
 import { recomputeAllSellerRatingsForActiveSellers } from "@/actions/reputation";
 import { runOfferExpirySweep } from "@/actions/offers";
 import { clearAttributionsForCompletedOrders } from "@/actions/affiliate";
+import { runWishlistPriceDropSweep } from "@/actions/wishlist-alerts";
+import { runCartAbandonmentSweep } from "@/actions/cart-abandonment";
 
 export const dynamic = "force-dynamic";
 
@@ -24,12 +26,14 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        const [escrow, dispute, reputation, offers, affiliate] = await Promise.all([
+        const [escrow, dispute, reputation, offers, affiliate, wishlistAlerts, abandonment] = await Promise.all([
             runEscrowAutoRelease(),
             runDisputeSlaSweep(),
             recomputeAllSellerRatingsForActiveSellers(),
             runOfferExpirySweep(),
             clearAttributionsForCompletedOrders(),
+            runWishlistPriceDropSweep(),
+            runCartAbandonmentSweep(),
         ]);
 
         return NextResponse.json({
@@ -39,6 +43,8 @@ export async function POST(request: NextRequest) {
             reputation,
             offers,
             affiliate,
+            wishlistAlerts,
+            abandonment,
             ranAt: new Date().toISOString(),
         });
     } catch (error) {

@@ -2,7 +2,8 @@ import { getBrands } from "@/actions/products";
 import Link from "next/link";
 import { ChevronRight, Tag, Award } from "lucide-react";
 
-export const dynamic = "force-dynamic";
+// CACHE-01: ISR — brand list rarely changes; 5 min revalidate.
+export const revalidate = 300;
 
 export default async function BrandsPage() {
     const brands = await getBrands();

@@ -18,7 +18,8 @@ import {
 } from "react-icons/io5";
 import { TbPackage } from "react-icons/tb";
 
-export const dynamic = "force-dynamic";
+// CACHE-01: ISR — anonymous catalog page, revalidate every 2 minutes.
+export const revalidate = 120;
 
 // Icon component map for database icon names
 const iconComponents: Record<string, React.ComponentType<{ className?: string }>> = {

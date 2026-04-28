@@ -138,6 +138,26 @@ type NotifyInput =
         productTitle: string;
         amount: string;
         idempotencyKey?: string;
+    }
+    | {
+        event: "WISHLIST_PRICE_DROP";
+        recipientUserId: string;
+        productId: string;
+        productTitle: string;
+        productSlug: string;
+        baselinePrice: string;
+        newPrice: string;
+        dropPercent: number;
+        idempotencyKey?: string;
+    }
+    | {
+        event: "CART_ABANDONMENT_REMINDER";
+        recipientUserId: string;
+        cartId: string;
+        stage: "STAGE_1" | "STAGE_2" | "STAGE_3";
+        itemTitles: string[];
+        voucherCode?: string;
+        idempotencyKey?: string;
     };
 
 function getIdempotencyKey(input: NotifyInput) {
@@ -168,6 +188,14 @@ function getIdempotencyKey(input: NotifyInput) {
             return `${input.event}:${input.offerId}:${input.recipientUserId}`;
         case "OFFER_ACCEPTED":
             return `${input.event}:${input.offerId}:${input.recipientUserId}`;
+        case "WISHLIST_PRICE_DROP": {
+            // Throttle to once per (user, product, ISO week)
+            const now = new Date();
+            const week = `${now.getFullYear()}-W${Math.ceil(((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / 86400000 + new Date(now.getFullYear(), 0, 1).getDay() + 1) / 7)}`;
+            return `${input.event}:${input.productId}:${input.recipientUserId}:${week}`;
+        }
+        case "CART_ABANDONMENT_REMINDER":
+            return `${input.event}:${input.cartId}:${input.stage}`;
     }
 }
 
@@ -339,6 +367,34 @@ export async function notify(input: NotifyInput) {
                 offer_id: input.offerId,
                 product_title: input.productTitle,
                 amount: input.amount,
+            };
+            break;
+        case "WISHLIST_PRICE_DROP":
+            type = "WISHLIST_PRICE_DROP";
+            title = `Harga turun ${input.dropPercent}%`;
+            message = `${input.productTitle} sekarang ${input.newPrice} (sebelumnya ${input.baselinePrice}).`;
+            data = {
+                product_id: input.productId,
+                product_slug: input.productSlug,
+                baseline_price: input.baselinePrice,
+                new_price: input.newPrice,
+                drop_percent: input.dropPercent,
+            };
+            break;
+        case "CART_ABANDONMENT_REMINDER":
+            type = "CART_ABANDONMENT_REMINDER";
+            title =
+                input.stage === "STAGE_1"
+                    ? "Keranjang Anda menunggu"
+                    : input.stage === "STAGE_2"
+                        ? "Diskon 5% untuk keranjang Anda"
+                        : "Penawaran terakhir: 8% off";
+            message = `${input.itemTitles.slice(0, 2).join(", ")}${input.itemTitles.length > 2 ? ` dan ${input.itemTitles.length - 2} lainnya` : ""} masih menunggu checkout.`;
+            data = {
+                cart_id: input.cartId,
+                stage: input.stage,
+                voucher_code: input.voucherCode,
+                item_count: input.itemTitles.length,
             };
             break;
     }

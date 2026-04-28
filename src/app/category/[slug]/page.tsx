@@ -2,7 +2,8 @@ import { getCategoryBySlug } from "@/actions/categories";
 import { getFilteredProducts, getProductCount } from "@/actions/products";
 import { BrowsePageLayout } from "@/components/browse/BrowsePageLayout";
 
-export const dynamic = "force-dynamic";
+// CACHE-01: ISR — category catalog page, 2 min revalidate.
+export const revalidate = 120;
 
 interface CategoryPageProps {
     params: Promise<{ slug: string }>;

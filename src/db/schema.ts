@@ -57,6 +57,8 @@ export const notificationTypeEnum = pgEnum("notification_type", [
     "PAYOUT_PROCESSED",
     "SELLER_ACTIVATED",
     "SELLER_REVIEW_NEEDED",
+    "WISHLIST_PRICE_DROP",
+    "CART_ABANDONMENT_REMINDER",
     "SYSTEM",
 ]);
 
@@ -334,6 +336,9 @@ export const carts = pgTable(
             .references(() => products.id, { onDelete: "cascade" }),
         variant_id: uuid("variant_id").references(() => product_variants.id, { onDelete: "set null" }),
         quantity: integer("quantity").default(1).notNull(),
+        saved_for_later: boolean("saved_for_later").default(false).notNull(),
+        abandonment_state: text("abandonment_state"),
+        last_mutated_at: timestamp("last_mutated_at").defaultNow().notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
     },
     (table) => ({
@@ -362,6 +367,48 @@ export const wishlists = pgTable(
     },
     (table) => ({
         user_product_idx: uniqueIndex("idx_wishlists_user_product").on(table.user_id, table.product_id),
+    })
+);
+
+// ============================================
+// REC-02: USER RECENTLY VIEWED PRODUCTS
+// ============================================
+export const user_recently_viewed = pgTable(
+    "user_recently_viewed",
+    {
+        user_id: text("user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        product_id: uuid("product_id")
+            .notNull()
+            .references(() => products.id, { onDelete: "cascade" }),
+        viewed_at: timestamp("viewed_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        pk: uniqueIndex("user_recently_viewed_pkey").on(table.user_id, table.product_id),
+        user_viewed_idx: index("idx_user_recently_viewed_at").on(table.user_id, table.viewed_at),
+    })
+);
+
+// ============================================
+// ALERT-01: WISHLIST PRICE BASELINES
+// ============================================
+export const wishlist_price_baselines = pgTable(
+    "wishlist_price_baselines",
+    {
+        user_id: text("user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        product_id: uuid("product_id")
+            .notNull()
+            .references(() => products.id, { onDelete: "cascade" }),
+        baseline_price: decimal("baseline_price", { precision: 12, scale: 2 }).notNull(),
+        baseline_stock: integer("baseline_stock").default(0).notNull(),
+        last_alerted_at: timestamp("last_alerted_at"),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        pk: uniqueIndex("wishlist_price_baselines_pkey").on(table.user_id, table.product_id),
     })
 );
 
@@ -1264,6 +1311,9 @@ export const files = pgTable(
         folder: text("folder").default("general"),
         tags: text("tags").array(),
         alt_text: text("alt_text"), // For images
+        // CACHE-03: per-size variants populated by image-resize worker.
+        // Shape: { thumb: "...", card: "...", pdp: "...", zoom: "..." }
+        variants: jsonb("variants").$type<Record<string, string>>(),
         is_public: boolean("is_public").default(false).notNull(),
         uploaded_by: text("uploaded_by").references(() => users.id, { onDelete: "set null" }),
         created_at: timestamp("created_at").defaultNow().notNull(),
