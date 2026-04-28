@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calculator, FileBarChart, Scale, BookOpen, Download } from "lucide-react";
+import { Calculator, FileBarChart, Scale, BookOpen, Download, ShieldCheck, Settings as SettingsIcon } from "lucide-react";
 import { requireAdminFinanceSession } from "@/lib/admin-finance";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +28,18 @@ const cards = [
         title: "General Ledger",
         desc: "Detail mutasi per akun lengkap dengan saldo berjalan.",
         icon: BookOpen,
+    },
+    {
+        href: "/admin/finance/verify",
+        title: "Integrity Check",
+        desc: "Verifikasi balance journal, periode, dan rekonsiliasi legacy ledger.",
+        icon: ShieldCheck,
+    },
+    {
+        href: "/admin/finance/settings",
+        title: "Settings Akuntansi",
+        desc: "Atur tarif PPN, status PKP, fiscal year, dan parameter posting lain.",
+        icon: SettingsIcon,
     },
 ];
 
