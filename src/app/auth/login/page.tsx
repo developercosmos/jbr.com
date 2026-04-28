@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Zap, ArrowRight, Lock, Mail, Loader2, AlertCircle, Send } from "lucide-react";
 import { signIn } from "@/lib/auth-client";
@@ -27,7 +26,6 @@ function getSafeCallbackUrl(value: string | null): string {
 }
 
 export default function LoginPage() {
-    const router = useRouter();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
@@ -68,8 +66,10 @@ export default function LoginPage() {
             } else {
                 const searchParams = new URLSearchParams(window.location.search);
                 const callbackUrl = getSafeCallbackUrl(searchParams.get("callbackUrl") || searchParams.get("redirect"));
-                router.push(callbackUrl);
-                router.refresh();
+                // Hard redirect so the session cookie is picked up on a fresh page load.
+                // Keep submitLockRef = true so no re-submission fires while navigating.
+                window.location.href = callbackUrl;
+                return;
             }
         } catch {
             setError("Terjadi kesalahan. Silakan coba lagi.");
