@@ -1496,3 +1496,8 @@ export const followsRelations = relations(follows, ({ one }) => ({
         relationName: "following",
     }),
 }));
+
+// ============================================
+// Accounting / GL (Phase 1) — see schema-accounting.ts
+// ============================================
+export * from "./schema-accounting";
