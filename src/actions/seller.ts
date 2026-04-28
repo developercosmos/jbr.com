@@ -91,26 +91,54 @@ export async function checkStoreSlugAvailability(storeSlug: string) {
 
 export async function activateSellerProfile(input: z.infer<typeof activateSellerProfileSchema>) {
     const sessionUser = await getCurrentUser();
-    const validated = activateSellerProfileSchema.parse({
+    const parsed = activateSellerProfileSchema.safeParse({
         ...input,
         storeSlug: normalizeStoreSlug(input.storeSlug),
     });
+
+    if (!parsed.success) {
+        // Return validation failures instead of throwing so the user sees a
+        // friendly message — Next.js strips Server Action error messages in
+        // production builds, which would otherwise surface as the generic
+        // "An error occurred in the Server Components render" string.
+        const first = parsed.error.issues[0];
+        const fieldLabel: Record<string, string> = {
+            storeName: "Nama Toko",
+            storeSlug: "Slug Toko",
+            pickupAddressId: "Alamat Pickup",
+            payoutBankName: "Bank Payout",
+            storeDescription: "Deskripsi Toko",
+        };
+        const field = String(first?.path[0] ?? "");
+        const label = fieldLabel[field] ?? field;
+        return {
+            success: false as const,
+            error: label
+                ? `${label}: ${first?.message ?? "tidak valid"}`
+                : (first?.message ?? "Data tidak valid"),
+            fieldErrors: Object.fromEntries(
+                parsed.error.issues.map((i) => [String(i.path[0] ?? ""), i.message])
+            ),
+        };
+    }
+
+    const validated = parsed.data;
 
     const user = await db.query.users.findFirst({
         where: eq(users.id, sessionUser.id),
     });
 
     if (!user) {
-        throw new Error("User tidak ditemukan");
+        return { success: false as const, error: "User tidak ditemukan" };
     }
 
     if (user.store_status === "BANNED") {
-        throw new Error("Akun seller Anda dibatasi. Hubungi admin untuk bantuan.");
+        return { success: false as const, error: "Akun seller Anda dibatasi. Hubungi admin untuk bantuan." };
     }
 
     const slugAvailability = await checkStoreSlugAvailability(validated.storeSlug);
     if (!slugAvailability.available && user.store_slug !== validated.storeSlug) {
-        throw new Error(slugAvailability.reason || "Slug toko tidak tersedia");
+        return { success: false as const, error: slugAvailability.reason || "Slug toko tidak tersedia" };
     }
 
     const pickupAddress = await db.query.addresses.findFirst({
@@ -121,7 +149,7 @@ export async function activateSellerProfile(input: z.infer<typeof activateSeller
     });
 
     if (!pickupAddress) {
-        throw new Error("Alamat pickup tidak valid");
+        return { success: false as const, error: "Alamat pickup tidak valid" };
     }
 
     await db
@@ -187,7 +215,7 @@ export async function activateSellerProfile(input: z.infer<typeof activateSeller
     revalidatePath(`/store/${validated.storeSlug}`);
 
     return {
-        success: true,
+        success: true as const,
         // Land directly on the KYC section after activation so the seller can
         // immediately upgrade from T0 to T1/T2 instead of having to discover
         // the option in /seller/settings on their own.

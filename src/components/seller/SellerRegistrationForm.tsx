@@ -70,12 +70,30 @@ export function SellerRegistrationForm({ addresses, initialName, initialSlugAvai
     const handleSubmit = () => {
         setMessage("");
 
+        // Client-side guards so the user gets immediate feedback instead of
+        // having to round-trip to the server only to be told a required field
+        // is empty.
+        if (formData.storeName.trim().length < 3) {
+            setMessage("Nama Toko minimal 3 karakter.");
+            return;
+        }
+        if (!formData.pickupAddressId) {
+            setMessage("Pilih alamat pickup terlebih dahulu.");
+            return;
+        }
+        if (formData.payoutBankName.trim().length < 2) {
+            setMessage("Bank Payout wajib diisi (mis. BCA a.n. Nama Anda).");
+            return;
+        }
+
         startTransition(async () => {
             try {
                 const result = await activateSellerProfile(formData);
                 if (result.success) {
                     router.push(result.redirectTo);
                     router.refresh();
+                } else {
+                    setMessage(result.error || "Gagal mengaktifkan akun seller.");
                 }
             } catch (error) {
                 setMessage(error instanceof Error ? error.message : "Gagal mengaktifkan akun seller.");
@@ -186,7 +204,7 @@ export function SellerRegistrationForm({ addresses, initialName, initialSlugAvai
                     <div className="space-y-2 md:col-span-2">
                         <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
                             <Landmark className="h-4 w-4 text-brand-primary" />
-                            Bank Payout
+                            Bank Payout <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="text"
@@ -194,6 +212,8 @@ export function SellerRegistrationForm({ addresses, initialName, initialSlugAvai
                             onChange={(event) => setFormData((current) => ({ ...current, payoutBankName: event.target.value }))}
                             className="block w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-primary"
                             placeholder="Contoh: BCA a.n. Nama Anda"
+                            required
+                            minLength={2}
                         />
                         <p className="text-sm text-slate-500">
                             Cukup tulis bank dan nama pemilik (mis. BCA a.n. Budi Santoso). Untuk membuka batas
