@@ -49,7 +49,12 @@ export function Navbar() {
                                     name: session.user.name,
                                     email: session.user.email,
                                     image: session.user.image,
-                                    role: session.user.role,
+                                    // Server-side `user.additionalFields` exposes role on the
+                                    // session payload; the client typing doesn't see it without
+                                    // the `inferAdditionalFields` plugin (which we removed
+                                    // because it caused render-loop instability — see auth-client.ts).
+                                    // Cast narrowly here.
+                                    role: (session.user as { role?: string | null }).role ?? null,
                                 }
                                 : undefined}
                             isPending={isPending}

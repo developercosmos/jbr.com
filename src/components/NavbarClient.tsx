@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState, useRef, useEffect, useTransition } from "react";
 import { ChevronDown, LogIn, User, LogOut, Settings, Store, ShieldCheck, Loader2 } from "lucide-react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { serverSignOut } from "@/actions/auth";
 
 type NavbarUser = {
@@ -25,7 +25,6 @@ export function NavbarUserArea({ user, isPending }: NavbarUserAreaProps) {
     const [isLoggingOut, startLogout] = useTransition();
     const dropdownRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
-    const pathname = usePathname();
 
     // Keep initial server/client markup stable to avoid hydration mismatch
     useEffect(() => {
@@ -42,14 +41,6 @@ export function NavbarUserArea({ user, isPending }: NavbarUserAreaProps) {
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
-
-    // Close dropdown when route changes (server-side or client navigation).
-    // Without this, navigating via the dropdown's <Link> items leaves the menu
-    // open after the new page renders if the trigger's onClick state update
-    // races with the route transition.
-    useEffect(() => {
-        setIsOpen(false);
-    }, [pathname]);
 
     const handleLogout = () => {
         startLogout(async () => {
