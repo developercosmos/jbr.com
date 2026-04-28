@@ -13,6 +13,13 @@ import { headers, cookies } from "next/headers";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import {
+    postAffiliateCommissionAccrual,
+    postAffiliateCommissionReverse,
+    postAffiliatePayment,
+} from "@/actions/accounting/posting";
+import { getSetting } from "@/actions/accounting/settings";
+import { logger } from "@/lib/logger";
 
 const ATTRIBUTION_WINDOW_DAYS = Number(process.env.AFFILIATE_ATTRIBUTION_DAYS || 30);
 const DEFAULT_COMMISSION_RATE = Number(process.env.AFFILIATE_DEFAULT_RATE || 5);
@@ -155,29 +162,85 @@ export async function clearAttributionsForCompletedOrders() {
         .select({
             id: affiliate_attributions.id,
             orderId: affiliate_attributions.order_id,
+            affiliateUserId: affiliate_attributions.affiliate_user_id,
+            commission: affiliate_attributions.computed_commission,
         })
         .from(affiliate_attributions)
         .innerJoin(orders, eq(orders.id, affiliate_attributions.order_id))
         .where(and(eq(affiliate_attributions.status, "PENDING"), eq(orders.status, "COMPLETED")));
 
     let cleared = 0;
+    const dualWrite = await getSetting<boolean>("gl.dual_write_legacy", { defaultValue: true });
     for (const row of pending) {
         const updated = await db
             .update(affiliate_attributions)
             .set({ status: "CLEARED", decided_at: new Date() })
             .where(and(eq(affiliate_attributions.id, row.id), eq(affiliate_attributions.status, "PENDING")))
             .returning({ id: affiliate_attributions.id });
-        if (updated[0]) cleared++;
+        if (updated[0]) {
+            cleared++;
+            // GL-12: accrue commission expense once attribution is CLEARED.
+            if (dualWrite) {
+                const amount = Number(row.commission || 0);
+                if (amount > 0) {
+                    try {
+                        await postAffiliateCommissionAccrual({
+                            attributionId: row.id,
+                            affiliateUserId: row.affiliateUserId,
+                            orderId: row.orderId,
+                            commission: amount,
+                        });
+                    } catch (glError) {
+                        logger.error("gl:post_affiliate_accrual_failed", {
+                            attributionId: row.id,
+                            error: String(glError),
+                        });
+                    }
+                }
+            }
+        }
     }
 
     return { inspected: pending.length, cleared };
 }
 
 export async function reverseAttributionForRefund(orderId: string, memo?: string) {
+    const rows = await db
+        .select({
+            id: affiliate_attributions.id,
+            affiliateUserId: affiliate_attributions.affiliate_user_id,
+            commission: affiliate_attributions.computed_commission,
+            status: affiliate_attributions.status,
+        })
+        .from(affiliate_attributions)
+        .where(eq(affiliate_attributions.order_id, orderId));
+
     await db
         .update(affiliate_attributions)
         .set({ status: "REVERSED", decided_at: new Date(), memo })
         .where(eq(affiliate_attributions.order_id, orderId));
+
+    // GL-12: reverse only rows that had been CLEARED (i.e., already accrued).
+    const dualWrite = await getSetting<boolean>("gl.dual_write_legacy", { defaultValue: true });
+    if (dualWrite) {
+        for (const row of rows) {
+            if (row.status !== "CLEARED") continue;
+            const amount = Number(row.commission || 0);
+            if (amount <= 0) continue;
+            try {
+                await postAffiliateCommissionReverse({
+                    attributionId: row.id,
+                    affiliateUserId: row.affiliateUserId,
+                    commission: amount,
+                });
+            } catch (glError) {
+                logger.error("gl:post_affiliate_reverse_failed", {
+                    attributionId: row.id,
+                    error: String(glError),
+                });
+            }
+        }
+    }
 }
 
 export async function getAffiliateDashboard() {
@@ -331,6 +394,27 @@ export async function processAffiliatePayoutBatch() {
         affiliateUserId,
         amount,
     }));
+
+    // GL-12: post the cash-out leg per affiliate. Use a per-batch idempotency
+    // suffix from the stamp so retries within the same batch are deduped.
+    const dualWrite = await getSetting<boolean>("gl.dual_write_legacy", { defaultValue: true });
+    if (dualWrite) {
+        for (const line of lines) {
+            if (line.amount <= 0) continue;
+            try {
+                await postAffiliatePayment({
+                    payoutId: `${stamp}:${line.affiliateUserId}`,
+                    affiliateUserId: line.affiliateUserId,
+                    grossCommission: line.amount,
+                });
+            } catch (glError) {
+                logger.error("gl:post_affiliate_payment_failed", {
+                    affiliateUserId: line.affiliateUserId,
+                    error: String(glError),
+                });
+            }
+        }
+    }
 
     return {
         processed: cleared.length,

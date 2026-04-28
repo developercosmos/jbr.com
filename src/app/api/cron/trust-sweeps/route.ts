@@ -10,6 +10,7 @@ import { runProductEventRollup } from "@/actions/product-events";
 import { runSearchTermRollup } from "@/actions/search-terms";
 import { runSellerWeeklyDigestSweep } from "@/actions/seller-digest";
 import { runSearchIndexReconcile } from "@/actions/search-index-sync";
+import { runGlReconciliation } from "@/actions/accounting/reconciliation";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,7 @@ export async function POST(request: NextRequest) {
             searchTermRollup,
             sellerDigest,
             searchIndexReconcile,
+            glReconciliation,
         ] = await Promise.all([
             runEscrowAutoRelease(),
             runDisputeSlaSweep(),
@@ -54,6 +56,7 @@ export async function POST(request: NextRequest) {
             runSearchTermRollup(),
             runSellerWeeklyDigestSweep(),
             runSearchIndexReconcile(),
+            runGlReconciliation(),
         ]);
 
         return NextResponse.json({
@@ -69,6 +72,7 @@ export async function POST(request: NextRequest) {
             searchTermRollup,
             sellerDigest,
             searchIndexReconcile,
+            glReconciliation,
             ranAt: new Date().toISOString(),
         });
     } catch (error) {

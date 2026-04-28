@@ -9,6 +9,8 @@ import { revalidatePath } from "next/cache";
 import { notify } from "@/lib/notify";
 import { recomputeSellerRating } from "@/actions/reputation";
 import { recordOrderRelease } from "@/actions/ledger";
+import { postOrderRelease } from "@/actions/accounting/posting";
+import { getSetting } from "@/actions/accounting/settings";
 import { logger } from "@/lib/logger";
 
 async function getCurrentUser() {
@@ -47,6 +49,11 @@ async function completeOrder(orderId: string, autoReleased: boolean) {
         with: {
             items: {
                 columns: {
+                    id: true,
+                    product_id: true,
+                    variant_id: true,
+                    quantity: true,
+                    price: true,
                     resolved_fee_value: true,
                 },
             },
@@ -109,6 +116,34 @@ async function completeOrder(orderId: string, autoReleased: boolean) {
         });
     } catch (ledgerError) {
         logger.error("ledger:record_order_release_failed", { orderId: order.id, error: String(ledgerError) });
+    }
+
+    // GL-14: dual-write to PSAK GL + sales_register (Phase 2).
+    try {
+        const dualWrite = await getSetting<boolean>("gl.dual_write_legacy", { defaultValue: true });
+        if (dualWrite) {
+            await postOrderRelease({
+                orderId: order.id,
+                sellerId: order.seller_id,
+                buyerId: order.buyer_id,
+                grossPaid: parseFloat(order.total),
+                items: order.items.map((it) => {
+                    const qty = Number(it.quantity || 1);
+                    const unitPrice = Number(it.price || 0);
+                    return {
+                        orderItemId: it.id,
+                        productId: it.product_id,
+                        variantId: it.variant_id,
+                        qty,
+                        unitPrice,
+                        gross: qty * unitPrice,
+                        platformFee: Number(it.resolved_fee_value || 0),
+                    };
+                }),
+            });
+        }
+    } catch (glError) {
+        logger.error("gl:post_order_release_failed", { orderId: order.id, error: String(glError) });
     }
 
     return order;

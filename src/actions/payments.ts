@@ -10,6 +10,8 @@ import { notify } from "@/lib/notify";
 import { formatCurrency } from "@/lib/format";
 import { isBuyerEligibleForCod } from "@/actions/reputation";
 import { recordOrderPayment } from "@/actions/ledger";
+import { postOrderPayment } from "@/actions/accounting/posting";
+import { getSetting } from "@/actions/accounting/settings";
 import { logger } from "@/lib/logger";
 
 // Xendit API configuration
@@ -277,6 +279,23 @@ export async function handleXenditWebhook(data: {
                 });
             } catch (ledgerError) {
                 logger.error("ledger:record_order_payment_failed", { orderId: order.id, error: String(ledgerError) });
+            }
+
+            // GL-03: dual-write to PSAK GL (Phase 2). Behind setting flag so we
+            // can switch off legacy when GL is canonical.
+            try {
+                const dualWrite = await getSetting<boolean>("gl.dual_write_legacy", { defaultValue: true });
+                if (dualWrite) {
+                    await postOrderPayment({
+                        orderId: order.id,
+                        paymentId: payment.id,
+                        grossAmount: parseFloat(order.total),
+                        paidAt: data.paid_at ? new Date(data.paid_at) : undefined,
+                        paymentMethod: data.payment_method,
+                    });
+                }
+            } catch (glError) {
+                logger.error("gl:post_order_payment_failed", { orderId: order.id, error: String(glError) });
             }
         }
 
