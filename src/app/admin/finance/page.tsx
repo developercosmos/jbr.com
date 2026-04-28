@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calculator, FileBarChart, Scale, BookOpen, Download, ShieldCheck, Settings as SettingsIcon, CalendarClock, NotebookPen, Banknote, Store, Package, History, Users as UsersIcon } from "lucide-react";
+import { Calculator, FileBarChart, Scale, BookOpen, Download, ShieldCheck, Settings as SettingsIcon, CalendarClock, NotebookPen, Banknote, Store, Package, History, Users as UsersIcon, Coins } from "lucide-react";
 import { requireAdminFinanceReader } from "@/lib/admin-finance";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +22,12 @@ const cards = [
         title: "Neraca (Balance Sheet)",
         desc: "Posisi aset, liabilitas, dan ekuitas pada tanggal tertentu (PSAK 1).",
         icon: Scale,
+    },
+    {
+        href: "/admin/finance/cash-flow",
+        title: "Arus Kas (Cash Flow)",
+        desc: "Laporan arus kas operasi/investasi/pendanaan, metode langsung (PSAK 2).",
+        icon: Coins,
     },
     {
         href: "/admin/finance/general-ledger",

@@ -5,6 +5,7 @@ import {
     getProfitLoss,
     getBalanceSheet,
     getGlForAccount,
+    getCashFlow,
     type ProfitLossSection,
 } from "@/actions/accounting/reports";
 import { csvResponse, rowsToCsv } from "@/lib/csv";
@@ -119,6 +120,24 @@ export async function GET(
             flat
         );
         return csvResponse(`gl_${gl.account.code}_${book}_${stamp}.csv`, csv);
+    }
+
+    if (report === "cash-flow") {
+        const cf = await getCashFlow({
+            from: parseDate(sp.get("from")),
+            to: parseDate(sp.get("to"), true),
+            book,
+        });
+        const flat: (string | number)[][] = [];
+        for (const s of cf.sections) {
+            for (const l of s.lines) flat.push([s.section, l.bucket, l.inflow, l.outflow, l.net]);
+            flat.push([s.section, `SUBTOTAL ${s.label}`, s.inflow, s.outflow, s.net]);
+        }
+        flat.push(["", "NET CASH CHANGE", "", "", cf.netCashChange]);
+        flat.push(["", "OPENING CASH", "", "", cf.openingCash]);
+        flat.push(["", "CLOSING CASH", "", "", cf.closingCash]);
+        const csv = rowsToCsv(["section", "bucket", "inflow", "outflow", "net"], flat);
+        return csvResponse(`cash-flow_${book}_${stamp}.csv`, csv);
     }
 
     return new Response("unknown report", { status: 404 });

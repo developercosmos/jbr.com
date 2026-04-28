@@ -514,3 +514,193 @@ export async function getSellerSalesDetail(input: {
         total: Number(totalRows[0]?.count ?? 0),
     };
 }
+
+// ---------------------------------------------------------------------------
+// Cash Flow Statement (Laporan Arus Kas) — PSAK 2 Direct Method
+// ---------------------------------------------------------------------------
+
+/**
+ * Cash flow statement using the Direct Method.
+ *
+ * Cash accounts are identified by COA code prefix "11" (Kas & Setara Kas:
+ * 11000-11400 — operational, escrow, payment-gateway holding, petty cash).
+ *
+ * Movements are bucketed by `journals.ref_type`:
+ *   OPERATING:
+ *     ORDER_PAYMENT                — receipts from customers (gross)
+ *     ORDER_RELEASE / ORDER_ITEM   — order completion settlements
+ *     ORDER_REFUND_PAID            — cash refunds to customers
+ *     ORDER_REFUND                 — refund accruals (no cash if non-cash leg only)
+ *     PAYOUT                       — cash payments to sellers
+ *     FEE_*                        — platform fee receipts
+ *     AFFILIATE_PAYMENT            — cash payments to affiliates
+ *     AFFILIATE_ACCRUAL/REVERSE    — non-cash; included only if cash leg present
+ *   INVESTING:
+ *     ASSET_PURCHASE / ASSET_DISPOSAL (when emitted)
+ *   FINANCING:
+ *     LOAN_DRAW / LOAN_REPAY / EQUITY_INJECT / DIVIDEND (when emitted)
+ *   OTHER (manual or unclassified):
+ *     null ref_type → "MANUAL_ADJUSTMENT" (operating by default)
+ */
+
+export type CashFlowSection = "OPERATING" | "INVESTING" | "FINANCING";
+
+const REFTYPE_TO_SECTION: Record<string, CashFlowSection> = {
+    ORDER_PAYMENT: "OPERATING",
+    ORDER_RELEASE: "OPERATING",
+    ORDER_ITEM: "OPERATING",
+    ORDER_REFUND: "OPERATING",
+    ORDER_REFUND_PAID: "OPERATING",
+    PAYOUT: "OPERATING",
+    AFFILIATE_ACCRUAL: "OPERATING",
+    AFFILIATE_PAYMENT: "OPERATING",
+    AFFILIATE_REVERSE: "OPERATING",
+    ASSET_PURCHASE: "INVESTING",
+    ASSET_DISPOSAL: "INVESTING",
+    LOAN_DRAW: "FINANCING",
+    LOAN_REPAY: "FINANCING",
+    EQUITY_INJECT: "FINANCING",
+    DIVIDEND: "FINANCING",
+};
+
+function classifyRefType(refType: string | null): { section: CashFlowSection; bucket: string } {
+    if (!refType) return { section: "OPERATING", bucket: "MANUAL_ADJUSTMENT" };
+    if (refType.startsWith("FEE_")) return { section: "OPERATING", bucket: refType };
+    return { section: REFTYPE_TO_SECTION[refType] ?? "OPERATING", bucket: refType };
+}
+
+export interface CashFlowLine {
+    bucket: string;
+    inflow: number;
+    outflow: number;
+    net: number;
+}
+
+export interface CashFlowSectionTotal {
+    section: CashFlowSection;
+    label: string;
+    lines: CashFlowLine[];
+    inflow: number;
+    outflow: number;
+    net: number;
+}
+
+export interface CashFlowReport {
+    sections: CashFlowSectionTotal[];
+    netCashChange: number;
+    openingCash: number;
+    closingCash: number;
+    /** Cross-check: openingCash + netCashChange should equal closingCash. */
+    reconciled: boolean;
+    range: { from?: string; to?: string; book: LedgerBook };
+}
+
+const SECTION_LABELS: Record<CashFlowSection, string> = {
+    OPERATING: "Arus Kas Aktivitas Operasi",
+    INVESTING: "Arus Kas Aktivitas Investasi",
+    FINANCING: "Arus Kas Aktivitas Pendanaan",
+};
+
+export async function getCashFlow(opts: DateRange = {}): Promise<CashFlowReport> {
+    const book = (opts.book ?? "PLATFORM") as LedgerBook;
+
+    // 1. Fetch all journal lines that hit a cash account (code starts with '11')
+    //    in the period, joined with journal ref_type.
+    const conds = [eq(journals.status, "POSTED"), eq(journals.book, book)];
+    if (opts.from) conds.push(gte(journals.posted_at, opts.from));
+    if (opts.to) conds.push(lte(journals.posted_at, opts.to));
+
+    const rows = await db
+        .select({
+            refType: journals.ref_type,
+            debit: sql<string>`coalesce(sum(${journal_lines.debit}::numeric), 0)`,
+            credit: sql<string>`coalesce(sum(${journal_lines.credit}::numeric), 0)`,
+        })
+        .from(journal_lines)
+        .innerJoin(journals, eq(journals.id, journal_lines.journal_id))
+        .innerJoin(coa_accounts, eq(coa_accounts.id, journal_lines.account_id))
+        .where(and(...conds, sql`${coa_accounts.code} LIKE '11%'`))
+        .groupBy(journals.ref_type);
+
+    // 2. Bucket each (refType → section).
+    const bucketMap = new Map<CashFlowSection, Map<string, CashFlowLine>>([
+        ["OPERATING", new Map()],
+        ["INVESTING", new Map()],
+        ["FINANCING", new Map()],
+    ]);
+    for (const r of rows) {
+        const debit = toN(r.debit);
+        const credit = toN(r.credit);
+        const inflow = debit; // cash account debit = inflow
+        const outflow = credit; // cash account credit = outflow
+        const net = inflow - outflow;
+        const { section, bucket } = classifyRefType(r.refType);
+        const sectionMap = bucketMap.get(section)!;
+        const existing = sectionMap.get(bucket);
+        if (existing) {
+            existing.inflow += inflow;
+            existing.outflow += outflow;
+            existing.net += net;
+        } else {
+            sectionMap.set(bucket, { bucket, inflow, outflow, net });
+        }
+    }
+
+    const sections: CashFlowSectionTotal[] = (
+        ["OPERATING", "INVESTING", "FINANCING"] as CashFlowSection[]
+    ).map((s) => {
+        const lines = Array.from(bucketMap.get(s)!.values()).sort((a, b) =>
+            a.bucket.localeCompare(b.bucket)
+        );
+        const inflow = lines.reduce((acc, l) => acc + l.inflow, 0);
+        const outflow = lines.reduce((acc, l) => acc + l.outflow, 0);
+        return {
+            section: s,
+            label: SECTION_LABELS[s],
+            lines,
+            inflow,
+            outflow,
+            net: inflow - outflow,
+        };
+    });
+
+    const netCashChange = sections.reduce((acc, s) => acc + s.net, 0);
+
+    // 3. Opening & closing cash: sum cash account net debits up to from/to.
+    async function cashBalanceAsOf(asOf?: Date): Promise<number> {
+        const c = [eq(journals.status, "POSTED"), eq(journals.book, book)];
+        if (asOf) c.push(lte(journals.posted_at, asOf));
+        const rs = await db
+            .select({
+                debit: sql<string>`coalesce(sum(${journal_lines.debit}::numeric), 0)`,
+                credit: sql<string>`coalesce(sum(${journal_lines.credit}::numeric), 0)`,
+            })
+            .from(journal_lines)
+            .innerJoin(journals, eq(journals.id, journal_lines.journal_id))
+            .innerJoin(coa_accounts, eq(coa_accounts.id, journal_lines.account_id))
+            .where(and(...c, sql`${coa_accounts.code} LIKE '11%'`));
+        const d = toN(rs[0]?.debit ?? "0");
+        const cr = toN(rs[0]?.credit ?? "0");
+        return d - cr;
+    }
+
+    const openingCash = opts.from
+        ? await cashBalanceAsOf(new Date(opts.from.getTime() - 1))
+        : 0;
+    const closingCash = await cashBalanceAsOf(opts.to);
+
+    return {
+        sections,
+        netCashChange,
+        openingCash,
+        closingCash,
+        reconciled: Math.abs(openingCash + netCashChange - closingCash) < 0.01,
+        range: {
+            from: opts.from?.toISOString(),
+            to: opts.to?.toISOString(),
+            book,
+        },
+    };
+}
+
+
