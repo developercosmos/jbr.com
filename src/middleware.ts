@@ -94,6 +94,15 @@ function getClientIp(request: NextRequest): string | null {
 function shouldApplyGlobalRateLimit(pathname: string, method: string): boolean {
     const upperMethod = method.toUpperCase();
 
+    // Better Auth polls this endpoint on focus/refresh to keep client session fresh.
+    // Treat it as a low-risk read path so normal browsing does not get 429.
+    if (
+        upperMethod === "GET" &&
+        (pathname === "/api/auth/get-session" || pathname === "/api/auth/session" || pathname === "/api/auth/list-sessions")
+    ) {
+        return false;
+    }
+
     if (pathname.startsWith("/api/")) {
         return true;
     }
