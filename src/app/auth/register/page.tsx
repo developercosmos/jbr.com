@@ -213,7 +213,7 @@ export default function RegisterPage() {
                             className="mt-1 rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
                         />
                         <p className="text-sm text-slate-500">
-                            Saya setuju dengan <Link href="#" className="text-brand-primary font-bold hover:underline">Syarat & Ketentuan</Link> serta <Link href="#" className="text-brand-primary font-bold hover:underline">Kebijakan Privasi</Link>.
+                            Saya setuju dengan <Link href="/terms" target="_blank" className="text-brand-primary font-bold hover:underline">Syarat & Ketentuan</Link> serta <Link href="/privacy" target="_blank" className="text-brand-primary font-bold hover:underline">Kebijakan Privasi</Link>.
                         </p>
                     </div>
 
