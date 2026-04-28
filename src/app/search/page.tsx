@@ -6,6 +6,7 @@ import { searchProducts, getSearchFilters } from "@/actions/search";
 import { SearchFiltersPanel } from "./SearchFiltersPanel";
 import { SearchPagination } from "./SearchPagination";
 import { SearchSortControl } from "./SearchSortControl";
+import { TrackedProductLink } from "@/components/product/TrackedProductLink";
 
 interface SearchPageProps {
     searchParams: Promise<{
@@ -96,6 +97,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                                 genders={filters.genders}
                                 priceRange={filters.priceRange}
                                 currentFilters={params}
+                                facetCounts={results.facets}
                             />
                         </Suspense>
                     </aside>
@@ -154,9 +156,12 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                             <>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                                     {results.products.map((product) => (
-                                        <Link
+                                        <TrackedProductLink
                                             key={product.id}
+                                            productId={product.id}
                                             href={`/product/${product.slug}`}
+                                            source="search"
+                                            searchTerm={query || undefined}
                                             className="group bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-lg transition-all"
                                         >
                                             <div className="aspect-square relative bg-slate-100">
@@ -185,7 +190,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                                                     </p>
                                                 )}
                                             </div>
-                                        </Link>
+                                        </TrackedProductLink>
                                     ))}
                                 </div>
 

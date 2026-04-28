@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Heart } from "lucide-react";
 import { getPublishedProducts } from "@/actions/products";
+import { TrackedProductLink } from "@/components/product/TrackedProductLink";
 
 export async function ProductGrid() {
     const products = await getPublishedProducts(8);
@@ -50,7 +51,7 @@ export async function ProductGrid() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     {products.map((product) => (
-                        <Link key={product.id} href={`/product/${product.slug}`} className="group block">
+                        <TrackedProductLink key={product.id} productId={product.id} href={`/product/${product.slug}`} source="home" className="group block">
                             <div className="bg-white rounded-xl overflow-hidden border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
                                 <div className="relative aspect-[4/3] bg-slate-100 overflow-hidden">
                                     <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-slate-700 text-xs font-bold px-2 py-1 rounded shadow-sm z-10">
@@ -106,7 +107,7 @@ export async function ProductGrid() {
                                     </div>
                                 </div>
                             </div>
-                        </Link>
+                        </TrackedProductLink>
                     ))}
                 </div>
             </div>

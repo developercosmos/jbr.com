@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ChevronRight, ShoppingBag } from "lucide-react";
+import { TrackedProductLink } from "@/components/product/TrackedProductLink";
 
 type Product = {
     id: string;
@@ -30,6 +31,8 @@ interface BrowsePageLayoutProps {
     products: Product[];
     productCount: number;
     emptyMessage?: string;
+    /** ANLY-01 source label for impression/click tracking. Defaults to "category". */
+    trackingSource?: "category" | "home" | "search" | "direct";
 }
 
 export function BrowsePageLayout({
@@ -39,6 +42,7 @@ export function BrowsePageLayout({
     products,
     productCount,
     emptyMessage = "Tidak ada produk ditemukan",
+    trackingSource = "category",
 }: BrowsePageLayoutProps) {
     const formatPrice = (price: string) => {
         return new Intl.NumberFormat("id-ID", {
@@ -103,9 +107,11 @@ export function BrowsePageLayout({
                 ) : (
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
                         {products.map((product) => (
-                            <Link
+                            <TrackedProductLink
                                 key={product.id}
+                                productId={product.id}
                                 href={`/product/${product.slug}`}
+                                source={trackingSource}
                                 className="group bg-white rounded-xl overflow-hidden border border-slate-100 hover:border-brand-primary hover:shadow-lg transition-all"
                             >
                                 {/* Image */}
@@ -152,7 +158,7 @@ export function BrowsePageLayout({
                                         </p>
                                     )}
                                 </div>
-                            </Link>
+                            </TrackedProductLink>
                         ))}
                     </div>
                 )}

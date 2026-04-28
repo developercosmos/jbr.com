@@ -8,6 +8,7 @@ import { eq, desc, and, ilike, sql, count } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { uploadFile as uploadToStorage, deleteFile as deleteFromStorage } from "@/lib/storage";
 import { getFileTypeFromMime } from "@/lib/file-utils";
+import { buildImageVariants } from "@/lib/image-variants";
 
 // Helper to verify admin access
 async function requireAdmin() {
@@ -157,6 +158,14 @@ export async function uploadAdminFile(formData: FormData) {
     // Parse tags
     const tags = tagsRaw ? tagsRaw.split(",").map((t) => t.trim()).filter(Boolean) : null;
 
+    // CACHE-03: pre-compute variant URLs for image uploads. Stored as jsonb so
+    // consumers (FileGrid, product cards) can pick the right size without
+    // re-running the optimizer per render.
+    const fileType = getFileTypeFromMime(file.type);
+    const variants: Record<string, string> | null = fileType === "image"
+        ? { ...buildImageVariants(result.url) }
+        : null;
+
     // Save to database
     const [savedFile] = await db
         .insert(files)
@@ -164,7 +173,7 @@ export async function uploadAdminFile(formData: FormData) {
             filename: result.key.split("/").pop() || file.name,
             original_name: file.name,
             mime_type: file.type,
-            file_type: getFileTypeFromMime(file.type),
+            file_type: fileType,
             size: file.size,
             storage_type: result.storageType,
             storage_key: result.key,
@@ -173,6 +182,7 @@ export async function uploadAdminFile(formData: FormData) {
             alt_text: altText,
             is_public: isPublic,
             uploaded_by: admin.id,
+            variants,
         })
         .returning();
 

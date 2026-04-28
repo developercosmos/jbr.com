@@ -6,6 +6,7 @@ import { Image as ImageIcon, Video, Music, FileText, File, Trash2, Copy, Externa
 import { deleteAdminFile, updateFileMetadata } from "@/actions/files";
 import { formatFileSize } from "@/lib/file-utils";
 import { useRouter } from "next/navigation";
+import { pickImageVariant } from "@/lib/image-variants";
 
 interface FileData {
     id: string;
@@ -18,6 +19,7 @@ interface FileData {
     storage_key: string;
     folder: string | null;
     is_public: boolean;
+    variants?: Record<string, string> | null;
     created_at: Date;
     uploader?: { id: string; name: string | null; email: string } | null;
 }
@@ -111,7 +113,7 @@ export function FileGrid({ files, total }: FileGridProps) {
                             <div className="aspect-square relative bg-slate-100 dark:bg-slate-800">
                                 {isImage ? (
                                     <Image
-                                        src={proxyUrl}
+                                        src={pickImageVariant(file.variants, proxyUrl, 400)}
                                         alt={file.original_name}
                                         fill
                                         className="object-cover"

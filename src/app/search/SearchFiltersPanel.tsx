@@ -33,6 +33,13 @@ interface SearchFiltersPanelProps {
         shaftFlex?: string;
         gripSize?: string;
     };
+    /**
+     * SRCH-04: facet counts from Meilisearch query response. Shape:
+     *   { weightClass: { "4U": 12, "3U": 5 }, balance: { ... }, ... }
+     * When null (Postgres backend or no facets returned) the UI falls back
+     * to showing options without count suffixes.
+     */
+    facetCounts?: Record<string, Record<string, number>> | null;
 }
 
 const WEIGHT_OPTIONS: FilterOption[] = [
@@ -66,7 +73,14 @@ export function SearchFiltersPanel({
     genders,
     priceRange,
     currentFilters,
+    facetCounts,
 }: SearchFiltersPanelProps) {
+    function getFacetCount(facet: string, value: string): number | null {
+        if (!facetCounts) return null;
+        const bucket = facetCounts[facet];
+        if (!bucket) return null;
+        return bucket[value] ?? 0;
+    }
     const router = useRouter();
     const searchParams = useSearchParams();
     const [openSections, setOpenSections] = useState({
@@ -254,18 +268,30 @@ export function SearchFiltersPanel({
                         >
                             Semua
                         </button>
-                        {conditions.map((cond) => (
-                            <button
-                                key={cond.value}
-                                onClick={() => applyFilter("condition", cond.value)}
-                                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${currentFilters.condition === cond.value
-                                        ? "bg-brand-primary text-white"
-                                        : "hover:bg-slate-100 text-slate-700"
-                                    }`}
-                            >
-                                {cond.label}
-                            </button>
-                        ))}
+                        {conditions.map((cond) => {
+                            const count = getFacetCount("condition", cond.value);
+                            const disabled = count === 0 && currentFilters.condition !== cond.value;
+                            return (
+                                <button
+                                    key={cond.value}
+                                    onClick={() => applyFilter("condition", cond.value)}
+                                    disabled={disabled}
+                                    className={`w-full flex justify-between items-center text-left px-3 py-2 rounded-lg text-sm transition-colors ${currentFilters.condition === cond.value
+                                            ? "bg-brand-primary text-white"
+                                            : disabled
+                                                ? "text-slate-400 cursor-not-allowed"
+                                                : "hover:bg-slate-100 text-slate-700"
+                                        }`}
+                                >
+                                    <span>{cond.label}</span>
+                                    {count !== null && (
+                                        <span className={`text-xs font-mono ${currentFilters.condition === cond.value ? "text-white/80" : "text-slate-400"}`}>
+                                            ({count})
+                                        </span>
+                                    )}
+                                </button>
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -294,18 +320,30 @@ export function SearchFiltersPanel({
                         >
                             Semua
                         </button>
-                        {genders.map((g) => (
-                            <button
-                                key={g.value}
-                                onClick={() => applyFilter("gender", g.value)}
-                                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${currentFilters.gender === g.value
-                                    ? "bg-brand-primary text-white"
-                                    : "hover:bg-slate-100 text-slate-700"
-                                    }`}
-                            >
-                                {g.label}
-                            </button>
-                        ))}
+                        {genders.map((g) => {
+                            const count = getFacetCount("gender", g.value);
+                            const disabled = count === 0 && currentFilters.gender !== g.value;
+                            return (
+                                <button
+                                    key={g.value}
+                                    onClick={() => applyFilter("gender", g.value)}
+                                    disabled={disabled}
+                                    className={`w-full flex justify-between items-center text-left px-3 py-2 rounded-lg text-sm transition-colors ${currentFilters.gender === g.value
+                                        ? "bg-brand-primary text-white"
+                                        : disabled
+                                            ? "text-slate-400 cursor-not-allowed"
+                                            : "hover:bg-slate-100 text-slate-700"
+                                        }`}
+                                >
+                                    <span>{g.label}</span>
+                                    {count !== null && (
+                                        <span className={`text-xs font-mono ${currentFilters.gender === g.value ? "text-white/80" : "text-slate-400"}`}>
+                                            ({count})
+                                        </span>
+                                    )}
+                                </button>
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -336,19 +374,27 @@ export function SearchFiltersPanel({
                             <div className="px-4 pb-4 grid grid-cols-1 gap-1.5">
                                 {meta.options.map((opt) => {
                                     const active = isCsvValueActive(currentFilters[key], opt.value);
+                                    const count = getFacetCount(key, opt.value);
+                                    const disabled = count === 0 && !active;
                                     return (
                                         <label
                                             key={opt.value}
-                                            className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer text-sm transition-colors ${active ? "bg-brand-primary/10 text-brand-primary" : "hover:bg-slate-100 text-slate-700"
+                                            className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${active ? "bg-brand-primary/10 text-brand-primary" : disabled ? "text-slate-400 cursor-not-allowed" : "hover:bg-slate-100 text-slate-700 cursor-pointer"
                                                 }`}
                                         >
-                                            <input
-                                                type="checkbox"
-                                                checked={active}
-                                                onChange={() => toggleCsvValue(key, opt.value)}
-                                                className="rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
-                                            />
-                                            <span>{opt.label}</span>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={active}
+                                                    disabled={disabled}
+                                                    onChange={() => toggleCsvValue(key, opt.value)}
+                                                    className="rounded border-slate-300 text-brand-primary focus:ring-brand-primary disabled:cursor-not-allowed"
+                                                />
+                                                <span>{opt.label}</span>
+                                            </div>
+                                            {count !== null && (
+                                                <span className="text-xs font-mono text-slate-400">({count})</span>
+                                            )}
                                         </label>
                                     );
                                 })}

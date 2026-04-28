@@ -268,6 +268,7 @@ export async function searchProducts(filters: SearchFilters) {
         page,
         totalPages: Math.ceil(total / limit),
         hasMore: page * limit < total,
+        facets: null as Record<string, Record<string, number>> | null,
     };
 }
 
