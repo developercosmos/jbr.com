@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Zap, ArrowRight, Lock, Mail, Loader2, AlertCircle, Send } from "lucide-react";
@@ -35,10 +35,16 @@ export default function LoginPage() {
     const [needsVerification, setNeedsVerification] = useState(false);
     const [resendLoading, setResendLoading] = useState(false);
     const [resendSuccess, setResendSuccess] = useState(false);
+    const submitLockRef = useRef(false);
     const tiktokEnabled = process.env.NEXT_PUBLIC_ENABLE_TIKTOK_LOGIN === "true";
 
     const handleEmailLogin = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (submitLockRef.current || loading) {
+            return;
+        }
+
+        submitLockRef.current = true;
         setError("");
         setNeedsVerification(false);
         setResendSuccess(false);
@@ -69,6 +75,7 @@ export default function LoginPage() {
             setError("Terjadi kesalahan. Silakan coba lagi.");
         } finally {
             setLoading(false);
+            submitLockRef.current = false;
         }
     };
 
