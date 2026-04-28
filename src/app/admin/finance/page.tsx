@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Calculator, FileBarChart, Scale, BookOpen, Download, ShieldCheck, Settings as SettingsIcon } from "lucide-react";
+import { Calculator, FileBarChart, Scale, BookOpen, Download, ShieldCheck, Settings as SettingsIcon, CalendarClock, NotebookPen } from "lucide-react";
 import { requireAdminFinanceSession } from "@/lib/admin-finance";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +40,18 @@ const cards = [
         title: "Settings Akuntansi",
         desc: "Atur tarif PPN, status PKP, fiscal year, dan parameter posting lain.",
         icon: SettingsIcon,
+    },
+    {
+        href: "/admin/finance/period",
+        title: "Periode & Closing",
+        desc: "Lifecycle OPEN → LOCKED → CLOSED. Wizard tutup buku & re-open.",
+        icon: CalendarClock,
+    },
+    {
+        href: "/admin/finance/journals/new",
+        title: "Jurnal Manual",
+        desc: "Posting adjusting entries (akrual, depresiasi, koreksi) dengan validasi balance.",
+        icon: NotebookPen,
     },
 ];
 
