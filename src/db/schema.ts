@@ -83,6 +83,8 @@ export const users = pgTable(
         store_name: text("store_name"),
         store_slug: text("store_slug").unique(),
         store_description: text("store_description"),
+        store_tagline: text("store_tagline"),
+        store_banner_url: text("store_banner_url"),
         payout_bank_name: text("payout_bank_name"),
         store_status: storeStatusEnum("store_status").default("ACTIVE"),
         buyer_score: decimal("buyer_score", { precision: 3, scale: 2 }).default("0").notNull(),

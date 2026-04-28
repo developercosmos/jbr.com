@@ -8,6 +8,7 @@ import { headers } from "next/headers";
 import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { uploadFile as uploadToStorage } from "@/lib/storage";
 
 const reservedStoreSlugs = new Set([
     "admin",
@@ -56,9 +57,12 @@ export async function getSellerProfileByUserId(userId: string) {
             id: true,
             name: true,
             email: true,
+            image: true,
             store_name: true,
             store_slug: true,
             store_description: true,
+            store_tagline: true,
+            store_banner_url: true,
             store_status: true,
             payout_bank_name: true,
             tier: true,
@@ -240,4 +244,131 @@ export async function ensureCurrentUserCanSell() {
     }
 
     return user;
+}
+
+// ============================================
+// UPDATE SELLER PROFILE (text fields + pickup address)
+// ============================================
+const updateSellerProfileSchema = z.object({
+    storeName: z.string().min(3, "Nama toko minimal 3 karakter").max(80),
+    storeTagline: z.string().max(120).optional().nullable(),
+    storeDescription: z.string().max(600).optional().nullable(),
+    payoutBankName: z.string().min(2, "Bank payout minimal 2 karakter").max(80),
+    pickupAddressId: z.string().uuid().optional().nullable(),
+});
+
+export type UpdateSellerProfileInput = z.infer<typeof updateSellerProfileSchema>;
+
+export async function updateSellerProfile(input: UpdateSellerProfileInput) {
+    const sessionUser = await getCurrentUser();
+
+    const parsed = updateSellerProfileSchema.safeParse(input);
+    if (!parsed.success) {
+        const fieldErrors: Record<string, string> = {};
+        for (const issue of parsed.error.issues) {
+            const key = issue.path[0]?.toString() ?? "form";
+            fieldErrors[key] = issue.message;
+        }
+        return {
+            success: false as const,
+            error: parsed.error.issues[0]?.message ?? "Data tidak valid",
+            fieldErrors,
+        };
+    }
+
+    const data = parsed.data;
+
+    // Verify pickup address belongs to user (if provided)
+    if (data.pickupAddressId) {
+        const owned = await db.query.addresses.findFirst({
+            where: and(
+                eq(addresses.id, data.pickupAddressId),
+                eq(addresses.user_id, sessionUser.id),
+            ),
+            columns: { id: true },
+        });
+        if (!owned) {
+            return {
+                success: false as const,
+                error: "Alamat pickup tidak ditemukan",
+                fieldErrors: { pickupAddressId: "Alamat tidak valid" },
+            };
+        }
+        // Set this address as default pickup, others false
+        await db
+            .update(addresses)
+            .set({
+                is_default_pickup: sql`CASE WHEN ${addresses.id} = ${data.pickupAddressId} THEN true ELSE false END`,
+            })
+            .where(eq(addresses.user_id, sessionUser.id));
+    }
+
+    await db
+        .update(users)
+        .set({
+            store_name: data.storeName,
+            store_tagline: data.storeTagline ?? null,
+            store_description: data.storeDescription ?? null,
+            payout_bank_name: data.payoutBankName,
+            updated_at: new Date(),
+        })
+        .where(eq(users.id, sessionUser.id));
+
+    revalidatePath("/seller/settings");
+    revalidatePath("/seller");
+
+    return { success: true as const };
+}
+
+// ============================================
+// UPLOAD SELLER BANNER / LOGO
+// ============================================
+const ALLOWED_IMAGE_MIME = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
+
+async function uploadSellerImage(formData: FormData, kind: "banner" | "logo") {
+    const sessionUser = await getCurrentUser();
+    const file = formData.get("file") as File | null;
+
+    if (!file) {
+        return { success: false as const, error: "File tidak ditemukan" };
+    }
+    if (!ALLOWED_IMAGE_MIME.includes(file.type)) {
+        return {
+            success: false as const,
+            error: "Format tidak didukung. Gunakan JPG/PNG/WEBP",
+        };
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+        return { success: false as const, error: "Ukuran maksimum 5MB" };
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const folder = kind === "banner" ? "store-banners" : "store-logos";
+    const result = await uploadToStorage(folder, file.name, buffer, file.type, sessionUser.id);
+
+    if (kind === "banner") {
+        await db
+            .update(users)
+            .set({ store_banner_url: result.url, updated_at: new Date() })
+            .where(eq(users.id, sessionUser.id));
+    } else {
+        await db
+            .update(users)
+            .set({ image: result.url, updated_at: new Date() })
+            .where(eq(users.id, sessionUser.id));
+    }
+
+    revalidatePath("/seller/settings");
+    revalidatePath("/seller");
+
+    return { success: true as const, url: result.url };
+}
+
+export async function uploadSellerBanner(formData: FormData) {
+    return uploadSellerImage(formData, "banner");
+}
+
+export async function uploadSellerLogo(formData: FormData) {
+    return uploadSellerImage(formData, "logo");
 }
