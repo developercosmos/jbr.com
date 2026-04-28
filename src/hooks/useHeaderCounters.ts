@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { getCartCount } from "@/actions/cart";
 import { getUnreadCount } from "@/actions/chat";
 import { getUnreadNotificationCount } from "@/actions/notifications";
@@ -115,8 +115,22 @@ function getServerSnapshot() {
 }
 
 export function useHeaderCounters(enabled = true) {
+    // CRITICAL: stabilize the subscribe callback per `enabled` value.
+    // Without useCallback, a new arrow function is passed to
+    // useSyncExternalStore on every render, which makes React re-subscribe
+    // on every render. Our subscribe handler triggers `startPollingIfNeeded`
+    // -> refreshCounters() each call, so an unstable subscribe creates a
+    // re-render storm: setState -> emit -> re-render -> resubscribe -> fetch
+    // -> setState ... eventually surfacing as React minified error #185
+    // (Maximum update depth exceeded) and a flood of 503/502 server-action
+    // POSTs in the browser console.
+    const stableSubscribe = useCallback(
+        (listener: () => void) => subscribe(listener, enabled),
+        [enabled]
+    );
+
     const counters = useSyncExternalStore(
-        (listener) => subscribe(listener, enabled),
+        stableSubscribe,
         getSnapshot,
         getServerSnapshot
     );
