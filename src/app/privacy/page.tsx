@@ -68,7 +68,19 @@ export default function PrivacyPage() {
         </p>
 
         <h2 className="text-xl font-semibold text-slate-900 pt-4">
-          5. Hak Pengguna
+          5. Data Sensitif (KTP, Foto, dan Dokumen KYC)
+        </h2>
+        <p>
+          Untuk verifikasi seller, kami dapat memproses data sensitif seperti
+          foto KTP, selfie dengan KTP, dan dokumen bisnis. Pemrosesan ini
+          dilakukan terbatas untuk verifikasi identitas, pencegahan penipuan,
+          dan pemenuhan kewajiban hukum. Dokumen disimpan sebagai berkas privat,
+          akses dibatasi kepada petugas berwenang, dan tidak ditampilkan ke
+          publik.
+        </p>
+
+        <h2 className="text-xl font-semibold text-slate-900 pt-4">
+          6. Hak Pengguna
         </h2>
         <p>
           Anda berhak mengakses, mengoreksi, atau meminta penghapusan data
@@ -76,7 +88,7 @@ export default function PrivacyPage() {
         </p>
 
         <h2 className="text-xl font-semibold text-slate-900 pt-4">
-          6. Cookie
+          7. Cookie
         </h2>
         <p>
           Kami menggunakan cookie untuk menjaga sesi login dan menganalisis
@@ -85,7 +97,7 @@ export default function PrivacyPage() {
         </p>
 
         <h2 className="text-xl font-semibold text-slate-900 pt-4">
-          7. Kontak
+          8. Kontak
         </h2>
         <p>
           Pertanyaan terkait privasi dapat dikirim ke{" "}

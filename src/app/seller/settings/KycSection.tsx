@@ -41,6 +41,7 @@ const STATUS_BADGE: Record<KycStatus, { label: string; className: string }> = {
 export default function KycSection({ profile, currentTier }: KycSectionProps) {
     const [targetTier, setTargetTier] = useState<"T1" | "T2">("T1");
     const [notes, setNotes] = useState(profile?.notes ?? "");
+    const [agreedToPdp, setAgreedToPdp] = useState(false);
     const [fileIds, setFileIds] = useState<Record<SlotKey, string | null>>({
         ktp: profile?.ktp_file_id ?? null,
         selfie: profile?.selfie_file_id ?? null,
@@ -78,6 +79,11 @@ export default function KycSection({ profile, currentTier }: KycSectionProps) {
     function handleSubmit() {
         setError(null);
         setSuccess(null);
+
+        if (!agreedToPdp) {
+            setError("Anda perlu menyetujui pernyataan Perlindungan Data Pribadi (PDP) sebelum mengirim KYC.");
+            return;
+        }
 
         if (!fileIds.ktp || !fileIds.selfie) {
             setError("KTP dan selfie wajib diunggah sebelum mengirim pengajuan.");
@@ -125,6 +131,15 @@ export default function KycSection({ profile, currentTier }: KycSectionProps) {
                     Naikkan tier akun Anda untuk meningkatkan batas transaksi bulanan dan mendapat lencana
                     verifikasi pada halaman toko. Dokumen Anda hanya dapat diakses oleh admin yang melakukan review.
                 </p>
+
+                <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-slate-700 space-y-2">
+                    <p className="font-semibold text-slate-900">Perlindungan Data Pribadi (PDP)</p>
+                    <p>
+                        Dokumen identitas (KTP, selfie dengan KTP, dan dokumen bisnis) diproses hanya untuk tujuan verifikasi identitas/KYC,
+                        pencegahan fraud, dan pemenuhan kewajiban hukum. Berkas disimpan sebagai file privat, akses dibatasi untuk petugas
+                        berwenang, dan tidak dipublikasikan ke profil toko.
+                    </p>
+                </div>
 
                 {profile?.notes && status === "REJECTED" && (
                     <div className="rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-900/20 p-4 text-sm text-rose-700 dark:text-rose-200 flex gap-3">
@@ -236,6 +251,23 @@ export default function KycSection({ profile, currentTier }: KycSectionProps) {
                         {success}
                     </div>
                 )}
+
+                <label className="flex items-start gap-2 text-sm text-slate-600">
+                    <input
+                        type="checkbox"
+                        checked={agreedToPdp}
+                        onChange={(e) => setAgreedToPdp(e.target.checked)}
+                        disabled={isLocked}
+                        className="mt-1 rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
+                    />
+                    <span>
+                        Saya menyetujui pemrosesan data pribadi untuk proses KYC sesuai
+                        <a href="/privacy" target="_blank" rel="noreferrer" className="ml-1 text-brand-primary hover:underline font-semibold">
+                            Kebijakan Privasi
+                        </a>
+                        .
+                    </span>
+                </label>
 
                 <div className="flex justify-end">
                     <button

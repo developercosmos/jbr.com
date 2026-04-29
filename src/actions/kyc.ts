@@ -261,12 +261,24 @@ export async function submitSellerKycApplication(input: z.infer<typeof submitSel
     return { success: true };
 }
 
-const ALLOWED_KYC_MIME = new Set([
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-    "application/pdf",
-]);
+const SLOT_ALLOWED_KYC_MIME: Record<"ktp" | "selfie" | "business", Set<string>> = {
+    ktp: new Set(["image/jpeg", "image/png", "image/webp"]),
+    selfie: new Set(["image/jpeg", "image/png", "image/webp"]),
+    business: new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]),
+};
+
+const MIME_EXTENSION: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "application/pdf": "pdf",
+};
+
+function buildSafeKycFilename(slot: "ktp" | "selfie" | "business", mimeType: string): string {
+    const extension = MIME_EXTENSION[mimeType] ?? "bin";
+    const token = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    return `${slot}-${token}.${extension}`;
+}
 
 export async function uploadKycDocument(formData: FormData) {
     const sessionUser = await getCurrentUser();
@@ -282,8 +294,18 @@ export async function uploadKycDocument(formData: FormData) {
         throw new Error("Slot dokumen tidak valid.");
     }
 
-    if (!ALLOWED_KYC_MIME.has(file.type)) {
-        throw new Error("Format dokumen harus JPG, PNG, WEBP, atau PDF.");
+    const typedSlot = slot as "ktp" | "selfie" | "business";
+    const allowedMime = SLOT_ALLOWED_KYC_MIME[typedSlot];
+
+    if (!allowedMime.has(file.type)) {
+        if (typedSlot === "business") {
+            throw new Error("Format dokumen bisnis harus JPG, PNG, WEBP, atau PDF.");
+        }
+        throw new Error("Format KTP/selfie harus berupa gambar JPG, PNG, atau WEBP (PDF tidak diperbolehkan).");
+    }
+
+    if (file.size <= 0) {
+        throw new Error("Berkas kosong tidak dapat diunggah.");
     }
 
     if (file.size > 8 * 1024 * 1024) {
@@ -292,13 +314,14 @@ export async function uploadKycDocument(formData: FormData) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const folder = `kyc/${sessionUser.id}/${slot}`;
-    const stored = await uploadToStorage(folder, file.name, buffer, file.type, sessionUser.id);
+    const safeName = buildSafeKycFilename(typedSlot, file.type);
+    const stored = await uploadToStorage(folder, safeName, buffer, file.type, sessionUser.id);
 
     const [savedFile] = await db
         .insert(files)
         .values({
-            filename: stored.key.split("/").pop() || file.name,
-            original_name: file.name,
+            filename: stored.key.split("/").pop() || safeName,
+            original_name: `${typedSlot}.${MIME_EXTENSION[file.type] ?? "file"}`,
             mime_type: file.type,
             file_type: getFileTypeFromMime(file.type),
             size: file.size,

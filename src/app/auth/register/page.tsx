@@ -217,6 +217,13 @@ export default function RegisterPage() {
                         </p>
                     </div>
 
+                    <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg p-3 leading-relaxed">
+                        Komitmen PDP: data pendaftaran Anda diproses seperlunya untuk pembuatan akun, keamanan,
+                        dan layanan transaksi. Untuk proses verifikasi seller (KYC), data sensitif seperti foto
+                        dan KTP diproses terbatas untuk verifikasi identitas sesuai ketentuan perlindungan data
+                        pribadi yang berlaku.
+                    </p>
+
                     <button
                         type="submit"
                         disabled={loading}
