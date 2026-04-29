@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { decryptPdpField, encryptPdpField } from "@/lib/crypto/pdp-field";
 import bcrypt from "bcryptjs";
+import { isS3Configured, storageConfig } from "@/lib/storage";
 
 const phonePattern = /^(?:\+62|62|0)[0-9]{8,13}$/;
 
@@ -25,7 +26,7 @@ const updateProfileSchema = z.object({
         .trim()
         .optional()
         .transform((value) => value || "")
-        .refine((value) => value === "" || isAllowedAvatarUrl(value), "Avatar harus berasal dari domain aplikasi"),
+        .refine((value) => value === "" || isAllowedAvatarUrl(value), "Avatar harus berasal dari domain aplikasi atau bucket S3 yang dikonfigurasi"),
     locale: z.enum(["id-ID", "en-US"]),
     currentPassword: z
         .string()
@@ -51,11 +52,26 @@ async function getCurrentUser() {
 }
 
 function isAllowedAvatarUrl(value: string) {
+    if (value.startsWith("/")) {
+        return true;
+    }
+
     try {
         const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://jualbeliraket.com";
         const allowedOrigin = new URL(appUrl).origin;
         const avatarUrl = new URL(value);
-        return avatarUrl.origin === allowedOrigin;
+        if (avatarUrl.origin === allowedOrigin) {
+            return true;
+        }
+
+        if (isS3Configured()) {
+            const s3Host = `${storageConfig.s3.bucket}.s3.${storageConfig.s3.region}.amazonaws.com`;
+            if (avatarUrl.hostname === s3Host) {
+                return true;
+            }
+        }
+
+        return false;
     } catch (error) {
         console.warn("isAllowedAvatarUrl rejected value:", { value, error });
         return false;

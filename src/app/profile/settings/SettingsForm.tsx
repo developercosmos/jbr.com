@@ -1,8 +1,8 @@
 "use client";
 
-import { Save, User, Lock, Bell } from "lucide-react";
+import { Save, User, Lock, Bell, Upload, Loader2 } from "lucide-react";
 import Image from "next/image";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { updateProfile } from "@/actions/profile";
 
 interface UserData {
@@ -28,7 +28,9 @@ interface FormState {
 }
 
 export function SettingsForm({ user }: { user: UserData }) {
+    const avatarInputRef = useRef<HTMLInputElement>(null);
     const [isPending, startTransition] = useTransition();
+    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
     const [fieldErrors, setFieldErrors] = useState<Record<string, string[] | undefined>>({});
     const [savedProfile, setSavedProfile] = useState({
@@ -138,6 +140,47 @@ export function SettingsForm({ user }: { user: UserData }) {
         return <p className="text-sm text-red-600">{error}</p>;
     };
 
+    const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith("image/")) {
+            setMessage({ type: "error", text: "File avatar harus berupa gambar." });
+            event.target.value = "";
+            return;
+        }
+
+        setMessage(null);
+        setIsUploadingAvatar(true);
+
+        try {
+            const body = new FormData();
+            body.append("file", file);
+            body.append("folder", "avatars");
+
+            const response = await fetch("/api/upload", {
+                method: "POST",
+                body,
+            });
+
+            const payload = await response.json();
+            if (!response.ok || !payload?.success || !payload?.url) {
+                throw new Error(payload?.error || "Upload avatar gagal.");
+            }
+
+            setFormData((current) => ({
+                ...current,
+                avatarUrl: payload.url,
+            }));
+            setMessage({ type: "success", text: "Foto profil berhasil diupload. Klik Simpan Perubahan untuk menerapkan." });
+        } catch (error) {
+            setMessage({ type: "error", text: error instanceof Error ? error.message : "Upload avatar gagal." });
+        } finally {
+            setIsUploadingAvatar(false);
+            event.target.value = "";
+        }
+    };
+
     return (
         <form onSubmit={handleSave} className="space-y-8 max-w-3xl">
             {message && (
@@ -179,14 +222,33 @@ export function SettingsForm({ user }: { user: UserData }) {
                         <div className="space-y-1 flex-1">
                             <h3 className="font-bold text-slate-900 dark:text-white">Foto Profil</h3>
                             <p className="text-sm text-slate-500">
-                                Masukkan URL avatar dari domain aplikasi Anda.
+                                Upload foto profil Anda (disimpan pada storage S3 jika konfigurasi aktif).
                             </p>
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                                <input
+                                    ref={avatarInputRef}
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp,image/gif,image/svg+xml"
+                                    onChange={handleAvatarUpload}
+                                    className="hidden"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => avatarInputRef.current?.click()}
+                                    disabled={isUploadingAvatar || isPending}
+                                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold disabled:opacity-60"
+                                >
+                                    {isUploadingAvatar ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                    {isUploadingAvatar ? "Mengupload..." : "Upload Foto"}
+                                </button>
+                            </div>
                             <input
                                 type="url"
                                 value={formData.avatarUrl}
                                 onChange={(e) => setFormData({ ...formData, avatarUrl: e.target.value })}
+                                readOnly
                                 className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm"
-                                placeholder="https://jualbeliraket.com/uploads/avatar.jpg"
+                                placeholder="URL avatar akan terisi otomatis setelah upload"
                             />
                             {renderFieldError("avatarUrl")}
                         </div>
