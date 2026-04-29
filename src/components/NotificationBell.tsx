@@ -33,6 +33,7 @@ function getNotificationHref(notification: Notification): string | null {
     const disputeId = typeof data.dispute_id === "string" ? data.dispute_id : null;
     const sellerId = typeof data.seller_id === "string" ? data.seller_id : null;
     const storeSlug = typeof data.store_slug === "string" ? data.store_slug : null;
+    const kycTier = typeof data.tier === "string" ? data.tier : null;
 
     switch (notification.type) {
         case "ORDER_CREATED":
@@ -63,6 +64,12 @@ function getNotificationHref(notification: Notification): string | null {
         case "SELLER_ACTIVATED":
             return storeSlug ? `/store/${storeSlug}` : "/seller";
         case "SELLER_REVIEW_NEEDED":
+            // This notification type is used by two flows:
+            // 1) New seller store activation review -> /admin/users
+            // 2) Seller KYC tier review -> /admin/kyc
+            if (kycTier) {
+                return "/admin/kyc?status=PENDING_REVIEW";
+            }
             return sellerId ? `/admin/users?highlight=${sellerId}` : "/admin/users";
         case "SYSTEM":
         default:

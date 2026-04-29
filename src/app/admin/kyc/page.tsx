@@ -1,4 +1,7 @@
 import { listKycSubmissions, getKycSubmissionCounts } from "@/actions/kyc";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
 import KycReviewClient from "./KycReviewClient";
 
 export const dynamic = "force-dynamic";
@@ -18,9 +21,13 @@ export default async function AdminKycPage({ searchParams }: PageProps) {
     const params = await searchParams;
     const statusFilter: StatusFilter = isStatusFilter(params.status) ? params.status : "PENDING_REVIEW";
 
-    const [submissions, counts] = await Promise.all([
+    const [submissions, counts, pendingSellerActivation] = await Promise.all([
         listKycSubmissions({ status: statusFilter }),
         getKycSubmissionCounts(),
+        db.select({ count: sql<number>`count(*)` })
+            .from(users)
+            .where(eq(users.store_status, "PENDING_REVIEW"))
+            .then((r) => Number(r[0]?.count ?? 0)),
     ]);
 
     const serialized = submissions.map((s) => ({
@@ -48,6 +55,17 @@ export default async function AdminKycPage({ searchParams }: PageProps) {
                         Verifikasi identitas seller untuk peningkatan tier dan pembukaan limit transaksi.
                     </p>
                 </div>
+
+                {pendingSellerActivation > 0 && (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                        Ada <span className="font-bold">{pendingSellerActivation}</span> seller menunggu review aktivasi toko.
+                        Lanjutkan review di
+                        <a href="/admin/users" className="ml-1 font-semibold underline hover:no-underline">
+                            halaman Users
+                        </a>
+                        .
+                    </div>
+                )}
 
                 <div className="flex flex-wrap gap-2">
                     {STATUS_FILTERS.map((status) => (
