@@ -199,6 +199,19 @@ export async function getSellerProducts() {
     return sellerProducts;
 }
 
+export async function getSellerProductById(productId: string) {
+    const user = await getCurrentUser();
+
+    const product = await db.query.products.findFirst({
+        where: and(eq(products.id, productId), eq(products.seller_id, user.id)),
+        with: {
+            category: true,
+        },
+    });
+
+    return product ?? null;
+}
+
 export async function getPublishedProducts(limit = 20, offset = 0) {
     const publishedProducts = await db.query.products.findMany({
         where: eq(products.status, "PUBLISHED"),
