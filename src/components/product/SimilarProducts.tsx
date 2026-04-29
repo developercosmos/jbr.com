@@ -34,7 +34,9 @@ export async function SimilarProducts({ currentProductId, categoryId }: Props) {
         .orderBy(desc(products.created_at))
         .limit(4);
 
-    if (similarProducts.length === 0) {
+    const validProducts = similarProducts.filter((p) => p.slug);
+
+    if (validProducts.length === 0) {
         return null;
     }
 
@@ -44,7 +46,7 @@ export async function SimilarProducts({ currentProductId, categoryId }: Props) {
                 Kamu mungkin juga suka
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                {similarProducts.map((product) => (
+                {validProducts.map((product) => (
                     <Link
                         key={product.id}
                         href={`/product/${product.slug}`}
