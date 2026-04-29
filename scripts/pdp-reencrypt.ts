@@ -1,5 +1,6 @@
 import { config } from "dotenv";
 
+config({ path: ".env.production" });
 config({ path: ".env.local" });
 
 import { db } from "../src/db";
