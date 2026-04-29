@@ -20,6 +20,9 @@ interface Props {
     notes?: string | null;
     effectiveFrom?: string | null;
     meta?: SettingMeta;
+    /** Controlled mode: form always shown, no internal open toggle */
+    controlled?: boolean;
+    onClose?: () => void;
 }
 
 function valueToString(v: unknown, type: SettingType): string {
@@ -29,14 +32,17 @@ function valueToString(v: unknown, type: SettingType): string {
     return String(v);
 }
 
-export function SettingEditor({ settingKey, currentValue, inferredType, notes, effectiveFrom, meta }: Props) {
+export function SettingEditor({ settingKey, currentValue, inferredType, notes, effectiveFrom, meta, controlled, onClose }: Props) {
     const [value, setValue] = useState(() => valueToString(currentValue, inferredType));
     const [type, setType] = useState<SettingType>(inferredType);
     const [notesText, setNotesText] = useState(notes ?? "");
     const [effFrom, setEffFrom] = useState(() => new Date().toISOString().slice(0, 10));
     const [pending, startTransition] = useTransition();
     const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
-    const [open, setOpen] = useState(false);
+
+    function handleClose() {
+        if (onClose) onClose();
+    }
 
     function submit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault();
@@ -45,23 +51,16 @@ export function SettingEditor({ settingKey, currentValue, inferredType, notes, e
             const res = await updateAccountingSettingAction(fd);
             if (res.ok) {
                 setMsg({ kind: "ok", text: "Tersimpan." });
-                setTimeout(() => setOpen(false), 800);
+                setTimeout(() => handleClose(), 800);
             } else {
                 setMsg({ kind: "err", text: res.error ?? "Gagal menyimpan." });
             }
         });
     }
 
-    if (!open) {
-        return (
-            <button
-                type="button"
-                onClick={() => setOpen(true)}
-                className="rounded bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200"
-            >
-                Edit
-            </button>
-        );
+    if (!controlled) {
+        // Uncontrolled / legacy inline mode (not used in SettingsBrowser anymore)
+        return null;
     }
 
     return (
@@ -143,7 +142,7 @@ export function SettingEditor({ settingKey, currentValue, inferredType, notes, e
                     )}
                 </div>
                 <div className="flex gap-2">
-                    <button type="button" onClick={() => setOpen(false)} className="rounded bg-white px-3 py-1 font-semibold text-slate-700 ring-1 ring-slate-300">Batal</button>
+                    <button type="button" onClick={handleClose} className="rounded bg-white px-3 py-1 font-semibold text-slate-700 ring-1 ring-slate-300">Batal</button>
                     <button type="submit" disabled={pending} className="rounded bg-brand-primary px-3 py-1 font-semibold text-white disabled:opacity-50">
                         {pending ? "Menyimpan..." : "Simpan"}
                     </button>

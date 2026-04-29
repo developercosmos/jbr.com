@@ -77,6 +77,7 @@ export default function SettingsBrowser({ rows }: { rows: Row[] }) {
     const [query, setQuery] = useState("");
     const [activeGroup, setActiveGroup] = useState<string>("all");
     const [openKey, setOpenKey] = useState<string | null>(null);
+    const [editingKey, setEditingKey] = useState<string | null>(null);
 
     const groups = useMemo(() => {
         const map = new Map<string, Row[]>();
@@ -176,6 +177,7 @@ export default function SettingsBrowser({ rows }: { rows: Row[] }) {
                             const t = inferType(r.value);
                             const meta = getSettingMeta(r.key);
                             const isOpen = openKey === r.key;
+                            const isEditing = editingKey === r.key;
                             const isSensitive = SENSITIVE_KEYS.has(r.key);
 
                             return (
@@ -222,6 +224,20 @@ export default function SettingsBrowser({ rows }: { rows: Row[] }) {
                                             >
                                                 {formatValue(r.value, t)}
                                             </code>
+                                            {!isEditing && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setEditingKey(r.key)}
+                                                    className="rounded bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                                                >
+                                                    Edit
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {isEditing && (
+                                        <div className="mt-3">
                                             <SettingEditor
                                                 settingKey={r.key}
                                                 currentValue={r.value}
@@ -229,9 +245,11 @@ export default function SettingsBrowser({ rows }: { rows: Row[] }) {
                                                 notes={r.notes}
                                                 effectiveFrom={String(r.effective_from)}
                                                 meta={meta}
+                                                controlled
+                                                onClose={() => setEditingKey(null)}
                                             />
                                         </div>
-                                    </div>
+                                    )}
 
                                     {isOpen && (
                                         <div className="mt-3 ml-6 pl-3 border-l-2 border-brand-primary/30 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
