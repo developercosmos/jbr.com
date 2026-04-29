@@ -6,9 +6,9 @@ import { randomUUID } from "crypto";
 // Sample product images from Unsplash (badminton related)
 const productImages = {
     rackets: [
-        "https://images.unsplash.com/photo-1617083934555-ac7b4d0c8be5?w=800",
+        "https://images.unsplash.com/photo-1517649763962-0c623066013b?w=800",
         "https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=800",
-        "https://images.unsplash.com/photo-1599577446220-b6542d8d2c92?w=800",
+        "https://images.unsplash.com/photo-1521412644187-c49fa049e84d?w=800",
     ],
     shoes: [
         "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800",

@@ -16,10 +16,10 @@ const DEMO_PASSWORD = "demo123";
 // Sample product images from Unsplash (badminton related)
 const productImages = {
     rackets: [
-        "https://images.unsplash.com/photo-1617083934555-ac7b4d0c8be5?w=800",
+        "https://images.unsplash.com/photo-1517649763962-0c623066013b?w=800",
         "https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=800",
-        "https://images.unsplash.com/photo-1599577446220-b6542d8d2c92?w=800",
-        "https://images.unsplash.com/photo-1613916975836-d7e16adc1cb2?w=800",
+        "https://images.unsplash.com/photo-1521412644187-c49fa049e84d?w=800",
+        "https://images.unsplash.com/photo-1486286701208-1d58e9338013?w=800",
     ],
     shoes: [
         "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800",
@@ -38,8 +38,8 @@ const productImages = {
         "https://images.unsplash.com/photo-1571945153237-4929e783af4a?w=800",
     ],
     shuttlecocks: [
-        "https://images.unsplash.com/photo-1613916975836-d7e16adc1cb2?w=800",
-        "https://images.unsplash.com/photo-1617083934555-ac7b4d0c8be5?w=800",
+        "https://images.unsplash.com/photo-1486286701208-1d58e9338013?w=800",
+        "https://images.unsplash.com/photo-1517649763962-0c623066013b?w=800",
     ],
     grips: [
         "https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?w=800",
