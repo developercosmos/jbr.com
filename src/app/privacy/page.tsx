@@ -109,6 +109,17 @@ export default function PrivacyPage() {
           </a>
           .
         </p>
+
+        <h2 className="text-xl font-semibold text-slate-900 pt-4">
+          9. Kepatuhan UU PDP
+        </h2>
+        <p>
+          JUALBELIRAKET.COM berkomitmen memproses data pribadi sesuai
+          Undang-Undang Republik Indonesia Nomor 27 Tahun 2022 tentang
+          Perlindungan Data Pribadi (UU PDP), termasuk prinsip pembatasan
+          tujuan, minimisasi data, keamanan pemrosesan, dan pemenuhan hak
+          subjek data sesuai ketentuan yang berlaku.
+        </p>
       </section>
     </main>
   );
