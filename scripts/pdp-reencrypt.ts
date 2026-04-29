@@ -3,11 +3,6 @@ import { config } from "dotenv";
 config({ path: ".env.production" });
 config({ path: ".env.local" });
 
-import { db } from "../src/db";
-import { affiliate_accounts, seller_kyc, users } from "../src/db/schema";
-import { eq } from "drizzle-orm";
-import { needsPdpFieldReencryption, reencryptPdpField } from "../src/lib/crypto/pdp-field";
-
 type SweepStats = {
     usersPhone: number;
     kycNotes: number;
@@ -15,6 +10,13 @@ type SweepStats = {
 };
 
 async function runSweep(): Promise<SweepStats> {
+    const [{ db }, { affiliate_accounts, seller_kyc, users }, { eq }, { needsPdpFieldReencryption, reencryptPdpField }] = await Promise.all([
+        import("../src/db"),
+        import("../src/db/schema"),
+        import("drizzle-orm"),
+        import("../src/lib/crypto/pdp-field"),
+    ]);
+
     const stats: SweepStats = {
         usersPhone: 0,
         kycNotes: 0,
