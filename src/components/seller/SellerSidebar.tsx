@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, PackagePlus, ShoppingBag, BarChart3, Zap, Store, Tag, Wallet } from "lucide-react";
+import { LayoutDashboard, Package, PackagePlus, ShoppingBag, BarChart3, Zap, Store, Tag, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
@@ -18,6 +18,11 @@ const baseNavItems: NavItem[] = [
         label: "Overview",
         href: "/seller",
         icon: LayoutDashboard,
+    },
+    {
+        label: "PRODUK SAYA",
+        href: "/seller/products",
+        icon: Package,
     },
     {
         label: "Add Product",
@@ -97,7 +102,9 @@ export function SellerSidebar() {
                         Management
                     </p>
                     {navItems.map((item) => {
-                        const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                        const isActive = item.href === "/seller"
+                            ? pathname === "/seller"
+                            : pathname === item.href || pathname.startsWith(`${item.href}/`);
                         return (
                             <Link
                                 key={item.href}
