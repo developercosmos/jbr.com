@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, RefreshCcw, Trash2, Mail, Loader2, Check, X, Eye, ExternalLink } from "lucide-react";
+import { Ban, RefreshCcw, Trash2, Mail, Loader2, Eye, ExternalLink, Store, UserCircle2, Landmark } from "lucide-react";
 import { useState, useTransition } from "react";
 import { banUser, unbanUser, deleteUser, approveSellerActivation, rejectSellerActivation } from "@/actions/admin";
 import { requestEmailVerification } from "@/actions/auth-email";
@@ -82,22 +82,6 @@ export function UserActions({ user, isBanned, isPendingVerification, isPendingSt
                             title="Detail Store"
                         >
                             <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                            onClick={handleApproveSeller}
-                            disabled={isPending}
-                            className="p-2 rounded-lg text-slate-400 hover:bg-green-50 dark:hover:bg-green-900/20 hover:text-green-600 dark:hover:text-green-400 transition-colors disabled:opacity-50"
-                            title="Approve Seller Activation"
-                        >
-                            <Check className="w-4 h-4" />
-                        </button>
-                        <button
-                            onClick={handleRejectSeller}
-                            disabled={isPending}
-                            className="p-2 rounded-lg text-slate-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-600 dark:hover:text-orange-400 transition-colors disabled:opacity-50"
-                            title="Reject Seller Activation"
-                        >
-                            <X className="w-4 h-4" />
                         </button>
                     </>
                 )}
@@ -181,48 +165,89 @@ export function UserActions({ user, isBanned, isPendingVerification, isPendingSt
 
             {showStoreDetail && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-lg w-full mx-4 shadow-xl">
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-3">
-                            Detail Pengajuan Seller
-                        </h3>
-                        <div className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
-                            <div>
-                                <span className="font-semibold text-slate-900 dark:text-white">Nama:</span> {user.name || "-"}
-                            </div>
-                            <div>
-                                <span className="font-semibold text-slate-900 dark:text-white">Email:</span> {user.email}
-                            </div>
-                            <div>
-                                <span className="font-semibold text-slate-900 dark:text-white">Store:</span> {user.storeName || "-"}
-                            </div>
-                            <div>
-                                <span className="font-semibold text-slate-900 dark:text-white">Slug:</span> {user.storeSlug || "-"}
-                            </div>
-                            <div>
-                                <span className="font-semibold text-slate-900 dark:text-white">Payout Bank:</span> {user.payoutBankName || "-"}
-                            </div>
-                            <div>
-                                <span className="font-semibold text-slate-900 dark:text-white">Deskripsi:</span> {user.storeDescription || "-"}
-                            </div>
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full mx-4 shadow-xl overflow-hidden border border-slate-200 dark:border-slate-800">
+                        <div className="px-5 py-4 bg-gradient-to-r from-brand-primary/10 to-sky-500/10 border-b border-slate-200 dark:border-slate-800">
+                            <h3 className="text-lg font-heading font-bold text-slate-900 dark:text-white uppercase">
+                                Detail Pengajuan Seller
+                            </h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                Review profil toko sebelum memutuskan approve atau reject.
+                            </p>
                         </div>
-                        <div className="mt-5 flex items-center justify-between gap-3">
-                            {user.storeSlug ? (
-                                <Link
-                                    href={`/store/${user.storeSlug}`}
-                                    target="_blank"
-                                    className="inline-flex items-center gap-1 text-sm font-semibold text-brand-primary hover:underline"
-                                >
-                                    Buka halaman store <ExternalLink className="w-3.5 h-3.5" />
-                                </Link>
-                            ) : (
-                                <span className="text-sm text-slate-400">Store belum punya slug</span>
-                            )}
-                            <button
-                                onClick={() => setShowStoreDetail(false)}
-                                className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                            >
-                                Tutup
-                            </button>
+
+                        <div className="p-5 space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/30 p-3">
+                                    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1 flex items-center gap-1.5">
+                                        <UserCircle2 className="w-3.5 h-3.5" /> Pemohon
+                                    </div>
+                                    <div className="text-sm font-semibold text-slate-900 dark:text-white">{user.name || "-"}</div>
+                                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{user.email}</div>
+                                </div>
+
+                                <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/30 p-3">
+                                    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1 flex items-center gap-1.5">
+                                        <Store className="w-3.5 h-3.5" /> Store
+                                    </div>
+                                    <div className="text-sm font-semibold text-slate-900 dark:text-white">{user.storeName || "-"}</div>
+                                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">/{user.storeSlug || "-"}</div>
+                                </div>
+                            </div>
+
+                            <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3">
+                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1 flex items-center gap-1.5">
+                                    <Landmark className="w-3.5 h-3.5" /> Payout Bank
+                                </div>
+                                <div className="text-sm text-slate-700 dark:text-slate-300">
+                                    {user.payoutBankName || "-"}
+                                </div>
+                            </div>
+
+                            <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3">
+                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">
+                                    Deskripsi Toko
+                                </div>
+                                <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                                    {user.storeDescription || "-"}
+                                </p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                                {user.storeSlug ? (
+                                    <Link
+                                        href={`/store/${user.storeSlug}`}
+                                        target="_blank"
+                                        className="inline-flex items-center gap-1 text-sm font-semibold text-brand-primary hover:underline"
+                                    >
+                                        Buka halaman store <ExternalLink className="w-3.5 h-3.5" />
+                                    </Link>
+                                ) : (
+                                    <span className="text-sm text-slate-400">Store belum punya slug</span>
+                                )}
+
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={handleRejectSeller}
+                                        disabled={isPending}
+                                        className="px-3.5 py-2 rounded-lg border border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-800/60 dark:text-orange-300 dark:hover:bg-orange-900/20 text-sm font-semibold disabled:opacity-50"
+                                    >
+                                        {isPending ? "Menyimpan..." : "Reject"}
+                                    </button>
+                                    <button
+                                        onClick={handleApproveSeller}
+                                        disabled={isPending}
+                                        className="px-3.5 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 text-sm font-semibold disabled:opacity-50"
+                                    >
+                                        {isPending ? "Menyimpan..." : "Approve"}
+                                    </button>
+                                    <button
+                                        onClick={() => setShowStoreDetail(false)}
+                                        className="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium"
+                                    >
+                                        Tutup
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
