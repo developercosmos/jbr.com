@@ -1,7 +1,7 @@
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { addresses, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { SettingsForm } from "./SettingsForm";
@@ -16,17 +16,48 @@ export default async function ProfileSettingsPage() {
         redirect("/auth/login");
     }
 
-    const user = await db.query.users.findFirst({
-        where: eq(users.id, session.user.id),
-        columns: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
-            phone: true,
-            locale: true,
-        },
-    });
+    const [user, defaultShippingAddress, latestAddress] = await Promise.all([
+        db.query.users.findFirst({
+            where: eq(users.id, session.user.id),
+            columns: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
+                phone: true,
+                locale: true,
+            },
+        }),
+        db.query.addresses.findFirst({
+            where: eq(addresses.user_id, session.user.id),
+            columns: {
+                phone: true,
+            },
+            orderBy: [desc(addresses.is_default_shipping), desc(addresses.created_at)],
+        }),
+        db.query.addresses.findFirst({
+            where: eq(addresses.user_id, session.user.id),
+            columns: {
+                phone: true,
+            },
+            orderBy: [desc(addresses.created_at)],
+        }),
+    ]);
+    const safeDecryptPhone = (value: string | null | undefined) => {
+        if (!value) return "";
+        try {
+            return decryptPdpField(value) || "";
+        } catch {
+            return value;
+        }
+    };
+
+    const resolvedPhone =
+        safeDecryptPhone(user.phone) ||
+        defaultShippingAddress?.phone ||
+        latestAddress?.phone ||
+        "";
+
 
     if (!user) {
         redirect("/auth/login");
@@ -46,7 +77,7 @@ export default async function ProfileSettingsPage() {
             <SettingsForm
                 user={{
                     ...user,
-                    phone: decryptPdpField(user.phone),
+                    phone: resolvedPhone,
                 }}
             />
         </div>

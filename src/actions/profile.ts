@@ -3,7 +3,7 @@
 import { db } from "@/db";
 import { users, accounts } from "@/db/schema";
 import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -100,7 +100,9 @@ export async function updateProfile(input: z.input<typeof updateProfileSchema>) 
         };
     }
 
-    if (validated.newPassword) {
+    const passwordChanged = Boolean(validated.newPassword);
+
+    if (passwordChanged) {
         const credentialAccount = await db.query.accounts.findFirst({
             where: and(
                 eq(accounts.user_id, sessionUser.id),
@@ -160,12 +162,20 @@ export async function updateProfile(input: z.input<typeof updateProfileSchema>) 
             locale: users.locale,
         });
 
+    const cookieStore = await cookies();
+    cookieStore.set("jbr_locale", validated.locale, {
+        path: "/",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 365,
+    });
+
     revalidatePath("/profile");
     revalidatePath("/profile/settings");
     revalidatePath("/");
 
     return {
         success: true as const,
+        passwordChanged,
         user: {
             ...updatedUser,
             phone: decryptPdpField(updatedUser.phone),

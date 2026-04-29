@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Oswald } from "next/font/google";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
 
@@ -21,13 +22,16 @@ export const metadata: Metadata = {
   description: "The trusted marketplace for used sports equipment.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const localeCookie = (await cookies()).get("jbr_locale")?.value;
+  const htmlLang = localeCookie === "en-US" ? "en" : "id";
+
   return (
-    <html lang="en" className="light" suppressHydrationWarning>
+    <html lang={htmlLang} className="light" suppressHydrationWarning>
       <body
         className={`${inter.variable} ${oswald.variable} font-sans antialiased bg-background text-foreground`}
       >

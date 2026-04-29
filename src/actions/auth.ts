@@ -19,10 +19,15 @@ export async function serverSignOut() {
 
         // Clear auth cookies
         const cookieStore = await cookies();
-        cookieStore.delete("better-auth.session_token");
-        cookieStore.delete("better-auth.session");
+        for (const cookie of cookieStore.getAll()) {
+            if (cookie.name.startsWith("better-auth")) {
+                cookieStore.delete(cookie.name);
+            }
+        }
 
         revalidatePath("/");
+        revalidatePath("/profile");
+        revalidatePath("/profile/settings");
 
         return { success: true };
     } catch (error) {

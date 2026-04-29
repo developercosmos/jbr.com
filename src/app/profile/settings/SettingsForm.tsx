@@ -114,7 +114,12 @@ export function SettingsForm({ user }: { user: UserData }) {
                     newPassword: "",
                     confirmPassword: "",
                 }));
-                setMessage({ type: "success", text: "Profil berhasil diperbarui" });
+                setMessage({
+                    type: "success",
+                    text: result.passwordChanged
+                        ? "Perubahan berhasil disimpan. Password Anda juga berhasil diperbarui."
+                        : "Profil berhasil diperbarui",
+                });
             } catch (err) {
                 setFormData((current) => ({
                     ...current,

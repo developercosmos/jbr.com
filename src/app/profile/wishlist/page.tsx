@@ -1,8 +1,9 @@
-import { Heart, ShoppingCart, Trash2 } from "lucide-react";
+import { Heart, ShoppingCart } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { getWishlist } from "@/actions/wishlist";
 import { WishlistItemActions } from "./WishlistItemActions";
+import { WishlistAddToCartButton } from "./WishlistAddToCartButton";
 
 function formatPrice(price: string) {
     return new Intl.NumberFormat("id-ID", {
@@ -74,7 +75,10 @@ export default async function WishlistPage() {
                                     <span className="font-bold text-lg text-slate-900 dark:text-white">
                                         {formatPrice(item.product.price)}
                                     </span>
-                                    <WishlistAddToCart productId={item.product.id} />
+                                    <WishlistAddToCartButton
+                                        productId={item.product.id}
+                                        productSlug={item.product.slug}
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -82,23 +86,5 @@ export default async function WishlistPage() {
                 </div>
             )}
         </div>
-    );
-}
-
-// Client Component for Add to Cart button
-function WishlistAddToCart({ productId }: { productId: string }) {
-    return (
-        <form action={async () => {
-            "use server";
-            const { addToCart } = await import("@/actions/cart");
-            await addToCart(productId);
-        }}>
-            <button
-                type="submit"
-                className="p-2 rounded-lg bg-brand-primary text-white hover:bg-blue-600 transition-colors shadow-lg shadow-brand-primary/20"
-            >
-                <ShoppingCart className="w-4 h-4" />
-            </button>
-        </form>
     );
 }

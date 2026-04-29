@@ -4,7 +4,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState, useRef, useEffect, useTransition } from "react";
 import { ChevronDown, LogIn, User, LogOut, Settings, Store, ShieldCheck, Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { serverSignOut } from "@/actions/auth";
 
 type NavbarUser = {
@@ -20,16 +19,9 @@ type NavbarUserAreaProps = {
 };
 
 export function NavbarUserArea({ user, isPending }: NavbarUserAreaProps) {
-    const [mounted, setMounted] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const [isLoggingOut, startLogout] = useTransition();
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const router = useRouter();
-
-    // Keep initial server/client markup stable to avoid hydration mismatch
-    useEffect(() => {
-        setMounted(true);
-    }, []);
 
     // Close dropdown when clicking outside
     useEffect(() => {
@@ -44,14 +36,17 @@ export function NavbarUserArea({ user, isPending }: NavbarUserAreaProps) {
 
     const handleLogout = () => {
         startLogout(async () => {
-            await serverSignOut();
+            const result = await serverSignOut();
             setIsOpen(false);
-            router.push("/");
-            router.refresh();
+            if (!result.success) {
+                window.alert("Logout gagal. Silakan coba lagi.");
+                return;
+            }
+            window.location.assign("/");
         });
     };
 
-    if (!mounted || isPending) {
+    if (isPending) {
         return (
             <div className="relative flex items-center gap-2 p-1 pr-2 rounded-full">
                 <div className="size-8 rounded-full bg-slate-200 animate-pulse" />

@@ -25,7 +25,14 @@ function RecenterMap({ lat, lon }: { lat: number; lon: number }) {
     const map = useMap();
 
     useEffect(() => {
+        map.invalidateSize();
         map.setView([lat, lon], Math.max(map.getZoom(), 15), { animate: true });
+
+        const timer = window.setTimeout(() => {
+            map.invalidateSize();
+        }, 120);
+
+        return () => window.clearTimeout(timer);
     }, [lat, lon, map]);
 
     return null;

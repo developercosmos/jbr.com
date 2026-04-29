@@ -52,6 +52,7 @@ export function MapLocationDialog({
     const [lon, setLon] = useState<number | null>(null);
     const [locating, setLocating] = useState(false);
     const [resolvingAddress, setResolvingAddress] = useState(false);
+    const [addressQuery, setAddressQuery] = useState("");
     const [error, setError] = useState("");
 
     const hasCoordinates = lat !== null && lon !== null;
@@ -62,8 +63,10 @@ export function MapLocationDialog({
         setError("");
     }, []);
 
-    const resolveFromAddress = useCallback(async () => {
-        if (!addressText?.trim()) {
+    const resolveFromAddress = useCallback(async (query?: string) => {
+        const source = (query ?? addressQuery ?? addressText ?? "").trim();
+
+        if (!source) {
             setError("Alamat belum diisi. Isi alamat terlebih dahulu.");
             return;
         }
@@ -72,8 +75,8 @@ export function MapLocationDialog({
         setError("");
 
         try {
-            const query = encodeURIComponent(addressText);
-            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${query}`);
+            const encoded = encodeURIComponent(source);
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encoded}`);
             if (!response.ok) {
                 throw new Error("Gagal mencari lokasi dari alamat.");
             }
@@ -99,7 +102,7 @@ export function MapLocationDialog({
         } finally {
             setResolvingAddress(false);
         }
-    }, [addressText, setPickedCoordinates]);
+    }, [addressQuery, addressText, setPickedCoordinates]);
 
     const resolveFromBrowserLocation = useCallback(async () => {
         if (!navigator.geolocation) {
@@ -160,6 +163,7 @@ export function MapLocationDialog({
         }
 
         setError("");
+        setAddressQuery(addressText?.trim() || "");
 
         const initialLatNumber = toFiniteNumber(initialLatitude);
         const initialLonNumber = toFiniteNumber(initialLongitude);
@@ -175,8 +179,12 @@ export function MapLocationDialog({
 
         if (addressText?.trim()) {
             void resolveFromAddress();
+            return;
         }
-    }, [addressText, initialLatitude, initialLongitude, open, resolveFromAddress]);
+
+        // Trigger browser GPS request so users get permission popup immediately.
+        void resolveFromBrowserLocation();
+    }, [addressText, initialLatitude, initialLongitude, open, resolveFromAddress, resolveFromBrowserLocation]);
 
     if (!open) {
         return null;
@@ -202,10 +210,29 @@ export function MapLocationDialog({
                 </div>
 
                 <div className="p-5 space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            Cari dari alamat
+                        </label>
+                        <input
+                            type="text"
+                            value={addressQuery}
+                            onChange={(event) => setAddressQuery(event.target.value)}
+                            onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                    event.preventDefault();
+                                    void resolveFromAddress(addressQuery);
+                                }
+                            }}
+                            placeholder="Ketik alamat atau nama tempat"
+                            className="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-surface-dark text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                        />
+                    </div>
+
                     <div className="flex flex-wrap gap-2">
                         <button
                             type="button"
-                            onClick={() => void resolveFromAddress()}
+                            onClick={() => void resolveFromAddress(addressQuery)}
                             disabled={resolvingAddress}
                             className="inline-flex items-center gap-2 h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-brand-primary hover:text-brand-primary disabled:opacity-60"
                         >
@@ -220,7 +247,7 @@ export function MapLocationDialog({
                             className="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-brand-primary text-white text-sm font-semibold hover:bg-blue-600 disabled:opacity-60"
                         >
                             {locating ? <Loader2 className="w-4 h-4 animate-spin" /> : <LocateFixed className="w-4 h-4" />}
-                            Gunakan Lokasi Saya
+                            Minta Izin GPS & Lokasi Saya
                         </button>
                     </div>
 

@@ -137,9 +137,10 @@ export function AddAddressButton() {
                                     Nomor Telepon *
                                 </label>
                                 <input
-                                    type="tel"
+                                    type="number"
                                     value={formData.phone}
-                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    inputMode="numeric"
+                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, "") })}
                                     placeholder="08xx-xxxx-xxxx"
                                     className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-all"
                                 />
@@ -191,9 +192,10 @@ export function AddAddressButton() {
                                     Kode Pos
                                 </label>
                                 <input
-                                    type="text"
+                                    type="number"
                                     value={formData.postal_code}
-                                    onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
+                                    inputMode="numeric"
+                                    onChange={(e) => setFormData({ ...formData, postal_code: e.target.value.replace(/\D/g, "") })}
                                     placeholder="12345"
                                     className="w-full px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-surface-dark text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-all"
                                 />
