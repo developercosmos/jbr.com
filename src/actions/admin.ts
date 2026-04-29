@@ -316,7 +316,7 @@ export async function unbanUser(userId: string) {
 export async function approveSellerActivation(userId: string) {
     await getCurrentAdmin();
 
-    await db
+    const updated = await db
         .update(users)
         .set({
             store_status: "ACTIVE",
@@ -327,19 +327,24 @@ export async function approveSellerActivation(userId: string) {
                 eq(users.id, userId),
                 eq(users.store_status, "PENDING_REVIEW")
             )
-        );
+        )
+        .returning({ id: users.id });
+
+    if (updated.length === 0) {
+        throw new Error("Pengajuan tidak ditemukan atau sudah diproses.");
+    }
 
     revalidatePath("/admin");
     revalidatePath("/admin/users");
     revalidatePath("/admin/kyc");
-    return { success: true };
+    return { success: true, message: "Pengajuan seller berhasil di-approve." };
 }
 
 export async function rejectSellerActivation(userId: string) {
     await getCurrentAdmin();
 
     // Use VACATION so the seller is not banned and can resubmit profile updates.
-    await db
+    const updated = await db
         .update(users)
         .set({
             store_status: "VACATION",
@@ -350,12 +355,17 @@ export async function rejectSellerActivation(userId: string) {
                 eq(users.id, userId),
                 eq(users.store_status, "PENDING_REVIEW")
             )
-        );
+        )
+        .returning({ id: users.id });
+
+    if (updated.length === 0) {
+        throw new Error("Pengajuan tidak ditemukan atau sudah diproses.");
+    }
 
     revalidatePath("/admin");
     revalidatePath("/admin/users");
     revalidatePath("/admin/kyc");
-    return { success: true };
+    return { success: true, message: "Pengajuan seller berhasil di-reject." };
 }
 
 export async function deleteUser(userId: string) {

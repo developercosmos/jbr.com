@@ -6,6 +6,7 @@ import { banUser, unbanUser, deleteUser, approveSellerActivation, rejectSellerAc
 import { requestEmailVerification } from "@/actions/auth-email";
 import { EditUserButton } from "./EditUserButton";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface UserData {
     id: string;
@@ -19,10 +20,12 @@ interface UserData {
 }
 
 export function UserActions({ user, isBanned, isPendingVerification, isPendingStoreReview }: { user: UserData; isBanned: boolean; isPendingVerification: boolean; isPendingStoreReview: boolean }) {
+    const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [showStoreDetail, setShowStoreDetail] = useState(false);
     const [resendSuccess, setResendSuccess] = useState(false);
+    const [reviewFeedback, setReviewFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
     const handleBan = () => {
         startTransition(async () => {
@@ -59,13 +62,33 @@ export function UserActions({ user, isBanned, isPendingVerification, isPendingSt
 
     const handleApproveSeller = () => {
         startTransition(async () => {
-            await approveSellerActivation(user.id);
+            setReviewFeedback(null);
+            try {
+                const result = await approveSellerActivation(user.id);
+                setReviewFeedback({ type: "success", message: result.message || "Approve berhasil." });
+                setTimeout(() => {
+                    setShowStoreDetail(false);
+                    router.refresh();
+                }, 700);
+            } catch (error: any) {
+                setReviewFeedback({ type: "error", message: error?.message || "Approve gagal. Silakan coba lagi." });
+            }
         });
     };
 
     const handleRejectSeller = () => {
         startTransition(async () => {
-            await rejectSellerActivation(user.id);
+            setReviewFeedback(null);
+            try {
+                const result = await rejectSellerActivation(user.id);
+                setReviewFeedback({ type: "success", message: result.message || "Reject berhasil." });
+                setTimeout(() => {
+                    setShowStoreDetail(false);
+                    router.refresh();
+                }, 700);
+            } catch (error: any) {
+                setReviewFeedback({ type: "error", message: error?.message || "Reject gagal. Silakan coba lagi." });
+            }
         });
     };
 
@@ -176,6 +199,17 @@ export function UserActions({ user, isBanned, isPendingVerification, isPendingSt
                         </div>
 
                         <div className="p-5 space-y-4">
+                            {reviewFeedback && (
+                                <div
+                                    className={`rounded-lg border px-3 py-2 text-sm ${reviewFeedback.type === "success"
+                                            ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                                            : "border-rose-300 bg-rose-50 text-rose-800"
+                                        }`}
+                                >
+                                    {reviewFeedback.message}
+                                </div>
+                            )}
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/30 p-3">
                                     <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1 flex items-center gap-1.5">
