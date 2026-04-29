@@ -4,9 +4,17 @@ import Image from "next/image";
 
 interface ProductReviewsProps {
     productId: string;
+    showProductThumbnail?: boolean;
+    productThumbnailSrc?: string | null;
+    productTitle?: string;
 }
 
-export async function ProductReviews({ productId }: ProductReviewsProps) {
+export async function ProductReviews({
+    productId,
+    showProductThumbnail = false,
+    productThumbnailSrc = null,
+    productTitle,
+}: ProductReviewsProps) {
     const [reviews, stats] = await Promise.all([
         getProductReviews(productId),
         getProductRatingStats(productId),
@@ -91,7 +99,9 @@ export async function ProductReviews({ productId }: ProductReviewsProps) {
 
             {/* Reviews List */}
             <div className="space-y-4">
-                {reviews.map((review) => (
+                {reviews.map((review) => {
+                    const buyer = Array.isArray(review.buyer) ? (review.buyer[0] ?? null) : review.buyer;
+                    return (
                     <div
                         key={review.id}
                         className="bg-white rounded-xl border border-slate-200 p-5"
@@ -99,17 +109,17 @@ export async function ProductReviews({ productId }: ProductReviewsProps) {
                         <div className="flex items-start gap-4">
                             {/* Avatar */}
                             <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden flex-shrink-0">
-                                {review.buyer?.image ? (
+                                {buyer?.image ? (
                                     <Image
-                                        src={review.buyer.image}
-                                        alt={review.buyer.name || "User"}
+                                        src={buyer.image}
+                                        alt={buyer.name || "User"}
                                         width={40}
                                         height={40}
                                         className="w-full h-full object-cover"
                                     />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-slate-500 font-bold">
-                                        {review.buyer?.name?.[0]?.toUpperCase() || "U"}
+                                        {buyer?.name?.[0]?.toUpperCase() || "U"}
                                     </div>
                                 )}
                             </div>
@@ -118,7 +128,7 @@ export async function ProductReviews({ productId }: ProductReviewsProps) {
                                 {/* Header */}
                                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
                                     <p className="font-medium text-slate-900">
-                                        {review.buyer?.name || "Anonymous"}
+                                        {buyer?.name || "Anonymous"}
                                     </p>
                                     <div className="flex items-center gap-2">
                                         <div className="flex items-center gap-0.5">
@@ -138,6 +148,32 @@ export async function ProductReviews({ productId }: ProductReviewsProps) {
                                         </span>
                                     </div>
                                 </div>
+
+                                {showProductThumbnail && (
+                                    <div className="mb-3 inline-flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                                        <div className="h-10 w-10 overflow-hidden rounded-md bg-slate-200 shrink-0">
+                                            {productThumbnailSrc ? (
+                                                <Image
+                                                    src={productThumbnailSrc}
+                                                    alt={productTitle || "Produk terkait"}
+                                                    width={40}
+                                                    height={40}
+                                                    loading="lazy"
+                                                    decoding="async"
+                                                    className="h-full w-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="flex h-full w-full items-center justify-center text-[10px] font-semibold text-slate-500">
+                                                    JBR
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Produk yang diulas</p>
+                                            <p className="truncate text-sm font-medium text-slate-800">{productTitle || "Produk ini"}</p>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Comment */}
                                 {review.comment && (
@@ -178,7 +214,7 @@ export async function ProductReviews({ productId }: ProductReviewsProps) {
                             </div>
                         </div>
                     </div>
-                ))}
+                )})}
             </div>
         </section>
     );

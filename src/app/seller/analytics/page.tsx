@@ -1,9 +1,10 @@
-import Link from "next/link";
-import { TrendingUp, ShoppingBag, DollarSign, ArrowUpRight, Calendar, Package, BarChart3 } from "lucide-react";
+import { TrendingUp, ShoppingBag, DollarSign, ArrowUpRight, Calendar, Package } from "lucide-react";
 import { getSellerStats, getRecentSellerOrders } from "@/actions/orders";
+import { getSellerNegotiationInsights } from "@/actions/offers";
 import { getSellerProfileByUserId } from "@/actions/seller";
 import { canAccessSellerCenter } from "@/lib/seller";
 import { auth } from "@/lib/auth";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import Image from "next/image";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -30,6 +31,13 @@ export default async function SellerAnalyticsPage() {
 
     const stats = await getSellerStats();
     const recentOrders = await getRecentSellerOrders(10);
+    const negotiationInsightsEnabled = await isFeatureEnabled("dif.negotiation_insights", {
+        userId: session.user.id,
+        bucketKey: session.user.id,
+    });
+    const negotiationInsights = negotiationInsightsEnabled
+        ? await getSellerNegotiationInsights()
+        : null;
 
     // Get top products from recent orders
     const productSales: Record<string, { title: string; image: string | null; count: number }> = {};
@@ -63,13 +71,6 @@ export default async function SellerAnalyticsPage() {
                         <p className="text-slate-500 dark:text-slate-400">
                             Pantau performa penjualan dan pertumbuhan toko Anda.
                         </p>
-                        <Link
-                            href="/seller/analytics/funnel"
-                            className="inline-flex items-center gap-1.5 mt-2 text-sm font-medium text-brand-primary hover:underline"
-                        >
-                            <BarChart3 className="w-4 h-4" />
-                            Lihat funnel + search terms detail →
-                        </Link>
                     </div>
                     <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2 bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-lg p-1">
@@ -206,6 +207,52 @@ export default async function SellerAnalyticsPage() {
                         </button>
                     </div>
                 </div>
+
+                {negotiationInsights && (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Jam Offer Paling Potensial</h3>
+                            <div className="space-y-2 text-sm">
+                                {negotiationInsights.acceptedByHour.length === 0 ? (
+                                    <p className="text-slate-500">Belum ada data offer accepted.</p>
+                                ) : negotiationInsights.acceptedByHour.map((row) => (
+                                    <div key={row.hour} className="flex items-center justify-between">
+                                        <span className="text-slate-600">{String(row.hour).padStart(2, "0")}:00 - {String(row.hour).padStart(2, "0")}:59</span>
+                                        <span className="font-semibold text-slate-900">{row.accepted_count}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Distribusi Diskon Diterima</h3>
+                            <div className="space-y-2 text-sm">
+                                {negotiationInsights.discountBands.length === 0 ? (
+                                    <p className="text-slate-500">Belum ada distribusi diskon.</p>
+                                ) : negotiationInsights.discountBands.map((row) => (
+                                    <div key={row.band} className="flex items-center justify-between">
+                                        <span className="text-slate-600">{row.band}</span>
+                                        <span className="font-semibold text-slate-900">{row.total}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Saran Floor Price (P25)</h3>
+                            <div className="space-y-2 text-sm">
+                                {negotiationInsights.floorSuggestions.length === 0 ? (
+                                    <p className="text-slate-500">Perlu minimal 3 accepted offer per produk.</p>
+                                ) : negotiationInsights.floorSuggestions.map((row) => (
+                                    <div key={row.id} className="space-y-0.5">
+                                        <p className="font-medium text-slate-900 line-clamp-1">{row.title}</p>
+                                        <p className="text-slate-600">Rp {Number(row.suggested_floor).toLocaleString("id-ID")} · sample {row.sample_size}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -25,8 +25,12 @@ interface ProductData {
     price: string;
     condition: "NEW" | "PRELOVED";
     condition_rating: number | null;
+    condition_checklist: string[];
     weight_grams: number | null;
     stock: number;
+    bargain_enabled: boolean;
+    floor_price: string | null;
+    tiered_floor_price: Record<string, number> | null;
     category_id: string | null;
     images: string[];
     status: "DRAFT" | "PUBLISHED" | "ARCHIVED" | "MODERATED";
@@ -37,6 +41,14 @@ interface EditProductFormProps {
     categories: Category[];
     brands: string[];
 }
+
+const CONDITION_CHECKLIST_ITEMS = [
+    "Frame tanpa retak",
+    "Tidak ada penyok mayor",
+    "Grommet masih layak",
+    "Grip bersih dan nyaman",
+    "Foto sesuai kondisi aktual",
+];
 
 export function EditProductForm({ product, categories, brands }: EditProductFormProps) {
     const router = useRouter();
@@ -52,9 +64,15 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
     const [description, setDescription] = useState(product.description ?? "");
     const [condition, setCondition] = useState<"NEW" | "PRELOVED">(product.condition);
     const [conditionRating, setConditionRating] = useState(product.condition_rating ?? 8);
+    const [conditionChecklist, setConditionChecklist] = useState<string[]>(product.condition_checklist ?? []);
     const [weight, setWeight] = useState(product.weight_grams?.toString() ?? "");
     const [price, setPrice] = useState(product.price.replace(/[^0-9]/g, ""));
     const [stock, setStock] = useState(product.stock.toString());
+    const [bargainEnabled, setBargainEnabled] = useState(product.bargain_enabled);
+    const [floorPrice, setFloorPrice] = useState(product.floor_price?.replace(/[^0-9]/g, "") ?? "");
+    const [tierFloorDefault, setTierFloorDefault] = useState(product.tiered_floor_price?.default ? String(Math.round(product.tiered_floor_price.default)) : "");
+    const [tierFloorHighTrust, setTierFloorHighTrust] = useState(product.tiered_floor_price?.high_trust ? String(Math.round(product.tiered_floor_price.high_trust)) : "");
+    const [tierFloorPlatinum, setTierFloorPlatinum] = useState(product.tiered_floor_price?.platinum_buyer ? String(Math.round(product.tiered_floor_price.platinum_buyer)) : "");
     const [images, setImages] = useState<string[]>(product.images ?? []);
     const [uploading, setUploading] = useState(false);
 
@@ -113,11 +131,25 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
         setPrice(e.target.value.replace(/\D/g, ""));
     };
 
+    const toggleConditionChecklist = (item: string) => {
+        setConditionChecklist((prev) =>
+            prev.includes(item)
+                ? prev.filter((value) => value !== item)
+                : [...prev, item]
+        );
+    };
+
     const handleSubmit = async () => {
         setError("");
         setSuccess("");
         if (!title.trim()) { setError("Nama produk wajib diisi."); return; }
         if (!price || parseInt(price) <= 0) { setError("Harga produk wajib diisi."); return; }
+        if (bargainEnabled && floorPrice) {
+            const numericFloor = parseInt(floorPrice, 10);
+            const numericPrice = parseInt(price, 10);
+            if (Number.isNaN(numericFloor) || numericFloor <= 0) { setError("Floor price harus lebih dari 0."); return; }
+            if (numericFloor >= numericPrice) { setError("Floor price harus lebih rendah dari harga jual."); return; }
+        }
         if (images.length === 0) { setError("Minimal 1 foto produk wajib diupload."); return; }
         setLoading(true);
         try {
@@ -130,10 +162,20 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
                 price: parseFloat(price),
                 condition,
                 condition_rating: condition === "PRELOVED" ? conditionRating : undefined,
+                condition_checklist: condition === "PRELOVED" ? conditionChecklist : [],
                 weight_grams: weight ? parseInt(weight) : undefined,
                 images,
                 stock: parseInt(stock) || 1,
                 category_id: categoryId || undefined,
+                bargain_enabled: bargainEnabled,
+                floor_price: bargainEnabled && floorPrice ? parseFloat(floorPrice) : undefined,
+                tiered_floor_price: bargainEnabled
+                    ? {
+                        default: tierFloorDefault ? parseFloat(tierFloorDefault) : undefined,
+                        high_trust: tierFloorHighTrust ? parseFloat(tierFloorHighTrust) : undefined,
+                        platinum_buyer: tierFloorPlatinum ? parseFloat(tierFloorPlatinum) : undefined,
+                    }
+                    : undefined,
             });
             if (!result.success) {
                 setError("Gagal menyimpan perubahan.");
@@ -318,7 +360,7 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
                     {/* Harga */}
                     <section className="bg-white dark:bg-surface-dark rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">
                         <h3 className="text-lg font-bold mb-6 text-slate-900 dark:text-white">Harga</h3>
-                        <div>
+                        <div className="space-y-5">
                             <label className="block text-sm font-medium mb-2 text-slate-500 dark:text-slate-400">Harga Jual <span className="text-red-500">*</span></label>
                             <div className="relative">
                                 <div className="absolute inset-y-0 left-0 flex items-center px-4 pointer-events-none text-slate-500 border-r border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-black/30 rounded-l-lg">
@@ -326,6 +368,70 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
                                 </div>
                                 <input className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary py-3 px-4 pl-16 text-lg font-bold" placeholder="0" type="text" value={price ? formatPrice(price) : ""} onChange={handlePriceChange} />
                             </div>
+
+                            <label className="flex items-start gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-black/20 p-3">
+                                <input
+                                    type="checkbox"
+                                    checked={bargainEnabled}
+                                    onChange={(e) => setBargainEnabled(e.target.checked)}
+                                    className="mt-0.5"
+                                />
+                                <span className="text-sm text-slate-700 dark:text-slate-200">
+                                    Aktifkan negosiasi otomatis (auto-counter) untuk tawaran di bawah floor price.
+                                </span>
+                            </label>
+
+                            {bargainEnabled && (
+                                <div className="space-y-4">
+                                    <label className="block text-sm font-medium mb-2 text-slate-500 dark:text-slate-400">Floor Price (private)</label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 flex items-center px-4 pointer-events-none text-slate-500 border-r border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-black/30 rounded-l-lg">
+                                            <span className="text-sm font-medium">Rp</span>
+                                        </div>
+                                        <input
+                                            className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary py-3 px-4 pl-16"
+                                            placeholder="Opsional"
+                                            type="text"
+                                            value={floorPrice ? formatPrice(floorPrice) : ""}
+                                            onChange={(e) => setFloorPrice(e.target.value.replace(/\D/g, ""))}
+                                        />
+                                    </div>
+                                    <p className="text-xs text-slate-400 mt-2">Nilai ini tidak terlihat buyer dan dipakai untuk auto-counter.</p>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1 text-slate-500">Default Tier</label>
+                                            <input
+                                                className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 px-3 py-2"
+                                                placeholder="Opsional"
+                                                type="text"
+                                                value={tierFloorDefault ? formatPrice(tierFloorDefault) : ""}
+                                                onChange={(e) => setTierFloorDefault(e.target.value.replace(/\D/g, ""))}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1 text-slate-500">High Trust Tier</label>
+                                            <input
+                                                className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 px-3 py-2"
+                                                placeholder="Opsional"
+                                                type="text"
+                                                value={tierFloorHighTrust ? formatPrice(tierFloorHighTrust) : ""}
+                                                onChange={(e) => setTierFloorHighTrust(e.target.value.replace(/\D/g, ""))}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1 text-slate-500">Platinum Buyer Tier</label>
+                                            <input
+                                                className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 px-3 py-2"
+                                                placeholder="Opsional"
+                                                type="text"
+                                                value={tierFloorPlatinum ? formatPrice(tierFloorPlatinum) : ""}
+                                                onChange={(e) => setTierFloorPlatinum(e.target.value.replace(/\D/g, ""))}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </section>
 
@@ -353,6 +459,28 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
                                     <span className="text-2xl font-black text-brand-primary">{conditionRating}<span className="text-sm font-normal text-slate-500">/10</span></span>
                                 </div>
                                 <input className="w-full h-2 z-20 focus:outline-none accent-brand-primary" max="10" min="1" step="1" type="range" value={conditionRating} onChange={(e) => setConditionRating(parseInt(e.target.value))} />
+
+                                <div className="mt-5 space-y-2">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Verified Condition Checklist</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {CONDITION_CHECKLIST_ITEMS.map((item) => {
+                                            const active = conditionChecklist.includes(item);
+                                            return (
+                                                <button
+                                                    key={item}
+                                                    type="button"
+                                                    onClick={() => toggleConditionChecklist(item)}
+                                                    className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${active
+                                                        ? "border-brand-primary bg-brand-primary/10 text-brand-primary"
+                                                        : "border-slate-200 text-slate-600 hover:border-slate-300"
+                                                        }`}
+                                                >
+                                                    {item}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </section>

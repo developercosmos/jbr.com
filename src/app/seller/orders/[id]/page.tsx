@@ -4,10 +4,12 @@ import { headers } from "next/headers";
 import { getSellerProfileByUserId } from "@/actions/seller";
 import { canAccessSellerCenter } from "@/lib/seller";
 import { getOrderById, updateOrderStatus } from "@/actions/orders";
+import { getSellerInteractionRatingForContext } from "@/actions/reputation";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Package, MapPin, User, Clock } from "lucide-react";
 import { revalidatePath } from "next/cache";
+import BuyerInteractionRatingCard from "./BuyerInteractionRatingCard";
 
 export const dynamic = "force-dynamic";
 
@@ -64,8 +66,14 @@ export default async function SellerOrderDetailPage({ params }: { params: Promis
     // Verify this order belongs to the current seller
     if (order.seller_id !== session.user.id) notFound();
 
+    const buyer = Array.isArray(order.buyer) ? (order.buyer[0] ?? null) : order.buyer;
+    const shippingAddress = Array.isArray(order.shipping_address) ? (order.shipping_address[0] ?? null) : order.shipping_address;
+
     const status = statusConfig[order.status] ?? statusConfig.PENDING_PAYMENT;
     const nextActions = NEXT_STATUSES[order.status] ?? [];
+    const existingBuyerInteractionRating = order.buyer_id
+        ? await getSellerInteractionRatingForContext("ORDER", order.id, order.buyer_id).catch(() => null)
+        : null;
 
     async function handleUpdateStatus(formData: FormData) {
         "use server";
@@ -163,22 +171,22 @@ export default async function SellerOrderDetailPage({ params }: { params: Promis
                                 <User className="w-4 h-4" />Informasi Pembeli
                             </h2>
                             <div className="space-y-2 text-sm">
-                                <p className="font-medium text-slate-900 dark:text-white">{order.buyer?.name ?? "Pembeli"}</p>
-                                <p className="text-slate-500">{order.buyer?.email ?? "-"}</p>
+                                <p className="font-medium text-slate-900 dark:text-white">{buyer?.name ?? "Pembeli"}</p>
+                                <p className="text-slate-500">{buyer?.email ?? "-"}</p>
                             </div>
                         </div>
 
                         {/* Shipping Address */}
-                        {order.shipping_address && (
+                        {shippingAddress && (
                             <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
                                 <h2 className="font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                                     <MapPin className="w-4 h-4" />Alamat Pengiriman
                                 </h2>
                                 <div className="space-y-1 text-sm text-slate-600 dark:text-slate-300">
-                                    <p className="font-medium text-slate-900 dark:text-white">{order.shipping_address.recipient_name}</p>
-                                    <p>{order.shipping_address.phone}</p>
-                                    <p>{order.shipping_address.full_address}</p>
-                                    {order.shipping_address.postal_code && <p>Kode Pos: {order.shipping_address.postal_code}</p>}
+                                    <p className="font-medium text-slate-900 dark:text-white">{shippingAddress.recipient_name}</p>
+                                    <p>{shippingAddress.phone}</p>
+                                    <p>{shippingAddress.full_address}</p>
+                                    {shippingAddress.postal_code && <p>Kode Pos: {shippingAddress.postal_code}</p>}
                                 </div>
                             </div>
                         )}
@@ -203,6 +211,26 @@ export default async function SellerOrderDetailPage({ params }: { params: Promis
                                 </div>
                             </div>
                         </div>
+
+                        {order.status === "COMPLETED" && order.buyer_id && (
+                            <BuyerInteractionRatingCard
+                                orderId={order.id}
+                                buyerId={order.buyer_id}
+                                buyerName={buyer?.name ?? "Pembeli"}
+                                existing={
+                                    existingBuyerInteractionRating
+                                        ? {
+                                            id: existingBuyerInteractionRating.id,
+                                            rating: existingBuyerInteractionRating.rating,
+                                            tags: existingBuyerInteractionRating.tags ?? [],
+                                            note: existingBuyerInteractionRating.note,
+                                            is_disputed: existingBuyerInteractionRating.is_disputed,
+                                            edited_until: existingBuyerInteractionRating.edited_until,
+                                        }
+                                        : null
+                                }
+                            />
+                        )}
                     </div>
                 </div>
             </div>

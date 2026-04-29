@@ -1,11 +1,17 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { isFeatureEnabled } from "@/lib/feature-flags";
+import { readOfferDraftCookie } from "@/lib/offer-draft";
+import { FeatureFlagProvider } from "@/lib/use-flag";
 import { ProductGallery } from "@/components/product/ProductGallery";
 import { ProductInfo } from "@/components/product/ProductInfo";
 import { SimilarProducts } from "@/components/product/SimilarProducts";
 import { ProductReviews } from "@/components/product/ProductReviews";
 import { getProductBySlug } from "@/actions/products";
 import { getSellerReputationSummary } from "@/actions/reputation";
+import { getMatchScore } from "@/actions/niche";
 import { PdpRecentlyViewedRecorder } from "@/components/RecentlyViewedStrip";
 
 // CACHE-01: ISR — PDP is anonymous-safe (session-aware bits are all client-side
@@ -19,14 +25,40 @@ interface ProductPageProps {
 
 export default async function ProductPage({ params }: ProductPageProps) {
     const { slug } = await params;
+    const session = await auth.api.getSession({ headers: await headers() });
     const product = await getProductBySlug(slug);
 
     if (!product) {
         notFound();
     }
 
+    const flagContext = {
+        userId: session?.user?.id,
+        bucketKey: session?.user?.id,
+    };
+    const [
+        inlineOfferEnabled,
+        sellerBadgesEnabled,
+        sellerJoinDateEnabled,
+        reviewThumbnailEnabled,
+        compareModeEnabled,
+        matchScoreEnabled,
+        offerDraft,
+    ] = await Promise.all([
+        isFeatureEnabled("pdp.inline_offer", flagContext),
+        isFeatureEnabled("pdp.seller_badges", flagContext),
+        isFeatureEnabled("pdp.seller_join_date", flagContext),
+        isFeatureEnabled("pdp.review_thumbnail", flagContext),
+        isFeatureEnabled("dif.compare_mode", flagContext),
+        isFeatureEnabled("dif.match_score", flagContext),
+        readOfferDraftCookie(product.id),
+    ]);
+
     const sellerReputation = product.seller
         ? await getSellerReputationSummary(product.seller.id)
+        : null;
+    const matchScore = session?.user?.id && matchScoreEnabled
+        ? await getMatchScore(product.id, session.user.id)
         : null;
 
     return (
@@ -58,24 +90,39 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
                 {/* Right Side: Details & Actions */}
                 <div className="lg:col-span-5">
-                    <ProductInfo
-                        product={{
-                            id: product.id,
-                            title: product.title,
-                            description: product.description,
-                            price: product.price,
-                            condition: product.condition,
-                            condition_rating: product.condition_rating,
-                            condition_notes: product.condition_notes,
-                            stock: product.stock,
-                            seller: product.seller,
-                            category: product.category,
-                            variants: product.variants,
-                            bargain_enabled: product.bargain_enabled,
-                            auto_decline_below: product.auto_decline_below,
+                    <FeatureFlagProvider
+                        flags={{
+                            "pdp.inline_offer": inlineOfferEnabled,
+                            "pdp.seller_badges": sellerBadgesEnabled,
+                            "pdp.seller_join_date": sellerJoinDateEnabled,
                         }}
-                        sellerReputation={sellerReputation}
-                    />
+                    >
+                        <ProductInfo
+                            product={{
+                                id: product.id,
+                                slug: product.slug,
+                                title: product.title,
+                                description: product.description,
+                                price: product.price,
+                                condition: product.condition,
+                                condition_rating: product.condition_rating,
+                                condition_notes: product.condition_notes,
+                                condition_checklist: product.condition_checklist,
+                                stock: product.stock,
+                                seller: product.seller,
+                                category: product.category,
+                                variants: product.variants,
+                                bargain_enabled: product.bargain_enabled,
+                                auto_decline_below: product.auto_decline_below,
+                            }}
+                            sellerReputation={sellerReputation}
+                            isAuthenticated={Boolean(session?.user)}
+                            initialOfferAmount={offerDraft?.amount ?? null}
+                            sellerJoinedAt={product.seller?.store_reviewed_at ?? product.seller?.created_at ?? null}
+                            sellerVerified={Boolean(product.seller?.email_verified && product.seller?.store_status === "ACTIVE")}
+                            matchScore={matchScore?.score ?? null}
+                        />
+                    </FeatureFlagProvider>
                 </div>
             </div>
 
@@ -89,10 +136,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
             />
 
             {/* Product Reviews */}
-            <ProductReviews productId={product.id} />
+            <ProductReviews
+                productId={product.id}
+                showProductThumbnail={reviewThumbnailEnabled}
+                productThumbnailSrc={product.images?.[0] ?? null}
+                productTitle={product.title}
+            />
 
             {/* Similar Items Section */}
-            <SimilarProducts currentProductId={product.id} />
+            <SimilarProducts currentProductId={product.id} currentProductSlug={product.slug} compareModeEnabled={compareModeEnabled} />
         </main>
     );
 }

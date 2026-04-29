@@ -140,6 +140,16 @@ type NotifyInput =
         idempotencyKey?: string;
     }
     | {
+        event: "OFFER_SLA_REMINDER";
+        recipientUserId: string;
+        offerId: string;
+        productTitle: string;
+        amount: string;
+        stage: "T24_SELLER_PENDING" | "T48_BUYER_WAITING" | "T72_EXPIRED";
+        suggestions?: Array<{ id: string; slug: string; title: string }>;
+        idempotencyKey?: string;
+    }
+    | {
         event: "WISHLIST_PRICE_DROP";
         recipientUserId: string;
         productId: string;
@@ -202,6 +212,8 @@ function getIdempotencyKey(input: NotifyInput) {
             return `${input.event}:${input.offerId}:${input.recipientUserId}`;
         case "OFFER_ACCEPTED":
             return `${input.event}:${input.offerId}:${input.recipientUserId}`;
+        case "OFFER_SLA_REMINDER":
+            return `${input.event}:${input.offerId}:${input.stage}:${input.recipientUserId}`;
         case "WISHLIST_PRICE_DROP": {
             // Throttle to once per (user, product, ISO week)
             const now = new Date();
@@ -383,6 +395,28 @@ export async function notify(input: NotifyInput) {
                 offer_id: input.offerId,
                 product_title: input.productTitle,
                 amount: input.amount,
+            };
+            break;
+        case "OFFER_SLA_REMINDER":
+            type = "SYSTEM";
+            title =
+                input.stage === "T24_SELLER_PENDING"
+                    ? "Reminder: Tawarkan Respons"
+                    : input.stage === "T48_BUYER_WAITING"
+                        ? "Seller Belum Merespons"
+                        : "Tawaran Kedaluwarsa (SLA)";
+            message =
+                input.stage === "T24_SELLER_PENDING"
+                    ? `Tawaran ${input.amount} untuk ${input.productTitle} sudah menunggu 24 jam.`
+                    : input.stage === "T48_BUYER_WAITING"
+                        ? `Tawaran Anda untuk ${input.productTitle} belum direspons seller selama 48 jam.`
+                        : `Tawaran ${input.amount} untuk ${input.productTitle} berakhir otomatis setelah 72 jam tanpa respons.`;
+            data = {
+                offer_id: input.offerId,
+                product_title: input.productTitle,
+                amount: input.amount,
+                stage: input.stage,
+                suggestions: input.suggestions ?? [],
             };
             break;
         case "WISHLIST_PRICE_DROP":

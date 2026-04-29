@@ -3,9 +3,10 @@
 import { useState, useEffect, useTransition, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Search, Edit, MoreVertical, Paperclip, Smile, Send, Check, CheckCheck, MessageSquare, User } from "lucide-react";
+import { Search, Edit, MoreVertical, Paperclip, Smile, Send, Check, CheckCheck, MessageSquare, User, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getMessages, sendMessage, getConversations } from "@/actions/chat";
+import { submitBuyerInteractionRating } from "@/actions/reputation";
 
 type Conversation = {
     id: string;
@@ -106,6 +107,9 @@ export function ChatClient({
     const [messageInput, setMessageInput] = useState("");
     const [isPending, startTransition] = useTransition();
     const [isSending, setIsSending] = useState(false);
+    const [chatRatingDraft, setChatRatingDraft] = useState<{ rating: string; note: string }>({ rating: "", note: "" });
+    const [chatRatingError, setChatRatingError] = useState<string | null>(null);
+    const [chatRatingInfo, setChatRatingInfo] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // Load messages when active conversation changes
@@ -247,6 +251,36 @@ export function ChatClient({
         }
     };
 
+    const handleSubmitChatRating = async () => {
+        setChatRatingError(null);
+        setChatRatingInfo(null);
+
+        if (!activeConversationId || !activeConversation?.otherParty?.id) {
+            setChatRatingError("Percakapan tidak valid untuk penilaian.");
+            return;
+        }
+
+        const numeric = Number(chatRatingDraft.rating);
+        if (!chatRatingDraft.rating || Number.isNaN(numeric) || numeric < 1 || numeric > 5) {
+            setChatRatingError("Rating chat harus 1-5.");
+            return;
+        }
+
+        try {
+            await submitBuyerInteractionRating({
+                contextType: "CHAT",
+                contextId: activeConversationId,
+                buyerId: activeConversation.otherParty.id,
+                rating: numeric,
+                tags: [],
+                note: chatRatingDraft.note.trim() || undefined,
+            });
+            setChatRatingInfo("Penilaian chat berhasil disimpan.");
+        } catch (error) {
+            setChatRatingError(error instanceof Error ? error.message : "Gagal menyimpan penilaian chat.");
+        }
+    };
+
     const activeConversation = conversations.find((c) => c.id === activeConversationId);
 
     return (
@@ -368,9 +402,40 @@ export function ChatClient({
                                     <h3 className="font-bold text-slate-900 text-sm">
                                         {activeConversation.otherParty.name}
                                     </h3>
+                                    {chatRatingInfo && <p className="text-[11px] text-emerald-600 mt-0.5">{chatRatingInfo}</p>}
+                                    {chatRatingError && <p className="text-[11px] text-rose-600 mt-0.5">{chatRatingError}</p>}
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 text-slate-400">
+                                <div className="hidden lg:flex items-center gap-1.5 border border-slate-200 rounded-lg px-2 py-1 bg-slate-50">
+                                    <Star className="w-3.5 h-3.5 text-amber-500" />
+                                    <select
+                                        value={chatRatingDraft.rating}
+                                        onChange={(e) => setChatRatingDraft((prev) => ({ ...prev, rating: e.target.value }))}
+                                        className="text-xs bg-transparent text-slate-700 outline-none"
+                                    >
+                                        <option value="">Rate</option>
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
+                                        <option value="5">5</option>
+                                    </select>
+                                    <input
+                                        value={chatRatingDraft.note}
+                                        onChange={(e) => setChatRatingDraft((prev) => ({ ...prev, note: e.target.value }))}
+                                        placeholder="Catatan"
+                                        className="w-28 text-xs bg-transparent text-slate-700 outline-none"
+                                        maxLength={120}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={handleSubmitChatRating}
+                                        className="text-xs px-2 py-1 rounded bg-slate-900 text-white hover:bg-slate-800"
+                                    >
+                                        Simpan
+                                    </button>
+                                </div>
                                 <button className="p-2 hover:bg-slate-50 hover:text-brand-primary rounded-full transition-colors">
                                     <Search className="w-5 h-5" />
                                 </button>

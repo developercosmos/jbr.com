@@ -20,6 +20,14 @@ interface AddProductFormProps {
     hasPickupAddress: boolean;
 }
 
+const CONDITION_CHECKLIST_ITEMS = [
+    "Frame tanpa retak",
+    "Tidak ada penyok mayor",
+    "Grommet masih layak",
+    "Grip bersih dan nyaman",
+    "Foto sesuai kondisi aktual",
+];
+
 export function AddProductForm({ categories, brands, hasPickupAddress }: AddProductFormProps) {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
@@ -34,9 +42,15 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
     const [description, setDescription] = useState("");
     const [condition, setCondition] = useState<"NEW" | "PRELOVED">("PRELOVED");
     const [conditionRating, setConditionRating] = useState(8);
+    const [conditionChecklist, setConditionChecklist] = useState<string[]>([]);
     const [weight, setWeight] = useState("");
     const [price, setPrice] = useState("");
     const [stock, setStock] = useState("1");
+    const [bargainEnabled, setBargainEnabled] = useState(false);
+    const [floorPrice, setFloorPrice] = useState("");
+    const [tierFloorDefault, setTierFloorDefault] = useState("");
+    const [tierFloorHighTrust, setTierFloorHighTrust] = useState("");
+    const [tierFloorPlatinum, setTierFloorPlatinum] = useState("");
     const [images, setImages] = useState<string[]>([]);
 
     // Dimensions
@@ -118,6 +132,14 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
         setImages((prev) => prev.filter((_, i) => i !== index));
     };
 
+    const toggleConditionChecklist = (item: string) => {
+        setConditionChecklist((prev) =>
+            prev.includes(item)
+                ? prev.filter((value) => value !== item)
+                : [...prev, item]
+        );
+    };
+
     const formatPrice = (value: string) => {
         // Remove non-digits
         const num = value.replace(/\D/g, "");
@@ -145,6 +167,19 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
             return;
         }
 
+        if (bargainEnabled && floorPrice) {
+            const numericFloor = parseInt(floorPrice, 10);
+            const numericPrice = parseInt(price, 10);
+            if (Number.isNaN(numericFloor) || numericFloor <= 0) {
+                setError("Floor price harus lebih dari 0.");
+                return;
+            }
+            if (numericFloor >= numericPrice) {
+                setError("Floor price harus lebih rendah dari harga jual.");
+                return;
+            }
+        }
+
         if (images.length === 0) {
             setError("Minimal 1 foto produk wajib diupload.");
             return;
@@ -167,10 +202,20 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                 price: parseFloat(price),
                 condition,
                 condition_rating: condition === "PRELOVED" ? conditionRating : undefined,
+                condition_checklist: condition === "PRELOVED" ? conditionChecklist : [],
                 weight_grams: weight ? parseInt(weight) : undefined,
                 images,
                 stock: parseInt(stock) || 1,
                 category_id: categoryId || undefined,
+                bargain_enabled: bargainEnabled,
+                floor_price: bargainEnabled && floorPrice ? parseFloat(floorPrice) : undefined,
+                tiered_floor_price: bargainEnabled
+                    ? {
+                        default: tierFloorDefault ? parseFloat(tierFloorDefault) : undefined,
+                        high_trust: tierFloorHighTrust ? parseFloat(tierFloorHighTrust) : undefined,
+                        platinum_buyer: tierFloorPlatinum ? parseFloat(tierFloorPlatinum) : undefined,
+                    }
+                    : undefined,
             });
 
             // If not draft, publish immediately
@@ -451,7 +496,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                         <h3 className="text-lg font-bold mb-6 text-slate-900 dark:text-white">
                             Harga
                         </h3>
-                        <div>
+                        <div className="space-y-5">
                             <label className="block text-sm font-medium mb-2 text-slate-500 dark:text-slate-400">
                                 Harga Jual <span className="text-red-500">*</span>
                             </label>
@@ -470,6 +515,74 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                             <p className="text-xs text-slate-400 mt-2">
                                 Tips: Riset harga pasar untuk menentukan harga kompetitif
                             </p>
+
+                            <label className="flex items-start gap-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-black/20 p-3">
+                                <input
+                                    type="checkbox"
+                                    checked={bargainEnabled}
+                                    onChange={(e) => setBargainEnabled(e.target.checked)}
+                                    className="mt-0.5"
+                                />
+                                <span className="text-sm text-slate-700 dark:text-slate-200">
+                                    Aktifkan negosiasi otomatis (auto-counter) untuk tawaran di bawah floor price.
+                                </span>
+                            </label>
+
+                            {bargainEnabled && (
+                                <div className="space-y-4">
+                                    <label className="block text-sm font-medium mb-2 text-slate-500 dark:text-slate-400">
+                                        Floor Price (private)
+                                    </label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 flex items-center px-4 pointer-events-none text-slate-500 border-r border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-black/30 rounded-l-lg">
+                                            <span className="text-sm font-medium">Rp</span>
+                                        </div>
+                                        <input
+                                            className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary py-3 px-4 pl-16"
+                                            placeholder="Opsional"
+                                            type="text"
+                                            value={floorPrice ? formatPrice(floorPrice) : ""}
+                                            onChange={(e) => setFloorPrice(e.target.value.replace(/\D/g, ""))}
+                                        />
+                                    </div>
+                                    <p className="text-xs text-slate-400 mt-2">
+                                        Nilai ini tidak ditampilkan ke buyer. Jika offer di bawah nilai ini, sistem bisa kirim auto-counter.
+                                    </p>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1 text-slate-500">Default Tier</label>
+                                            <input
+                                                className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 px-3 py-2"
+                                                placeholder="Opsional"
+                                                type="text"
+                                                value={tierFloorDefault ? formatPrice(tierFloorDefault) : ""}
+                                                onChange={(e) => setTierFloorDefault(e.target.value.replace(/\D/g, ""))}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1 text-slate-500">High Trust Tier</label>
+                                            <input
+                                                className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 px-3 py-2"
+                                                placeholder="Opsional"
+                                                type="text"
+                                                value={tierFloorHighTrust ? formatPrice(tierFloorHighTrust) : ""}
+                                                onChange={(e) => setTierFloorHighTrust(e.target.value.replace(/\D/g, ""))}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium mb-1 text-slate-500">Platinum Buyer Tier</label>
+                                            <input
+                                                className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 px-3 py-2"
+                                                placeholder="Opsional"
+                                                type="text"
+                                                value={tierFloorPlatinum ? formatPrice(tierFloorPlatinum) : ""}
+                                                onChange={(e) => setTierFloorPlatinum(e.target.value.replace(/\D/g, ""))}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </section>
 
@@ -550,6 +663,28 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                                         kosmetik tetapi fungsi utama masih sempurna. Pastikan foto
                                         menunjukkan cacat tersebut.
                                     </p>
+                                </div>
+
+                                <div className="mt-5 space-y-2">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Verified Condition Checklist</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {CONDITION_CHECKLIST_ITEMS.map((item) => {
+                                            const active = conditionChecklist.includes(item);
+                                            return (
+                                                <button
+                                                    key={item}
+                                                    type="button"
+                                                    onClick={() => toggleConditionChecklist(item)}
+                                                    className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${active
+                                                        ? "border-brand-primary bg-brand-primary/10 text-brand-primary"
+                                                        : "border-slate-200 text-slate-600 hover:border-slate-300"
+                                                        }`}
+                                                >
+                                                    {item}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             </div>
                         )}

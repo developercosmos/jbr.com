@@ -245,6 +245,63 @@ export default async function AdminAnalyticsPage() {
                         )}
                     </div>
                 </div>
+
+                <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white">PDP Conversion Signals</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                Ringkasan 30 hari terakhir untuk event PDP baru hasil Sprint S1-S2.
+                            </p>
+                        </div>
+                        <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                            PDP Funnel
+                        </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/40 p-4">
+                            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Offer CTA View</p>
+                            <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                                {stats.pdpSignals.offerCtaViews.toLocaleString("id-ID")}
+                            </p>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/40 p-4">
+                            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">CTA Click</p>
+                            <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                                {stats.pdpSignals.offerCtaClicks.toLocaleString("id-ID")}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                {stats.pdpSignals.offerCtaViews > 0
+                                    ? `${Math.round((stats.pdpSignals.offerCtaClicks / stats.pdpSignals.offerCtaViews) * 100)}% dari view`
+                                    : "Belum ada data"}
+                            </p>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/40 p-4">
+                            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Offer Success</p>
+                            <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                                {stats.pdpSignals.offerSubmitSuccess.toLocaleString("id-ID")}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                {stats.pdpSignals.offerCtaClicks > 0
+                                    ? `${Math.round((stats.pdpSignals.offerSubmitSuccess / stats.pdpSignals.offerCtaClicks) * 100)}% dari click`
+                                    : "Belum ada data"}
+                            </p>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/40 p-4">
+                            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Seller Card Click</p>
+                            <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                                {stats.pdpSignals.sellerCardClicks.toLocaleString("id-ID")}
+                            </p>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/40 p-4">
+                            <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Chat from PDP</p>
+                            <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">
+                                {stats.pdpSignals.chatInitiatedFromPdp.toLocaleString("id-ID")}
+                            </p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );

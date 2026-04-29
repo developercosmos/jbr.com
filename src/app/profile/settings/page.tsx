@@ -52,16 +52,15 @@ export default async function ProfileSettingsPage() {
         }
     };
 
+    if (!user) {
+        redirect("/auth/login");
+    }
+
     const resolvedPhone =
         safeDecryptPhone(user.phone) ||
         defaultShippingAddress?.phone ||
         latestAddress?.phone ||
         "";
-
-
-    if (!user) {
-        redirect("/auth/login");
-    }
 
     return (
         <div className="flex-1">

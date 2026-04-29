@@ -1,8 +1,10 @@
 import {
+    AnyPgColumn,
     pgTable,
     text,
     timestamp,
     integer,
+    smallint,
     decimal,
     boolean,
     pgEnum,
@@ -11,7 +13,7 @@ import {
     uniqueIndex,
     index,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 // ============================================
 // ENUMS
@@ -89,7 +91,7 @@ export const users = pgTable(
         store_status: storeStatusEnum("store_status").default("ACTIVE"),
         store_review_notes: text("store_review_notes"),
         store_reviewed_at: timestamp("store_reviewed_at"),
-        store_reviewer_id: text("store_reviewer_id").references(() => users.id, { onDelete: "set null" }),
+        store_reviewer_id: text("store_reviewer_id").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
         buyer_score: decimal("buyer_score", { precision: 3, scale: 2 }).default("0").notNull(),
         buyer_score_count: integer("buyer_score_count").default(0).notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
@@ -113,6 +115,9 @@ export const seller_ratings = pgTable("seller_ratings", {
     completion_rate: decimal("completion_rate", { precision: 5, scale: 2 }).default("0").notNull(),
     response_time_minutes_avg: integer("response_time_minutes_avg").default(0).notNull(),
     cancellation_rate: decimal("cancellation_rate", { precision: 5, scale: 2 }).default("0").notNull(),
+    dispute_rate: decimal("dispute_rate", { precision: 5, scale: 2 }).default("0").notNull(),
+    reliability_score: decimal("reliability_score", { precision: 5, scale: 2 }).default("0").notNull(),
+    reliability_tier: text("reliability_tier").default("BRONZE").notNull(),
     last_recomputed_at: timestamp("last_recomputed_at").defaultNow().notNull(),
 });
 
@@ -167,6 +172,131 @@ export const buyerRatingsRelations = relations(buyer_ratings, ({ one }) => ({
         fields: [buyer_ratings.ratee_id],
         references: [users.id],
         relationName: "buyer_ratings_ratee",
+    }),
+}));
+
+// ============================================
+// PDP-08/09: BUYER INTERACTION TRUST LAYER
+// ============================================
+export const interactionContextEnum = pgEnum("interaction_context", ["ORDER", "OFFER", "CHAT"]);
+export const buyerBehaviorTagEnum = pgEnum("buyer_behavior_tag", [
+    "EXTREME_LOWBALL",
+    "NO_FOLLOW_UP",
+    "GHOSTING",
+    "RUDE_COMMUNICATION",
+    "TIMELY_AND_COMMUNICATIVE",
+    "FAIR_NEGOTIATOR",
+]);
+export const buyerReputationBandEnum = pgEnum("buyer_reputation_band", ["LOW", "MEDIUM", "HIGH"]);
+
+export const buyer_interaction_ratings = pgTable(
+    "buyer_interaction_ratings",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        seller_id: text("seller_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        buyer_id: text("buyer_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        context_type: interactionContextEnum("context_type").notNull(),
+        context_id: uuid("context_id").notNull(),
+        rating: smallint("rating").notNull(),
+        tags: buyerBehaviorTagEnum("tags").array().default([]).notNull(),
+        note: text("note"),
+        is_disputed: boolean("is_disputed").default(false).notNull(),
+        is_invalidated: boolean("is_invalidated").default(false).notNull(),
+        edited_until: timestamp("edited_until").defaultNow().notNull(),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+        updated_at: timestamp("updated_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        unique_interaction_idx: uniqueIndex("idx_bir_unique_interaction").on(
+            table.seller_id,
+            table.buyer_id,
+            table.context_type,
+            table.context_id
+        ),
+        buyer_idx: index("idx_bir_buyer").on(table.buyer_id),
+        seller_idx: index("idx_bir_seller").on(table.seller_id),
+        context_idx: index("idx_bir_context").on(table.context_type, table.context_id),
+    })
+);
+
+export const buyer_reputation_summary = pgTable(
+    "buyer_reputation_summary",
+    {
+        buyer_id: text("buyer_id")
+            .primaryKey()
+            .references(() => users.id, { onDelete: "cascade" }),
+        score: decimal("score", { precision: 5, scale: 2 }).default("0").notNull(),
+        band: buyerReputationBandEnum("band").default("MEDIUM").notNull(),
+        sample_size: integer("sample_size").default(0).notNull(),
+        avg_rating: decimal("avg_rating", { precision: 3, scale: 2 }).default("0").notNull(),
+        completed_orders: integer("completed_orders").default(0).notNull(),
+        lowball_count: integer("lowball_count").default(0).notNull(),
+        no_follow_up_count: integer("no_follow_up_count").default(0).notNull(),
+        ghosting_count: integer("ghosting_count").default(0).notNull(),
+        fair_negotiator_count: integer("fair_negotiator_count").default(0).notNull(),
+        computed_at: timestamp("computed_at").defaultNow().notNull(),
+        updated_at: timestamp("updated_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        band_idx: index("idx_buyer_rep_band").on(table.band),
+        computed_idx: index("idx_buyer_rep_computed").on(table.computed_at),
+    })
+);
+
+export const buyer_reputation_access_log = pgTable(
+    "buyer_reputation_access_log",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        buyer_id: text("buyer_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        viewer_id: text("viewer_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        visibility: text("visibility").notNull(),
+        reason: text("reason"),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        buyer_created_idx: index("idx_bra_buyer_created").on(table.buyer_id, table.created_at),
+        viewer_created_idx: index("idx_bra_viewer_created").on(table.viewer_id, table.created_at),
+    })
+);
+
+export const buyerInteractionRatingsRelations = relations(buyer_interaction_ratings, ({ one }) => ({
+    seller: one(users, {
+        fields: [buyer_interaction_ratings.seller_id],
+        references: [users.id],
+        relationName: "buyer_interaction_seller",
+    }),
+    buyer: one(users, {
+        fields: [buyer_interaction_ratings.buyer_id],
+        references: [users.id],
+        relationName: "buyer_interaction_buyer",
+    }),
+}));
+
+export const buyerReputationSummaryRelations = relations(buyer_reputation_summary, ({ one }) => ({
+    buyer: one(users, {
+        fields: [buyer_reputation_summary.buyer_id],
+        references: [users.id],
+    }),
+}));
+
+export const buyerReputationAccessLogRelations = relations(buyer_reputation_access_log, ({ one }) => ({
+    buyer: one(users, {
+        fields: [buyer_reputation_access_log.buyer_id],
+        references: [users.id],
+        relationName: "buyer_reputation_access_buyer",
+    }),
+    viewer: one(users, {
+        fields: [buyer_reputation_access_log.viewer_id],
+        references: [users.id],
+        relationName: "buyer_reputation_access_viewer",
     }),
 }));
 
@@ -252,6 +382,7 @@ export const products = pgTable(
         condition: productConditionEnum("condition").default("PRELOVED").notNull(),
         condition_rating: integer("condition_rating"),
         condition_notes: text("condition_notes"),
+        condition_checklist: jsonb("condition_checklist").$type<string[]>().default([]),
         weight_grams: integer("weight_grams"),
         stock: integer("stock").default(1).notNull(),
         views: integer("views").default(0),
@@ -261,6 +392,8 @@ export const products = pgTable(
         min_acceptable_price: decimal("min_acceptable_price", { precision: 12, scale: 2 }),
         max_offer_rounds: integer("max_offer_rounds").default(3).notNull(),
         auto_decline_below: decimal("auto_decline_below", { precision: 12, scale: 2 }),
+        floor_price: decimal("floor_price", { precision: 12, scale: 2 }),
+        tiered_floor_price: jsonb("tiered_floor_price").$type<Record<string, number> | null>(),
         weight_class: text("weight_class"),
         balance: text("balance"),
         shaft_flex: text("shaft_flex"),
@@ -707,6 +840,8 @@ export const offers = pgTable(
         status: offerStatusEnum("status").default("PENDING").notNull(),
         round: integer("round").default(1).notNull(),
         parent_offer_id: uuid("parent_offer_id"),
+        root_offer_id: uuid("root_offer_id").notNull(),
+        is_auto_counter: boolean("is_auto_counter").default(false).notNull(),
         actor_role: text("actor_role").notNull(),
         expires_at: timestamp("expires_at").notNull(),
         decided_at: timestamp("decided_at"),
@@ -722,6 +857,10 @@ export const offers = pgTable(
         buyer_status_idx: index("idx_offers_buyer_status").on(table.buyer_id, table.status),
         seller_status_idx: index("idx_offers_seller_status").on(table.seller_id, table.status),
         status_expires_idx: index("idx_offers_status_expires").on(table.status, table.expires_at),
+        root_idx: index("idx_offers_root_offer").on(table.root_offer_id),
+        auto_counter_once_per_thread: uniqueIndex("idx_offers_auto_counter_per_thread")
+            .on(table.root_offer_id)
+            .where(sql`${table.is_auto_counter} = true`),
     })
 );
 
@@ -1198,6 +1337,12 @@ export const disputeStatusEnum = pgEnum("dispute_status", [
     "CLOSED",
 ]);
 
+export const disputeSubjectEnum = pgEnum("dispute_subject", [
+    "ORDER",
+    "BUYER_RATING",
+    "OTHER",
+]);
+
 export const disputes = pgTable(
     "disputes",
     {
@@ -1211,6 +1356,8 @@ export const disputes = pgTable(
             .references(() => users.id),
         dispute_number: text("dispute_number").notNull().unique(),
         type: disputeTypeEnum("type").notNull(),
+        dispute_subject: disputeSubjectEnum("dispute_subject").default("ORDER").notNull(),
+        target_rating_id: uuid("target_rating_id").references(() => buyer_interaction_ratings.id, { onDelete: "set null" }),
         priority: disputePriorityEnum("priority").default("NORMAL").notNull(),
         status: disputeStatusEnum("status").default("OPEN").notNull(),
         title: text("title").notNull(),
@@ -1228,6 +1375,7 @@ export const disputes = pgTable(
     },
     (table) => ({
         order_id_idx: index("idx_disputes_order_id").on(table.order_id),
+        target_rating_idx: index("idx_disputes_target_rating_id").on(table.target_rating_id),
         reporter_id_idx: index("idx_disputes_reporter_id").on(table.reporter_id),
         status_idx: index("idx_disputes_status").on(table.status),
         response_due_at_idx: index("idx_disputes_response_due_at").on(table.response_due_at),
@@ -1400,6 +1548,70 @@ export const integration_settings = pgTable(
         category_idx: index("idx_integration_settings_category").on(table.category),
     })
 );
+
+// ============================================
+// FEATURE FLAGS (FLAG-01..12)
+// ============================================
+export const feature_flags = pgTable(
+    "feature_flags",
+    {
+        key: text("key").primaryKey(),
+        description: text("description").notNull(),
+        enabled: boolean("enabled").default(false).notNull(),
+        rollout_pct: smallint("rollout_pct").default(0).notNull(),
+        audience: jsonb("audience").$type<{
+            roles?: string[];
+            userIds?: string[];
+            cohorts?: string[];
+        }>().default({}).notNull(),
+        variants: jsonb("variants").$type<Record<string, number> | null>(),
+        parent_key: text("parent_key"),
+        scheduled_enable_at: timestamp("scheduled_enable_at"),
+        scheduled_disable_at: timestamp("scheduled_disable_at"),
+        category: text("category").default("general").notNull(),
+        owner: text("owner"),
+        updated_by: text("updated_by").references(() => users.id, { onDelete: "set null" }),
+        last_toggled_at: timestamp("last_toggled_at"),
+        notes: text("notes"),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+        updated_at: timestamp("updated_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        category_idx: index("idx_feature_flags_category").on(table.category),
+        enabled_idx: index("idx_feature_flags_enabled").on(table.enabled),
+        parent_idx: index("idx_feature_flags_parent").on(table.parent_key),
+    })
+);
+
+export const feature_flag_audit_log = pgTable(
+    "feature_flag_audit_log",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        flag_key: text("flag_key").notNull(),
+        changed_by: text("changed_by")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        before_state: jsonb("before_state").$type<Record<string, unknown>>().notNull(),
+        after_state: jsonb("after_state").$type<Record<string, unknown>>().notNull(),
+        reason: text("reason"),
+        ip_address: text("ip_address"),
+        user_agent: text("user_agent"),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        key_time_idx: index("idx_flag_audit_key_time").on(table.flag_key, table.created_at),
+        changed_by_idx: index("idx_flag_audit_changed_by").on(table.changed_by),
+    })
+);
+
+export const feature_flag_kill_switch = pgTable("feature_flag_kill_switch", {
+    id: smallint("id").primaryKey().default(1),
+    active: boolean("active").default(false).notNull(),
+    scope: text("scope").default("all-new").notNull(),
+    activated_by: text("activated_by").references(() => users.id, { onDelete: "set null" }),
+    activated_at: timestamp("activated_at"),
+    reason: text("reason"),
+});
 
 // ============================================
 // FILES TABLE (Asset Management)

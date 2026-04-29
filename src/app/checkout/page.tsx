@@ -7,6 +7,15 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { CheckoutPageClient } from "@/components/checkout/CheckoutPageClient";
 import { getCheckoutShippingQuote } from "@/actions/shipping";
+import { db } from "@/db";
+import { seller_ratings } from "@/db/schema";
+import { eq } from "drizzle-orm";
+
+function getBuyerProtectionRate(reliabilityScore: number): number {
+    if (reliabilityScore >= 90) return 0;
+    if (reliabilityScore >= 70) return 0.5;
+    return 1;
+}
 
 export default async function CheckoutPage() {
     // Check if user is logged in
@@ -67,7 +76,23 @@ export default async function CheckoutPage() {
         return sum + parseFloat(item.variant?.price ?? item.product.price) * item.quantity;
     }, 0);
     const shippingCost = initialShippingQuote?.totalCost ?? 0;
-    const serviceFee = 0;
+    const subtotalBySeller = cartItems.reduce<Record<string, number>>((acc, item) => {
+        const sellerId = item.product.seller.id;
+        const lineTotal = parseFloat(item.variant?.price ?? item.product.price) * item.quantity;
+        acc[sellerId] = (acc[sellerId] ?? 0) + lineTotal;
+        return acc;
+    }, {});
+
+    let serviceFee = 0;
+    for (const [sellerId, sellerSubtotal] of Object.entries(subtotalBySeller)) {
+        const rating = await db.query.seller_ratings.findFirst({
+            where: eq(seller_ratings.user_id, sellerId),
+            columns: { reliability_score: true },
+        });
+        const reliabilityScore = rating ? Number(rating.reliability_score) : 0;
+        const rate = getBuyerProtectionRate(reliabilityScore);
+        serviceFee += Math.round(sellerSubtotal * (rate / 100));
+    }
 
     return (
         <CheckoutPageClient
@@ -78,6 +103,7 @@ export default async function CheckoutPage() {
             shippingCost={shippingCost}
             serviceFee={serviceFee}
             initialShippingQuote={initialShippingQuote}
+            trustInsuranceEnabled={serviceFee > 0}
         />
     );
 }

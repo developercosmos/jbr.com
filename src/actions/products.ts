@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { categories, products } from "@/db/schema";
 import { ensureCurrentUserCanSell } from "@/actions/seller";
 import { auth } from "@/lib/auth";
+import { logger } from "@/lib/logger";
 import { headers } from "next/headers";
 import { eq, desc, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -42,10 +43,20 @@ const createProductSchema = z.object({
     condition: z.enum(["NEW", "PRELOVED"]),
     condition_rating: z.number().min(1).max(10).optional(),
     condition_notes: z.string().optional(),
+    condition_checklist: z.array(z.string().max(80)).max(12).optional(),
     weight_grams: z.number().positive().optional(),
     stock: z.number().int().positive().default(1),
     category_id: z.string().uuid().optional(),
     images: z.array(productImageSchema).default([]),
+    bargain_enabled: z.boolean().optional().default(false),
+    floor_price: z.number().positive().optional(),
+    tiered_floor_price: z
+        .object({
+            default: z.number().positive().optional(),
+            high_trust: z.number().positive().optional(),
+            platinum_buyer: z.number().positive().optional(),
+        })
+        .optional(),
 });
 
 const updateProductSchema = createProductSchema.partial().extend({
@@ -60,6 +71,30 @@ function generateSlug(title: string): string {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/(^-|-$)/g, "")
         + "-" + Date.now().toString(36);
+}
+
+function normalizeChecklist(input?: string[]): string[] {
+    return Array.from(new Set((input ?? []).map((item) => item.trim()).filter(Boolean)));
+}
+
+function validatePrelovedChecklist(input: { condition: "NEW" | "PRELOVED"; checklist?: string[] }): {
+    checklist: string[];
+    requiresModeration: boolean;
+} {
+    if (input.condition !== "PRELOVED") {
+        return { checklist: [], requiresModeration: false };
+    }
+
+    const checklist = normalizeChecklist(input.checklist);
+    if (checklist.length < 3) {
+        throw new Error("Produk pre-loved wajib mengisi minimal 3 item condition checklist.");
+    }
+
+    const hasRiskMarker = checklist.some((item) => /retak|struktural|patah/i.test(item));
+    return {
+        checklist,
+        requiresModeration: hasRiskMarker,
+    };
 }
 
 // Get current user
@@ -115,17 +150,33 @@ export async function createProduct(input: z.infer<typeof createProductSchema>) 
         const user = await getCurrentUser();
         await ensureCurrentUserCanSell();
         const validated = createProductSchema.parse(input);
+        const checklistPolicy = validatePrelovedChecklist({
+            condition: validated.condition,
+            checklist: validated.condition_checklist,
+        });
+        const nextStatus = checklistPolicy.requiresModeration ? "MODERATED" : "DRAFT";
 
         const [product] = await db
             .insert(products)
             .values({
                 ...validated,
+                condition_checklist: checklistPolicy.checklist,
                 seller_id: user.id,
                 slug: generateSlug(validated.title),
                 price: validated.price.toString(),
-                status: "DRAFT",
+                floor_price: validated.floor_price?.toString(),
+                tiered_floor_price: validated.tiered_floor_price,
+                status: nextStatus,
             })
             .returning();
+
+        if (validated.tiered_floor_price && Object.keys(validated.tiered_floor_price).length > 0) {
+            logger.info("product:tier_floor_configured", {
+                actorId: user.id,
+                productId: product.id,
+                tiers: Object.keys(validated.tiered_floor_price),
+            });
+        }
 
         revalidatePath("/seller/products");
         return { success: true as const, product };
@@ -140,7 +191,6 @@ export async function updateProduct(input: z.infer<typeof updateProductSchema>) 
     const validated = updateProductSchema.parse(input);
 
     const { id, ...updateData } = validated;
-
     // Verify ownership
     const existing = await db.query.products.findFirst({
         where: and(eq(products.id, id), eq(products.seller_id, user.id)),
@@ -150,15 +200,35 @@ export async function updateProduct(input: z.infer<typeof updateProductSchema>) 
         throw new Error("Product not found or unauthorized");
     }
 
+    const finalCondition = (updateData.condition ?? existing.condition) as "NEW" | "PRELOVED";
+    const checklistPolicy = validatePrelovedChecklist({
+        condition: finalCondition,
+        checklist: updateData.condition_checklist ?? (existing.condition_checklist ?? []),
+    });
+
     const [product] = await db
         .update(products)
         .set({
             ...updateData,
+            condition_checklist: finalCondition === "NEW" ? [] : checklistPolicy.checklist,
             price: updateData.price?.toString(),
+            floor_price: updateData.floor_price?.toString(),
+            tiered_floor_price: updateData.tiered_floor_price,
+            status: checklistPolicy.requiresModeration && updateData.status === "PUBLISHED"
+                ? "MODERATED"
+                : updateData.status,
             updated_at: new Date(),
         })
         .where(eq(products.id, id))
         .returning();
+
+    if (updateData.tiered_floor_price && Object.keys(updateData.tiered_floor_price).length > 0) {
+        logger.info("product:tier_floor_updated", {
+            actorId: user.id,
+            productId: product.id,
+            tiers: Object.keys(updateData.tiered_floor_price),
+        });
+    }
 
     revalidatePath("/seller/products");
     revalidatePath(`/product/${product.slug}`);
@@ -248,6 +318,10 @@ export async function getProductBySlug(slug: string) {
                     store_slug: true,
                     store_description: true,
                     image: true,
+                    email_verified: true,
+                    store_status: true,
+                    store_reviewed_at: true,
+                    created_at: true,
                 },
             },
             category: true,

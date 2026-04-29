@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { runEscrowAutoRelease } from "@/actions/escrow";
 import { runDisputeSlaSweep } from "@/actions/disputes";
 import { recomputeAllSellerRatingsForActiveSellers } from "@/actions/reputation";
-import { runOfferExpirySweep } from "@/actions/offers";
+import { runOfferExpirySweep, runOfferSlaFollowupSweep } from "@/actions/offers";
 import { clearAttributionsForCompletedOrders } from "@/actions/affiliate";
 import { runWishlistPriceDropSweep } from "@/actions/wishlist-alerts";
 import { runCartAbandonmentSweep } from "@/actions/cart-abandonment";
@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
             dispute,
             reputation,
             offers,
+            offerSla,
             affiliate,
             wishlistAlerts,
             abandonment,
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest) {
             runDisputeSlaSweep(),
             recomputeAllSellerRatingsForActiveSellers(),
             runOfferExpirySweep(),
+            runOfferSlaFollowupSweep(),
             clearAttributionsForCompletedOrders(),
             runWishlistPriceDropSweep(),
             runCartAbandonmentSweep(),
@@ -65,6 +67,7 @@ export async function POST(request: NextRequest) {
             dispute,
             reputation,
             offers,
+            offerSla,
             affiliate,
             wishlistAlerts,
             abandonment,

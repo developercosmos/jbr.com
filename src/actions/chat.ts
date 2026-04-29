@@ -89,7 +89,7 @@ export async function getConversations() {
                 name: otherParty?.store_name || otherParty?.name || "Pengguna",
                 image: otherParty?.image || null,
             },
-            product: conv.product,
+            product: firstRelation(conv.product),
             lastMessage: lastMessage
                 ? {
                     content: lastMessage.content,
@@ -183,7 +183,7 @@ export async function getMessages(conversationId: string) {
                 name: otherParty?.store_name || otherParty?.name || "Pengguna",
                 image: otherParty?.image || null,
             },
-            product: conversation.product,
+            product: firstRelation(conversation.product),
         },
         messages: conversationMessages.map((msg) => {
             const sender = firstRelation(msg.sender);

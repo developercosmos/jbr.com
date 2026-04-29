@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ShieldCheck, Package, Users, BarChart3, LifeBuoy, Gavel, ShoppingBag, FolderOpen, Settings, FileImage, BadgeCheck, Coins, Ticket, Megaphone, Calculator } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, Package, Users, BarChart3, LifeBuoy, Gavel, ShoppingBag, FolderOpen, Settings, FileImage, BadgeCheck, Coins, Ticket, Megaphone, Calculator, SlidersHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AdminSidebarProps {
@@ -85,6 +85,11 @@ const toolItems = [
         icon: BarChart3,
     },
     {
+        label: "Feature Flags",
+        href: "/admin/feature-flags",
+        icon: SlidersHorizontal,
+    },
+    {
         label: "Support",
         href: "/admin/support",
         icon: LifeBuoy,
@@ -136,16 +141,24 @@ export function AdminSidebar({ pendingModerationCount = 0 }: AdminSidebarProps) 
                     <p className="px-3 text-xs font-bold uppercase tracking-widest text-slate-400 mb-2 font-heading">
                         Tools
                     </p>
-                    {toolItems.map((item) => (
+                    {toolItems.map((item) => {
+                        const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                        return (
                         <Link
                             key={item.href}
                             href={item.href}
-                            className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-500 hover:bg-slate-50 hover:text-brand-primary transition-all"
+                            className={cn(
+                                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                                isActive
+                                    ? "bg-slate-50 text-brand-primary shadow-sm ring-1 ring-slate-200"
+                                    : "text-slate-500 hover:bg-slate-50 hover:text-brand-primary"
+                            )}
                         >
-                            <item.icon className="w-5 h-5" />
+                            <item.icon className={cn("w-5 h-5", isActive && "fill-current")} />
                             {item.label}
                         </Link>
-                    ))}
+                        );
+                    })}
                 </div>
 
 

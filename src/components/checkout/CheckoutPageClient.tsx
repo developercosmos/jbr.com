@@ -69,6 +69,7 @@ interface CheckoutPageClientProps {
     shippingCost: number;
     serviceFee: number;
     initialShippingQuote: CheckoutShippingQuote | null;
+    trustInsuranceEnabled?: boolean;
 }
 
 function formatPrice(price: number) {
@@ -87,6 +88,7 @@ export function CheckoutPageClient({
     shippingCost,
     serviceFee,
     initialShippingQuote,
+    trustInsuranceEnabled,
 }: CheckoutPageClientProps) {
     const defaultAddress = useMemo(
         () => addresses.find((addr) => addr.is_default_shipping) ?? addresses[0] ?? null,
@@ -439,9 +441,14 @@ export function CheckoutPageClient({
                                 <span className="text-slate-900 font-medium">{formatPrice(resolvedShippingCost)}</span>
                             </div>
                             <div className="flex justify-between text-sm">
-                                <span className="text-slate-500">Biaya Layanan</span>
+                                <span className="text-slate-500">Biaya Bayar Aman+</span>
                                 <span className="text-slate-900 font-medium">{formatPrice(serviceFee)}</span>
                             </div>
+                            {trustInsuranceEnabled && (
+                                <p className="text-[11px] text-slate-500">
+                                    Besaran Bayar Aman+ ditentukan otomatis dari reliability seller (1%, 0.5%, atau 0%).
+                                </p>
+                            )}
                         </div>
                         <div className="flex justify-between items-end">
                             <span className="text-slate-900 font-bold text-lg">Total Tagihan</span>
@@ -468,6 +475,14 @@ export function CheckoutPageClient({
                                 jaminan transparansi kondisi barang.
                             </p>
                         </div>
+                        {trustInsuranceEnabled && (
+                            <div className="flex items-start gap-2 text-xs text-emerald-700 bg-emerald-50 p-3 rounded-lg border border-emerald-200">
+                                <Verified className="w-4 h-4 mt-0.5" />
+                                <p>
+                                    Bayar Aman+ aktif: perlindungan pembeli otomatis terintegrasi dengan proses sengketa.
+                                </p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

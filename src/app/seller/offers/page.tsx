@@ -18,6 +18,8 @@ export default async function SellerOffersPage() {
     }
 
     const offers = await listSellerOffers();
+    const firstRelation = <T,>(value: T | T[] | null | undefined): T | null =>
+        Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
 
     const serialized = offers.map((o) => ({
         id: o.id,
@@ -28,8 +30,9 @@ export default async function SellerOffersPage() {
         expiresAt: o.expires_at.toISOString(),
         createdAt: o.created_at.toISOString(),
         notes: o.notes,
-        listing: o.listing,
-        buyerName: o.buyer?.name ?? null,
+        listing: firstRelation(o.listing),
+        buyerId: firstRelation(o.buyer)?.id ?? null,
+        buyerName: firstRelation(o.buyer)?.name ?? null,
     }));
 
     return (

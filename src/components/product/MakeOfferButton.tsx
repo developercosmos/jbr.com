@@ -41,6 +41,11 @@ export default function MakeOfferButton({ listingId, listingPrice, autoDeclineBe
                     amount: numericAmount,
                     notes: notes.trim() || undefined,
                 });
+                if (!result.success && result.error === "rate_limited") {
+                    const retryMinutes = Math.max(1, Math.ceil((result.retryAfterSec ?? 0) / 60));
+                    setError(`Terlalu sering menawar. Coba lagi dalam ${retryMinutes} menit.`);
+                    return;
+                }
                 if (result.autoDeclined) {
                     setError("Penawaran otomatis ditolak karena di bawah ambang batas penjual.");
                 } else {

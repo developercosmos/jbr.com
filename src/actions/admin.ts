@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { users, products, orders, order_items, product_variants, notifications } from "@/db/schema";
+import { users, products, orders, order_items, product_variants, notifications, product_events } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { eq, desc, count, sql, and, gte, ilike, or, exists, inArray } from "drizzle-orm";
@@ -684,12 +684,49 @@ export async function getAnalyticsStats() {
         .where(eq(products.status, "PUBLISHED"))
         .groupBy(categories.name);
 
+    const pdpEventRows = await db
+        .select({
+            eventType: product_events.event_type,
+            total: count(),
+        })
+        .from(product_events)
+        .where(
+            and(
+                gte(product_events.occurred_at, thirtyDaysAgo),
+                inArray(product_events.event_type, [
+                    "OFFER_CTA_VIEW",
+                    "OFFER_CTA_CLICK",
+                    "OFFER_SUBMIT_SUCCESS",
+                    "SELLER_CARD_CLICK",
+                    "CHAT_INITIATED_FROM_PDP",
+                ])
+            )
+        )
+        .groupBy(product_events.event_type);
+
+    const pdpSignals = {
+        offerCtaViews: 0,
+        offerCtaClicks: 0,
+        offerSubmitSuccess: 0,
+        sellerCardClicks: 0,
+        chatInitiatedFromPdp: 0,
+    };
+
+    for (const row of pdpEventRows) {
+        if (row.eventType === "OFFER_CTA_VIEW") pdpSignals.offerCtaViews = row.total;
+        if (row.eventType === "OFFER_CTA_CLICK") pdpSignals.offerCtaClicks = row.total;
+        if (row.eventType === "OFFER_SUBMIT_SUCCESS") pdpSignals.offerSubmitSuccess = row.total;
+        if (row.eventType === "SELLER_CARD_CLICK") pdpSignals.sellerCardClicks = row.total;
+        if (row.eventType === "CHAT_INITIATED_FROM_PDP") pdpSignals.chatInitiatedFromPdp = row.total;
+    }
+
     return {
         gmv: gmvResult?.total || "0",
         completedOrders: completedOrdersResult?.count || 0,
         pendingOrders: pendingOrdersResult?.count || 0,
         activeUsers: activeUsersResult?.count || 0,
         categoryDistribution: categoryStats,
+        pdpSignals,
     };
 }
 

@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { orders, order_items, carts, products, product_variants, reviews, addresses, users } from "@/db/schema";
+import { orders, order_items, carts, products, product_variants, reviews, addresses, users, seller_ratings } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { eq, desc, and, sql } from "drizzle-orm";
@@ -21,6 +21,22 @@ import { getCheckoutShippingQuoteForUser as _getQuote } from "@/actions/shipping
 void _getQuote;
 void offersTable;
 void productVariantsTable;
+
+function getBuyerProtectionRate(reliabilityScore: number): number {
+    if (reliabilityScore >= 90) return 0;
+    if (reliabilityScore >= 70) return 0.5;
+    return 1;
+}
+
+async function resolveSellerBuyerProtectionAmount(sellerId: string, subtotal: number): Promise<number> {
+    const rating = await db.query.seller_ratings.findFirst({
+        where: eq(seller_ratings.user_id, sellerId),
+        columns: { reliability_score: true },
+    });
+    const reliabilityScore = rating ? Number(rating.reliability_score) : 0;
+    const rate = getBuyerProtectionRate(reliabilityScore);
+    return Math.round(subtotal * (rate / 100));
+}
 
 // Get current user
 async function getCurrentUser() {
@@ -141,7 +157,8 @@ export async function createOrderFromCart(input: z.infer<typeof createOrderSchem
             throw new Error("Gagal menentukan ongkir untuk seller");
         }
 
-        const orderTotal = subtotal + sellerShippingQuote.cost;
+        const buyerProtectionAmount = await resolveSellerBuyerProtectionAmount(sellerId, subtotal);
+        const orderTotal = subtotal + sellerShippingQuote.cost + buyerProtectionAmount;
 
         // Enforce per-seller monthly GMV cap based on KYC tier (TRUST-01).
         await ensureSellerWithinMonthlyGmvCap(sellerId, orderTotal);
@@ -171,7 +188,9 @@ export async function createOrderFromCart(input: z.infer<typeof createOrderSchem
                 shipping_provider: sellerShippingQuote.shippingProvider,
                 shipping_quote_at: new Date(),
                 total: orderTotal.toString(),
-                notes: validated.notes,
+                notes: [validated.notes, buyerProtectionAmount > 0 ? `Bayar Aman+ ${buyerProtectionAmount}` : null]
+                    .filter(Boolean)
+                    .join(" | "),
             })
             .returning();
 

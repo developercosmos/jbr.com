@@ -20,6 +20,8 @@ const SHAFT_FLEXES = ["STIFF", "MEDIUM", "FLEXIBLE"] as const;
 const GRIP_SIZES = ["G2", "G3", "G4", "G5", "G6"] as const;
 const PLAYER_LEVELS = ["BEGINNER", "INTERMEDIATE", "ADVANCED", "PRO"] as const;
 const PLAY_STYLES = ["OFFENSIVE", "DEFENSIVE", "ALL_AROUND", "DOUBLES_FRONT", "DOUBLES_BACK"] as const;
+const MATCH_SCORE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const matchScoreCache = new Map<string, { score: number; expiresAt: number }>();
 
 const specSearchSchema = z.object({
     weight_class: z.array(z.enum(WEIGHT_CLASSES)).optional(),
@@ -191,6 +193,46 @@ export async function getRecommendedRackets(userId?: string, limit = 8) {
         recommendations: recs,
         explanation: preferences.explanation,
     };
+}
+
+export async function getMatchScore(productId: string, userId?: string): Promise<{ score: number; reason: string }> {
+    const actorId = userId ?? (await getCurrentUser()).id;
+    const cacheKey = `${actorId}:${productId}`;
+    const cached = matchScoreCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+        return { score: cached.score, reason: "cached" };
+    }
+
+    const [profile, product] = await Promise.all([
+        getPlayerProfile(actorId),
+        db.query.products.findFirst({
+            where: and(eq(products.id, productId), eq(products.status, "PUBLISHED")),
+            columns: { weight_class: true, balance: true, shaft_flex: true, price: true },
+        }),
+    ]);
+
+    if (!product) return { score: 0, reason: "product-not-found" };
+
+    const prefs = derivePreferences(profile);
+    let score = 50;
+
+    if (prefs.weightClasses.length > 0 && product.weight_class && prefs.weightClasses.includes(product.weight_class)) {
+        score += 18;
+    }
+    if (prefs.balances.length > 0 && product.balance && prefs.balances.includes(product.balance)) {
+        score += 18;
+    }
+    if (prefs.shaftFlexes.length > 0 && product.shaft_flex && prefs.shaftFlexes.includes(product.shaft_flex)) {
+        score += 14;
+    }
+
+    const finalScore = Math.max(0, Math.min(100, Math.round(score)));
+    matchScoreCache.set(cacheKey, {
+        score: finalScore,
+        expiresAt: Date.now() + MATCH_SCORE_CACHE_TTL_MS,
+    });
+
+    return { score: finalScore, reason: prefs.explanation };
 }
 
 interface DerivedPrefs {

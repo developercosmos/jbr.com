@@ -1,12 +1,15 @@
 "use server";
 
 import { db } from "@/db";
-import { offers, products, product_variants, users } from "@/db/schema";
+import { buyer_reputation_summary, offers, products, product_variants, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import { isFeatureEnabled } from "@/lib/feature-flags";
+import { clearOfferDraftCookie, setOfferDraftCookie } from "@/lib/offer-draft";
+import { computeAutoCounterAmount, shouldTriggerAutoCounter } from "@/lib/offer-auto-counter";
 import { headers } from "next/headers";
-import { and, desc, eq, isNotNull, lte, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, lte, ne, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { randomBytes } from "crypto";
+import { randomBytes, randomUUID } from "crypto";
 import { z } from "zod";
 import { notify } from "@/lib/notify";
 import { formatCurrency } from "@/lib/format";
@@ -38,9 +41,207 @@ const createOfferSchema = z.object({
     notes: z.string().max(500).optional(),
 });
 
+const prepareOfferLoginSchema = z.object({
+    listingId: z.string().uuid(),
+    amount: z.number().positive(),
+    returnPath: z.string().min(1).max(500),
+});
+
+const offerWinProbabilitySchema = z.object({
+    listingId: z.string().uuid(),
+    amount: z.number().positive(),
+});
+
+type TieredFloorPrice = {
+    default?: number;
+    high_trust?: number;
+    platinum_buyer?: number;
+};
+
+function parseTieredFloorPrice(input: unknown): TieredFloorPrice | null {
+    if (!input || typeof input !== "object") return null;
+    const raw = input as Record<string, unknown>;
+    const parsed: TieredFloorPrice = {};
+    if (typeof raw.default === "number" && raw.default > 0) parsed.default = raw.default;
+    if (typeof raw.high_trust === "number" && raw.high_trust > 0) parsed.high_trust = raw.high_trust;
+    if (typeof raw.platinum_buyer === "number" && raw.platinum_buyer > 0) parsed.platinum_buyer = raw.platinum_buyer;
+    return Object.keys(parsed).length > 0 ? parsed : null;
+}
+
+async function resolveEffectiveFloorPrice(input: {
+    buyerId: string;
+    listingFloorPrice: string | null;
+    tieredFloorPrice: unknown;
+}): Promise<number | null> {
+    const baseFloor = input.listingFloorPrice !== null ? Number(input.listingFloorPrice) : null;
+    const tierFloorEnabled = await isFeatureEnabled("dif.tier_floor_price", {
+        userId: input.buyerId,
+        bucketKey: input.buyerId,
+    });
+
+    if (!tierFloorEnabled) return baseFloor;
+
+    const tiered = parseTieredFloorPrice(input.tieredFloorPrice);
+    if (!tiered) return baseFloor;
+
+    const [buyerSummary, buyerProfile] = await Promise.all([
+        db.query.buyer_reputation_summary.findFirst({
+            where: eq(buyer_reputation_summary.buyer_id, input.buyerId),
+            columns: { band: true },
+        }),
+        db.query.users.findFirst({
+            where: eq(users.id, input.buyerId),
+            columns: { buyer_score: true, buyer_score_count: true },
+        }),
+    ]);
+
+    const score = buyerProfile ? Number(buyerProfile.buyer_score) : 0;
+    const count = buyerProfile?.buyer_score_count ?? 0;
+    if (score >= 4.8 && count >= 20 && tiered.platinum_buyer) {
+        return tiered.platinum_buyer;
+    }
+    if (buyerSummary?.band === "HIGH" && tiered.high_trust) {
+        return tiered.high_trust;
+    }
+    if (tiered.default) {
+        return tiered.default;
+    }
+    return baseFloor;
+}
+
+async function assertOfferAllowed(buyerId: string, listingId: string) {
+    const rateLimitEnabled = await isFeatureEnabled("pdp.offer_rate_limit", {
+        userId: buyerId,
+        bucketKey: buyerId,
+    });
+
+    if (!rateLimitEnabled) {
+        return { allowed: true as const, retryAfterSec: 0 };
+    }
+
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const recentOffers = await db.query.offers.findMany({
+        where: and(
+            eq(offers.buyer_id, buyerId),
+            eq(offers.listing_id, listingId),
+            gte(offers.created_at, windowStart)
+        ),
+        orderBy: [desc(offers.created_at)],
+        columns: {
+            status: true,
+            created_at: true,
+            decided_at: true,
+        },
+        limit: 10,
+    });
+
+    if (recentOffers.length >= 3) {
+        const oldest = recentOffers[recentOffers.length - 1];
+        const retryAt = new Date(oldest.created_at.getTime() + 24 * 60 * 60 * 1000);
+        const retryAfterSec = Math.max(1, Math.ceil((retryAt.getTime() - now.getTime()) / 1000));
+        if (retryAfterSec > 0) {
+            return { allowed: false as const, retryAfterSec };
+        }
+    }
+
+    let consecutiveRejects = 0;
+    let latestRejectedAt: Date | null = null;
+    for (const offer of recentOffers) {
+        if (offer.status !== "REJECTED") break;
+        consecutiveRejects += 1;
+        latestRejectedAt = latestRejectedAt ?? offer.decided_at ?? offer.created_at;
+    }
+
+    if (latestRejectedAt && consecutiveRejects > 0) {
+        const cooldownHours = Math.min(2 ** consecutiveRejects, 8);
+        const retryAt = new Date(latestRejectedAt.getTime() + cooldownHours * 60 * 60 * 1000);
+        const retryAfterSec = Math.max(0, Math.ceil((retryAt.getTime() - now.getTime()) / 1000));
+        if (retryAfterSec > 0) {
+            return { allowed: false as const, retryAfterSec };
+        }
+    }
+
+    return { allowed: true as const, retryAfterSec: 0 };
+}
+
+export async function prepareOfferLoginDraft(input: z.infer<typeof prepareOfferLoginSchema>) {
+    const validated = prepareOfferLoginSchema.parse(input);
+    await setOfferDraftCookie({
+        productId: validated.listingId,
+        amount: String(Math.round(validated.amount)),
+        returnPath: validated.returnPath,
+    });
+
+    return {
+        success: true as const,
+        loginUrl: `/auth/login?callbackUrl=${encodeURIComponent(validated.returnPath)}`,
+    };
+}
+
+export async function getOfferWinProbability(input: z.infer<typeof offerWinProbabilitySchema>) {
+    const validated = offerWinProbabilitySchema.parse(input);
+    const listing = await db.query.products.findFirst({
+        where: eq(products.id, validated.listingId),
+        columns: { id: true, category_id: true, price: true },
+    });
+    if (!listing || !listing.category_id) {
+        return { probabilityPct: null, sampleSize: 0, bucket: "unknown" as const };
+    }
+
+    const targetDiscountPct = (1 - validated.amount / Number(listing.price)) * 100;
+    const bucket = targetDiscountPct < 10 ? "lt10" : targetDiscountPct < 20 ? "10_20" : targetDiscountPct < 35 ? "20_35" : "gte35";
+
+    const rows = await db
+        .select({
+            amount: offers.amount,
+            price: products.price,
+            status: offers.status,
+        })
+        .from(offers)
+        .innerJoin(products, eq(offers.listing_id, products.id))
+        .where(
+            and(
+                eq(products.category_id, listing.category_id),
+                sql`${offers.status} IN ('ACCEPTED', 'REJECTED')`
+            )
+        )
+        .orderBy(desc(offers.created_at))
+        .limit(400);
+
+    const filtered = rows.filter((row) => {
+        const discount = (1 - Number(row.amount) / Number(row.price)) * 100;
+        if (bucket === "lt10") return discount < 10;
+        if (bucket === "10_20") return discount >= 10 && discount < 20;
+        if (bucket === "20_35") return discount >= 20 && discount < 35;
+        return discount >= 35;
+    });
+
+    const sample = filtered.length > 0 ? filtered : rows;
+    if (sample.length === 0) {
+        return { probabilityPct: null, sampleSize: 0, bucket };
+    }
+
+    const accepted = sample.filter((row) => row.status === "ACCEPTED").length;
+    return {
+        probabilityPct: Math.round((accepted / sample.length) * 100),
+        sampleSize: sample.length,
+        bucket,
+    };
+}
+
 export async function createOffer(input: z.infer<typeof createOfferSchema>) {
     const user = await getCurrentUser();
     const validated = createOfferSchema.parse(input);
+
+    const allowance = await assertOfferAllowed(user.id, validated.listingId);
+    if (!allowance.allowed) {
+        return {
+            success: false as const,
+            error: "rate_limited" as const,
+            retryAfterSec: allowance.retryAfterSec,
+        };
+    }
 
     const product = await db.query.products.findFirst({
         where: eq(products.id, validated.listingId),
@@ -53,6 +254,8 @@ export async function createOffer(input: z.infer<typeof createOfferSchema>) {
             min_acceptable_price: true,
             max_offer_rounds: true,
             auto_decline_below: true,
+            floor_price: true,
+            tiered_floor_price: true,
             status: true,
         },
     });
@@ -79,6 +282,7 @@ export async function createOffer(input: z.infer<typeof createOfferSchema>) {
     }
 
     const expiresAt = addHours(new Date(), OFFER_TTL_HOURS);
+    const offerId = randomUUID();
     let initialStatus: "PENDING" | "REJECTED" = "PENDING";
 
     // Auto-decline if below threshold so offer never sits in seller queue.
@@ -86,9 +290,28 @@ export async function createOffer(input: z.infer<typeof createOfferSchema>) {
         initialStatus = "REJECTED";
     }
 
+    const effectiveFloorPrice = await resolveEffectiveFloorPrice({
+        buyerId: user.id,
+        listingFloorPrice: product.floor_price,
+        tieredFloorPrice: product.tiered_floor_price,
+    });
+
+    const autoCounterEnabled = await isFeatureEnabled("dif.auto_counter", {
+        userId: user.id,
+        bucketKey: user.id,
+    });
+    const shouldAutoCounter =
+        initialStatus === "PENDING" &&
+        autoCounterEnabled &&
+        shouldTriggerAutoCounter({
+            offerAmount: validated.amount,
+            floorPrice: effectiveFloorPrice,
+        });
+
     const [offer] = await db
         .insert(offers)
         .values({
+            id: offerId,
             listing_id: validated.listingId,
             variant_id: validated.variantId ?? null,
             buyer_id: user.id,
@@ -96,6 +319,8 @@ export async function createOffer(input: z.infer<typeof createOfferSchema>) {
             amount: String(validated.amount),
             status: initialStatus,
             round: 1,
+            root_offer_id: offerId,
+            is_auto_counter: false,
             actor_role: "buyer",
             expires_at: expiresAt,
             decided_at: initialStatus === "REJECTED" ? new Date() : null,
@@ -104,7 +329,62 @@ export async function createOffer(input: z.infer<typeof createOfferSchema>) {
         })
         .returning();
 
-    if (initialStatus === "PENDING") {
+    let autoCounterOfferId: string | null = null;
+    let autoCounterAmount: number | null = null;
+
+    if (shouldAutoCounter) {
+        const floorPrice = Number(effectiveFloorPrice);
+        const suggested = computeAutoCounterAmount({
+            offerAmount: validated.amount,
+            floorPrice,
+        });
+
+        await db
+            .update(offers)
+            .set({
+                status: "COUNTERED",
+                decided_at: new Date(),
+                notes: validated.notes ?? "Ditandai untuk auto-counter.",
+            })
+            .where(and(eq(offers.id, offer.id), eq(offers.status, "PENDING")));
+
+        const [counter] = await db
+            .insert(offers)
+            .values({
+                id: randomUUID(),
+                listing_id: validated.listingId,
+                variant_id: validated.variantId ?? null,
+                buyer_id: user.id,
+                seller_id: product.seller_id,
+                amount: String(suggested),
+                status: "PENDING",
+                round: 2,
+                parent_offer_id: offer.id,
+                root_offer_id: offer.id,
+                is_auto_counter: true,
+                actor_role: "seller",
+                expires_at: expiresAt,
+                notes: "JBR auto-counter berdasarkan floor price seller.",
+            })
+            .onConflictDoNothing()
+            .returning({ id: offers.id });
+
+        if (counter) {
+            autoCounterOfferId = counter.id;
+            autoCounterAmount = suggested;
+            await notify({
+                event: "OFFER_RECEIVED",
+                recipientUserId: offer.buyer_id,
+                offerId: counter.id,
+                productTitle: product.title,
+                amount: formatCurrency(suggested),
+                actorName: "JBR Auto Counter",
+                round: 2,
+            });
+        }
+    }
+
+    if (initialStatus === "PENDING" && !autoCounterOfferId) {
         await notify({
             event: "OFFER_RECEIVED",
             recipientUserId: product.seller_id,
@@ -119,8 +399,17 @@ export async function createOffer(input: z.infer<typeof createOfferSchema>) {
     revalidatePath(`/product/${validated.listingId}`);
     revalidatePath("/seller/offers");
     revalidatePath("/profile/offers");
+    await clearOfferDraftCookie();
 
-    return { success: true, offerId: offer.id, status: initialStatus, autoDeclined: initialStatus === "REJECTED" };
+    return {
+        success: true,
+        offerId: offer.id,
+        status: initialStatus,
+        autoDeclined: initialStatus === "REJECTED",
+        autoCounterTriggered: Boolean(autoCounterOfferId),
+        autoCounterOfferId,
+        autoCounterAmount,
+    };
 }
 
 const counterOfferSchema = z.object({
@@ -181,6 +470,7 @@ export async function counterOffer(input: z.infer<typeof counterOfferSchema>) {
     const [child] = await db
         .insert(offers)
         .values({
+            id: randomUUID(),
             listing_id: parent.listing_id,
             variant_id: parent.variant_id,
             buyer_id: parent.buyer_id,
@@ -189,6 +479,8 @@ export async function counterOffer(input: z.infer<typeof counterOfferSchema>) {
             status: "PENDING",
             round: nextRound,
             parent_offer_id: parent.id,
+            root_offer_id: parent.root_offer_id,
+            is_auto_counter: false,
             actor_role: actorRole,
             expires_at: expiresAt,
             notes: validated.notes,
@@ -358,6 +650,13 @@ export interface OfferExpirySweepResult {
     expiredIds: string[];
 }
 
+export interface OfferSlaFollowupSweepResult {
+    inspected: number;
+    reminded: number;
+    remindedIds: string[];
+    expiredBySla: number;
+}
+
 export async function runOfferExpirySweep(): Promise<OfferExpirySweepResult> {
     const now = new Date();
 
@@ -380,6 +679,107 @@ export async function runOfferExpirySweep(): Promise<OfferExpirySweepResult> {
         inspected: overdue.length,
         expired: expiredIds.length,
         expiredIds,
+    };
+}
+
+export async function runOfferSlaFollowupSweep(): Promise<OfferSlaFollowupSweepResult> {
+    const now = new Date();
+    const cutoff24 = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    const candidates = await db.query.offers.findMany({
+        where: and(
+            eq(offers.status, "PENDING"),
+            lte(offers.created_at, cutoff24),
+            gte(offers.expires_at, now)
+        ),
+        with: {
+            listing: {
+                columns: {
+                    id: true,
+                    title: true,
+                    category_id: true,
+                    price: true,
+                },
+            },
+        },
+        limit: 200,
+        orderBy: [desc(offers.created_at)],
+    });
+
+    const remindedIds: string[] = [];
+    let expiredBySla = 0;
+    for (const offer of candidates) {
+        const listing = Array.isArray(offer.listing) ? offer.listing[0] : offer.listing;
+        const ageHours = Math.floor((now.getTime() - offer.created_at.getTime()) / (60 * 60 * 1000));
+
+        if (offer.actor_role === "buyer" && ageHours >= 72) {
+            await db
+                .update(offers)
+                .set({ status: "EXPIRED", decided_at: now })
+                .where(and(eq(offers.id, offer.id), eq(offers.status, "PENDING")));
+
+            let suggestions: Array<{ id: string; slug: string; title: string }> = [];
+            if (listing?.category_id) {
+                const rows = await db.query.products.findMany({
+                    where: and(
+                        eq(products.category_id, listing.category_id),
+                        eq(products.status, "PUBLISHED"),
+                        ne(products.id, listing.id)
+                    ),
+                    columns: { id: true, slug: true, title: true },
+                    limit: 3,
+                    orderBy: [desc(products.views)],
+                });
+                suggestions = rows;
+            }
+
+            await notify({
+                event: "OFFER_SLA_REMINDER",
+                recipientUserId: offer.buyer_id,
+                offerId: offer.id,
+                productTitle: listing?.title ?? "Produk",
+                amount: formatCurrency(Number(offer.amount)),
+                stage: "T72_EXPIRED",
+                suggestions,
+                idempotencyKey: `OFFER_SLA_REMINDER:T72:${offer.id}`,
+            });
+            expiredBySla += 1;
+            continue;
+        }
+
+        if (offer.actor_role === "buyer" && ageHours >= 48) {
+            await notify({
+                event: "OFFER_SLA_REMINDER",
+                recipientUserId: offer.buyer_id,
+                offerId: offer.id,
+                productTitle: listing?.title ?? "Produk",
+                amount: formatCurrency(Number(offer.amount)),
+                stage: "T48_BUYER_WAITING",
+                idempotencyKey: `OFFER_SLA_REMINDER:T48:${offer.id}`,
+            });
+            remindedIds.push(offer.id);
+            continue;
+        }
+
+        if (offer.actor_role === "buyer" && ageHours >= 24) {
+            await notify({
+                event: "OFFER_SLA_REMINDER",
+                recipientUserId: offer.seller_id,
+                offerId: offer.id,
+                productTitle: listing?.title ?? "Produk",
+                amount: formatCurrency(Number(offer.amount)),
+                stage: "T24_SELLER_PENDING",
+                idempotencyKey: `OFFER_SLA_REMINDER:T24:${offer.id}`,
+            });
+            remindedIds.push(offer.id);
+        }
+    }
+
+    return {
+        inspected: candidates.length,
+        reminded: remindedIds.length,
+        remindedIds,
+        expiredBySla,
     };
 }
 
@@ -451,6 +851,61 @@ export async function consumeCheckoutToken(offerId: string, orderId: string) {
         })
         .where(eq(offers.id, offerId));
     return { success: true };
+}
+
+export async function getSellerNegotiationInsights() {
+    const user = await getCurrentUser();
+
+    const acceptedByHour = await db.execute(sql`
+        SELECT
+            EXTRACT(HOUR FROM o.created_at)::int AS hour,
+            COUNT(*)::int AS accepted_count
+        FROM offers o
+        WHERE o.seller_id = ${user.id}
+          AND o.status = 'ACCEPTED'
+        GROUP BY 1
+        ORDER BY 2 DESC
+        LIMIT 6
+    `);
+
+    const discountBands = await db.execute(sql`
+        SELECT
+            CASE
+                WHEN ((p.price::numeric - o.amount::numeric) / NULLIF(p.price::numeric, 0)) * 100 < 10 THEN '<10%'
+                WHEN ((p.price::numeric - o.amount::numeric) / NULLIF(p.price::numeric, 0)) * 100 < 20 THEN '10-20%'
+                WHEN ((p.price::numeric - o.amount::numeric) / NULLIF(p.price::numeric, 0)) * 100 < 35 THEN '20-35%'
+                ELSE '>=35%'
+            END AS band,
+            COUNT(*)::int AS total
+        FROM offers o
+        INNER JOIN products p ON p.id = o.listing_id
+        WHERE o.seller_id = ${user.id}
+          AND o.status = 'ACCEPTED'
+        GROUP BY 1
+        ORDER BY 2 DESC
+    `);
+
+    const floorSuggestions = await db.execute(sql`
+        SELECT
+            p.id,
+            p.title,
+            percentile_disc(0.25) WITHIN GROUP (ORDER BY o.amount::numeric)::numeric(12,2) AS suggested_floor,
+            COUNT(*)::int AS sample_size
+        FROM offers o
+        INNER JOIN products p ON p.id = o.listing_id
+        WHERE o.seller_id = ${user.id}
+          AND o.status = 'ACCEPTED'
+        GROUP BY p.id, p.title
+        HAVING COUNT(*) >= 3
+        ORDER BY sample_size DESC
+        LIMIT 8
+    `);
+
+    return {
+        acceptedByHour: acceptedByHour as unknown as Array<{ hour: number; accepted_count: number }> ,
+        discountBands: discountBands as unknown as Array<{ band: string; total: number }>,
+        floorSuggestions: floorSuggestions as unknown as Array<{ id: string; title: string; suggested_floor: string; sample_size: number }>,
+    };
 }
 
 // Suppress unused-import warnings reserved for follow-up surfaces.

@@ -15,6 +15,16 @@ const EVENT_TYPES = [
     "WISHLIST_ADD",
     "CHECKOUT_START",
     "PURCHASE",
+    "OFFER_CTA_VIEW",
+    "OFFER_CTA_CLICK",
+    "OFFER_INPUT_FOCUS",
+    "OFFER_SUBMIT",
+    "OFFER_SUBMIT_SUCCESS",
+    "OFFER_SUBMIT_REJECTED_RULE",
+    "OFFER_RATE_LIMITED",
+    "SELLER_BADGE_VIEW",
+    "SELLER_CARD_CLICK",
+    "CHAT_INITIATED_FROM_PDP",
 ] as const;
 
 const recordSchema = z.object({

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2, Check, X, RotateCw } from "lucide-react";
 import { acceptOffer, counterOffer, rejectOffer } from "@/actions/offers";
+import { submitBuyerInteractionRating } from "@/actions/reputation";
 
 type Status = "PENDING" | "ACCEPTED" | "REJECTED" | "COUNTERED" | "EXPIRED" | "WITHDRAWN";
 
@@ -18,6 +19,7 @@ interface SerializedOffer {
     createdAt: string;
     notes: string | null;
     listing: { id: string; title: string; slug: string; price: string } | null;
+    buyerId: string | null;
     buyerName: string | null;
 }
 
@@ -42,6 +44,7 @@ export default function OffersInboxClient({ offers }: Props) {
     const router = useRouter();
     const [activeId, setActiveId] = useState<string | null>(null);
     const [counterDraft, setCounterDraft] = useState<Record<string, string>>({});
+    const [ratingDraft, setRatingDraft] = useState<Record<string, { rating: string; note: string }>>({});
     const [error, setError] = useState<string | null>(null);
     const [info, setInfo] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
@@ -99,6 +102,42 @@ export default function OffersInboxClient({ offers }: Props) {
                 router.refresh();
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Gagal mengirim counter.");
+            } finally {
+                setActiveId(null);
+            }
+        });
+    }
+
+    function handleOfferBuyerRating(offerId: string, buyerId: string | null) {
+        setError(null);
+        setInfo(null);
+        if (!buyerId) {
+            setError("Buyer tidak valid untuk offer ini.");
+            return;
+        }
+
+        const draft = ratingDraft[offerId] ?? { rating: "", note: "" };
+        const numeric = Number(draft.rating);
+        if (!draft.rating || Number.isNaN(numeric) || numeric < 1 || numeric > 5) {
+            setError("Rating buyer untuk konteks offer harus 1-5.");
+            return;
+        }
+
+        setActiveId(offerId);
+        withTransition(async () => {
+            try {
+                await submitBuyerInteractionRating({
+                    contextType: "OFFER",
+                    contextId: offerId,
+                    buyerId,
+                    rating: numeric,
+                    tags: [],
+                    note: draft.note.trim() || undefined,
+                });
+                setInfo("Penilaian calon buyer dari offer berhasil disimpan.");
+                router.refresh();
+            } catch (err) {
+                setError(err instanceof Error ? err.message : "Gagal menyimpan rating calon buyer.");
             } finally {
                 setActiveId(null);
             }
@@ -214,6 +253,60 @@ export default function OffersInboxClient({ offers }: Props) {
                         {isLatestSellerMove && (
                             <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500">
                                 Menunggu respon buyer.
+                            </div>
+                        )}
+
+                        {offer.status !== "PENDING" && offer.buyerId && (
+                            <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
+                                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                    Penilaian Calon Buyer (konteks offer)
+                                </p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <select
+                                        value={ratingDraft[offer.id]?.rating ?? ""}
+                                        onChange={(e) =>
+                                            setRatingDraft((prev) => ({
+                                                ...prev,
+                                                [offer.id]: {
+                                                    rating: e.target.value,
+                                                    note: prev[offer.id]?.note ?? "",
+                                                },
+                                            }))
+                                        }
+                                        className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-xs"
+                                    >
+                                        <option value="">Rating 1-5</option>
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
+                                        <option value="5">5</option>
+                                    </select>
+                                    <input
+                                        type="text"
+                                        placeholder="Catatan singkat (opsional)"
+                                        value={ratingDraft[offer.id]?.note ?? ""}
+                                        onChange={(e) =>
+                                            setRatingDraft((prev) => ({
+                                                ...prev,
+                                                [offer.id]: {
+                                                    rating: prev[offer.id]?.rating ?? "",
+                                                    note: e.target.value,
+                                                },
+                                            }))
+                                        }
+                                        className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-xs min-w-[220px]"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => handleOfferBuyerRating(offer.id, offer.buyerId)}
+                                        disabled={isPending && activeId === offer.id}
+                                        className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-800"
+                                    >
+                                        {isPending && activeId === offer.id ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                                        Simpan Rating
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>
