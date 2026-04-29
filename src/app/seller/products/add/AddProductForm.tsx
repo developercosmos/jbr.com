@@ -87,8 +87,17 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                 });
 
                 if (!response.ok) {
-                    const errData = await response.json();
-                    throw new Error(errData.error || "Upload gagal");
+                    if (response.status === 429) {
+                        throw new Error("Terlalu banyak request. Tunggu sebentar lalu coba lagi.");
+                    }
+                    let errMessage = "Upload gagal";
+                    try {
+                        const errData = await response.json();
+                        errMessage = errData.error || errMessage;
+                    } catch {
+                        // response body is not JSON (e.g., nginx error page)
+                    }
+                    throw new Error(errMessage);
                 }
 
                 const data = await response.json();
@@ -165,6 +174,11 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
             });
 
             // If not draft, publish immediately
+            if (!result.success) {
+                setError(result.error || "Gagal menyimpan produk. Silakan coba lagi.");
+                return;
+            }
+
             if (!asDraft && result.product?.id) {
                 await publishProduct(result.product.id);
                 setSuccess("Produk berhasil dipublikasikan!");
@@ -305,6 +319,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                                             className="object-cover"
                                             src={url}
                                             fill
+                                            sizes="96px"
                                         />
                                     </div>
                                 ))}

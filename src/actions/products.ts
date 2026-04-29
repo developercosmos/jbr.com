@@ -111,23 +111,28 @@ async function syncProductToIndex(productId: string, op: "upsert" | "delete") {
 }
 
 export async function createProduct(input: z.infer<typeof createProductSchema>) {
-    const user = await getCurrentUser();
-    await ensureCurrentUserCanSell();
-    const validated = createProductSchema.parse(input);
+    try {
+        const user = await getCurrentUser();
+        await ensureCurrentUserCanSell();
+        const validated = createProductSchema.parse(input);
 
-    const [product] = await db
-        .insert(products)
-        .values({
-            ...validated,
-            seller_id: user.id,
-            slug: generateSlug(validated.title),
-            price: validated.price.toString(),
-            status: "DRAFT",
-        })
-        .returning();
+        const [product] = await db
+            .insert(products)
+            .values({
+                ...validated,
+                seller_id: user.id,
+                slug: generateSlug(validated.title),
+                price: validated.price.toString(),
+                status: "DRAFT",
+            })
+            .returning();
 
-    revalidatePath("/seller/products");
-    return { success: true, product };
+        revalidatePath("/seller/products");
+        return { success: true as const, product };
+    } catch (err) {
+        const message = err instanceof Error ? err.message : "Gagal menyimpan produk";
+        return { success: false as const, error: message };
+    }
 }
 
 export async function updateProduct(input: z.infer<typeof updateProductSchema>) {
