@@ -60,6 +60,16 @@ export function SettingsForm({ user }: { user: UserData }) {
             return;
         }
 
+        if (formData.newPassword && !formData.currentPassword) {
+            setMessage({ type: "error", text: "Masukkan password saat ini untuk mengganti password" });
+            return;
+        }
+
+        if (!formData.newPassword && formData.currentPassword) {
+            setMessage({ type: "error", text: "Isi password baru jika ingin mengganti password" });
+            return;
+        }
+
         startTransition(async () => {
             try {
                 const result = await updateProfile({
@@ -67,6 +77,8 @@ export function SettingsForm({ user }: { user: UserData }) {
                     phone: formData.phone,
                     avatarUrl: formData.avatarUrl,
                     locale: formData.locale,
+                    currentPassword: formData.currentPassword,
+                    newPassword: formData.newPassword,
                 });
 
                 if (!result.success) {
@@ -96,6 +108,9 @@ export function SettingsForm({ user }: { user: UserData }) {
                     phone: nextSavedProfile.phone,
                     avatarUrl: nextSavedProfile.avatarUrl,
                     locale: nextSavedProfile.locale,
+                    currentPassword: "",
+                    newPassword: "",
+                    confirmPassword: "",
                 }));
                 setMessage({ type: "success", text: "Profil berhasil diperbarui" });
             } catch (err) {
@@ -105,6 +120,9 @@ export function SettingsForm({ user }: { user: UserData }) {
                     phone: savedProfile.phone,
                     avatarUrl: savedProfile.avatarUrl,
                     locale: savedProfile.locale,
+                    currentPassword: "",
+                    newPassword: "",
+                    confirmPassword: "",
                 }));
                 setMessage({ type: "error", text: err instanceof Error ? err.message : "Gagal menyimpan" });
             }
@@ -245,8 +263,12 @@ export function SettingsForm({ user }: { user: UserData }) {
                             type="password"
                             value={formData.currentPassword}
                             onChange={(e) => setFormData({ ...formData, currentPassword: e.target.value })}
+                            name="current-password-input"
+                            autoComplete="off"
+                            placeholder="Masukkan password lama"
                             className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm"
                         />
+                        {renderFieldError("currentPassword")}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
@@ -257,8 +279,11 @@ export function SettingsForm({ user }: { user: UserData }) {
                                 type="password"
                                 value={formData.newPassword}
                                 onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
+                                autoComplete="new-password"
+                                placeholder="Minimal 6 karakter"
                                 className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm"
                             />
+                            {renderFieldError("newPassword")}
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -268,6 +293,8 @@ export function SettingsForm({ user }: { user: UserData }) {
                                 type="password"
                                 value={formData.confirmPassword}
                                 onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                                autoComplete="new-password"
+                                placeholder="Ulangi password baru"
                                 className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm"
                             />
                         </div>

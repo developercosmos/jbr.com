@@ -1,13 +1,14 @@
 "use server";
 
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { users, accounts } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { decryptPdpField, encryptPdpField } from "@/lib/crypto/pdp-field";
+import bcrypt from "bcryptjs";
 
 const phonePattern = /^(?:\+62|62|0)[0-9]{8,13}$/;
 
@@ -26,6 +27,15 @@ const updateProfileSchema = z.object({
         .transform((value) => value || "")
         .refine((value) => value === "" || isAllowedAvatarUrl(value), "Avatar harus berasal dari domain aplikasi"),
     locale: z.enum(["id-ID", "en-US"]),
+    currentPassword: z
+        .string()
+        .optional()
+        .transform((value) => value || ""),
+    newPassword: z
+        .string()
+        .optional()
+        .transform((value) => value || "")
+        .refine((value) => value === "" || value.length >= 6, "Password baru minimal 6 karakter"),
 });
 
 async function getCurrentUser() {
@@ -64,6 +74,56 @@ export async function updateProfile(input: z.input<typeof updateProfileSchema>) 
     }
 
     const validated = parsed.data;
+
+    if (validated.newPassword && !validated.currentPassword) {
+        return {
+            success: false as const,
+            fieldErrors: {
+                currentPassword: ["Password saat ini wajib diisi untuk mengganti password"],
+            },
+        };
+    }
+
+    if (validated.newPassword) {
+        const credentialAccount = await db.query.accounts.findFirst({
+            where: and(
+                eq(accounts.user_id, sessionUser.id),
+                eq(accounts.provider_id, "credential")
+            ),
+            columns: {
+                id: true,
+                password: true,
+            },
+        });
+
+        if (!credentialAccount?.password) {
+            return {
+                success: false as const,
+                fieldErrors: {
+                    currentPassword: ["Akun ini tidak memiliki password lokal"],
+                },
+            };
+        }
+
+        const isCurrentPasswordValid = await bcrypt.compare(validated.currentPassword, credentialAccount.password);
+        if (!isCurrentPasswordValid) {
+            return {
+                success: false as const,
+                fieldErrors: {
+                    currentPassword: ["Password saat ini tidak sesuai"],
+                },
+            };
+        }
+
+        const hashedNewPassword = await bcrypt.hash(validated.newPassword, 10);
+        await db
+            .update(accounts)
+            .set({
+                password: hashedNewPassword,
+                updated_at: new Date(),
+            })
+            .where(eq(accounts.id, credentialAccount.id));
+    }
 
     const [updatedUser] = await db
         .update(users)
