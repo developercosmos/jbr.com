@@ -1,9 +1,17 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Info, AlertTriangle } from "lucide-react";
 import { updateAccountingSettingAction } from "@/actions/accounting/settings-admin";
 
 type SettingType = "string" | "number" | "boolean" | "json";
+
+interface SettingMeta {
+    label: string;
+    desc: string;
+    impact: string;
+    example: string;
+}
 
 interface Props {
     settingKey: string;
@@ -11,6 +19,7 @@ interface Props {
     inferredType: SettingType;
     notes?: string | null;
     effectiveFrom?: string | null;
+    meta?: SettingMeta;
 }
 
 function valueToString(v: unknown, type: SettingType): string {
@@ -20,7 +29,7 @@ function valueToString(v: unknown, type: SettingType): string {
     return String(v);
 }
 
-export function SettingEditor({ settingKey, currentValue, inferredType, notes, effectiveFrom }: Props) {
+export function SettingEditor({ settingKey, currentValue, inferredType, notes, effectiveFrom, meta }: Props) {
     const [value, setValue] = useState(() => valueToString(currentValue, inferredType));
     const [type, setType] = useState<SettingType>(inferredType);
     const [notesText, setNotesText] = useState(notes ?? "");
@@ -58,6 +67,31 @@ export function SettingEditor({ settingKey, currentValue, inferredType, notes, e
     return (
         <form onSubmit={submit} className="rounded-lg border border-slate-300 bg-slate-50 p-3 space-y-2 text-xs">
             <input type="hidden" name="key" value={settingKey} />
+
+            {/* Meta info panel */}
+            {meta && (
+                <div className="rounded-md border border-blue-100 bg-blue-50 p-3 space-y-2 text-[11px]">
+                    <div className="flex items-start gap-1.5">
+                        <Info className="w-3.5 h-3.5 text-blue-500 mt-0.5 shrink-0" />
+                        <div className="text-slate-700 whitespace-pre-line leading-relaxed">{meta.desc}</div>
+                    </div>
+                    {meta.impact && (
+                        <div className="flex items-start gap-1.5 border-t border-blue-100 pt-2">
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
+                            <div>
+                                <span className="font-semibold text-slate-600 uppercase tracking-wide text-[10px]">Dampak pilihan: </span>
+                                <span className="text-slate-700 whitespace-pre-line">{meta.impact}</span>
+                            </div>
+                        </div>
+                    )}
+                    {meta.example && (
+                        <div className="border-t border-blue-100 pt-2">
+                            <span className="font-semibold text-slate-600 uppercase tracking-wide text-[10px]">Nilai yang bisa diisi: </span>
+                            <code className="text-slate-700 font-mono whitespace-pre-line">{meta.example}</code>
+                        </div>
+                    )}
+                </div>
+            )}
             <div className="flex flex-wrap items-end gap-2">
                 <label className="flex flex-col">
                     <span className="text-[10px] uppercase tracking-wider text-slate-500">Type</span>

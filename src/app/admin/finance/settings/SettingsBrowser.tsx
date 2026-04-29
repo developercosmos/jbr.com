@@ -228,6 +228,7 @@ export default function SettingsBrowser({ rows }: { rows: Row[] }) {
                                                 inferredType={t}
                                                 notes={r.notes}
                                                 effectiveFrom={String(r.effective_from)}
+                                                meta={meta}
                                             />
                                         </div>
                                     </div>

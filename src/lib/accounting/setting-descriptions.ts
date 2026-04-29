@@ -321,10 +321,10 @@ export const settingMeta: Record<string, SettingMeta> = {
         example: '"MONTHLY", "WEEKLY", "MANUAL"',
     },
     "affiliate.clawback_policy": {
-        label: "Kebijakan Clawback",
-        desc: "Cara menarik kembali komisi bila order di-refund/cancel setelah approve.",
-        impact: "OFFSET_NEXT mengurangi payout berikutnya; INVOICE menerbitkan tagihan.",
-        example: '"OFFSET_NEXT", "INVOICE", "WRITE_OFF"',
+        label: "Kebijakan Clawback (Tarik-Balik Komisi)",
+        desc: 'Apa yang terjadi bila komisi affiliate sudah di-approve atau sudah dibayar, lalu ordernya di-refund atau dibatalkan pembeli. Ada 3 pilihan:\n• OFFSET_NEXT — Komisi yang harus ditarik kembali dipotong otomatis dari payout berikutnya. Paling simpel, tidak perlu invoice tambahan.\n• INVOICE — Platform menerbitkan tagihan (invoice) ke affiliate untuk melunasi komisi yang sudah terlanjur dibayar. Cocok bila affiliate sudah menarik dananya dan tidak ada saldo berikutnya.\n• WRITE_OFF — Komisi dihapuskan begitu saja (dianggap kerugian platform). Biasanya dipakai bila nilainya kecil dan tidak worth dikejar.',
+        impact: "OFFSET_NEXT = potong dari payout berikutnya (rekomen default). INVOICE = tagih affiliate secara terpisah. WRITE_OFF = hapus beban, rugi ditanggung platform.",
+        example: '"OFFSET_NEXT"  ← default yang disarankan\n"INVOICE"\n"WRITE_OFF"',
     },
     "affiliate.allow_self_referral": {
         label: "Izinkan Self-referral",
