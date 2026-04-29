@@ -13,13 +13,14 @@ interface UserData {
     name: string | null;
     email: string;
     role: "USER" | "ADMIN";
+    storeStatus?: "ACTIVE" | "PENDING_REVIEW" | "VACATION" | "BANNED" | null;
     storeName?: string | null;
     storeSlug?: string | null;
     storeDescription?: string | null;
     payoutBankName?: string | null;
 }
 
-export function UserActions({ user, isBanned, isPendingVerification, isPendingStoreReview }: { user: UserData; isBanned: boolean; isPendingVerification: boolean; isPendingStoreReview: boolean }) {
+export function UserActions({ user, isBanned, isPendingVerification, isPendingStoreReview, canViewStoreDetail }: { user: UserData; isBanned: boolean; isPendingVerification: boolean; isPendingStoreReview: boolean; canViewStoreDetail: boolean }) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -96,7 +97,7 @@ export function UserActions({ user, isBanned, isPendingVerification, isPendingSt
         <>
             <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
                 <EditUserButton user={user} />
-                {isPendingStoreReview && (
+                {canViewStoreDetail && (
                     <>
                         <button
                             onClick={() => setShowStoreDetail(true)}
@@ -246,6 +247,15 @@ export function UserActions({ user, isBanned, isPendingVerification, isPendingSt
                                 </p>
                             </div>
 
+                            <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3">
+                                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">
+                                    Status Saat Ini
+                                </div>
+                                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                                    {user.storeStatus || "-"}
+                                </p>
+                            </div>
+
                             <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
                                 {user.storeSlug ? (
                                     <Link
@@ -260,20 +270,24 @@ export function UserActions({ user, isBanned, isPendingVerification, isPendingSt
                                 )}
 
                                 <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={handleRejectSeller}
-                                        disabled={isPending}
-                                        className="px-3.5 py-2 rounded-lg border border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-800/60 dark:text-orange-300 dark:hover:bg-orange-900/20 text-sm font-semibold disabled:opacity-50"
-                                    >
-                                        {isPending ? "Menyimpan..." : "Reject"}
-                                    </button>
-                                    <button
-                                        onClick={handleApproveSeller}
-                                        disabled={isPending}
-                                        className="px-3.5 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 text-sm font-semibold disabled:opacity-50"
-                                    >
-                                        {isPending ? "Menyimpan..." : "Approve"}
-                                    </button>
+                                    {isPendingStoreReview && (
+                                        <>
+                                            <button
+                                                onClick={handleRejectSeller}
+                                                disabled={isPending}
+                                                className="px-3.5 py-2 rounded-lg border border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-800/60 dark:text-orange-300 dark:hover:bg-orange-900/20 text-sm font-semibold disabled:opacity-50"
+                                            >
+                                                {isPending ? "Menyimpan..." : "Reject"}
+                                            </button>
+                                            <button
+                                                onClick={handleApproveSeller}
+                                                disabled={isPending}
+                                                className="px-3.5 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 text-sm font-semibold disabled:opacity-50"
+                                            >
+                                                {isPending ? "Menyimpan..." : "Approve"}
+                                            </button>
+                                        </>
+                                    )}
                                     <button
                                         onClick={() => setShowStoreDetail(false)}
                                         className="px-3.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium"
