@@ -14,7 +14,10 @@ export const storageConfig = {
 
     // Local Storage Configuration
     local: {
-        uploadDir: process.env.LOCAL_UPLOAD_DIR || "public/uploads",
+        uploadDir:
+            process.env.LOCAL_UPLOAD_DIR ||
+            (process.env.NODE_ENV === "production" ? "/var/www/jbr/uploads" : "public/uploads"),
+        publicPath: process.env.LOCAL_UPLOAD_PUBLIC_PATH || "/uploads",
         baseUrl: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
     },
 
