@@ -58,9 +58,7 @@ export function CheckoutForm({ selectedAddressId, paymentMethod, shippingCourier
                 const paymentResult = await createPaymentInvoice(order.id, paymentMethod);
 
                 if (!paymentResult.success || !paymentResult.invoiceUrl) {
-                    // If payment creation fails, still redirect to orders page
-                    router.push(`/profile/orders?success=true&pending_payment=true`);
-                    router.refresh();
+                    setError(paymentResult.error || "Gagal membuat invoice pembayaran. Silakan coba lagi.");
                     return;
                 }
 

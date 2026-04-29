@@ -28,7 +28,10 @@ export function PaymentButton({ orderId, existingInvoiceUrl }: PaymentButtonProp
                 if (result.success && result.invoiceUrl) {
                     // Redirect to Xendit payment page
                     window.location.href = result.invoiceUrl;
+                    return;
                 }
+
+                setError(result.error || "Terjadi kesalahan saat membuat invoice pembayaran");
             } catch (err) {
                 console.error("Payment error:", err);
                 setError(err instanceof Error ? err.message : "Terjadi kesalahan saat membuat invoice pembayaran");

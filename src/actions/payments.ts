@@ -12,11 +12,22 @@ import { isBuyerEligibleForCod } from "@/actions/reputation";
 import { recordOrderPayment } from "@/actions/ledger";
 import { postOrderPayment } from "@/actions/accounting/posting";
 import { getSetting } from "@/actions/accounting/settings";
+import { getIntegrationCredentials, getSiteConfig } from "@/actions/settings";
 import { logger } from "@/lib/logger";
 
 // Xendit API configuration
-const XENDIT_SECRET_KEY = process.env.XENDIT_SECRET_KEY;
 const XENDIT_API_URL = "https://api.xendit.co";
+
+async function getXenditSecretKey() {
+    if (process.env.XENDIT_SECRET_KEY?.trim()) {
+        return process.env.XENDIT_SECRET_KEY.trim();
+    }
+
+    const credentials = await getIntegrationCredentials("xendit");
+    const apiKey = credentials?.api_key?.trim();
+
+    return apiKey || null;
+}
 
 // Helper to get current user
 async function getCurrentUser() {
@@ -84,39 +95,56 @@ export async function createPaymentInvoice(orderId: string, preferredMethod?: "B
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24); // 24 hour expiry
 
+    const xenditSecretKey = await getXenditSecretKey();
+    if (!xenditSecretKey) {
+        return {
+            success: false,
+            error: "Metode pembayaran online belum dikonfigurasi. Hubungi admin untuk mengaktifkan Xendit.",
+        };
+    }
+
+    const siteConfig = await getSiteConfig();
+    const paymentStatusUrl = `${siteConfig.app_url}/checkout/payment/${orderId}`;
+
     const invoiceData = {
         external_id: `order-${order.id}`,
         amount: parseFloat(order.total),
         payer_email: order.buyer?.email,
         description: `Pembayaran untuk Order ${order.order_number}${preferredMethod ? ` (${preferredMethod})` : ""}`,
         invoice_duration: 86400, // 24 hours in seconds
-        success_redirect_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/payment/${orderId}?status=success`,
-        failure_redirect_url: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/payment/${orderId}?status=failed`,
+        success_redirect_url: `${paymentStatusUrl}?status=success`,
+        failure_redirect_url: `${paymentStatusUrl}?status=failed`,
         currency: "IDR",
         items: order.items.map((item: typeof order.items[number]) => ({
-            name: item.product.title,
+            name: item.product?.title || "Produk",
             quantity: item.quantity,
             price: parseFloat(item.price),
         })),
     };
 
-    if (!XENDIT_SECRET_KEY) {
-        throw new Error("Xendit API key not configured");
-    }
-
     const response = await fetch(`${XENDIT_API_URL}/v2/invoices`, {
         method: "POST",
         headers: {
-            "Authorization": `Basic ${Buffer.from(XENDIT_SECRET_KEY + ":").toString("base64")}`,
+            "Authorization": `Basic ${Buffer.from(xenditSecretKey + ":").toString("base64")}`,
             "Content-Type": "application/json",
         },
         body: JSON.stringify(invoiceData),
     });
 
     if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Xendit API error:", errorData);
-        throw new Error(errorData.message || "Failed to create invoice");
+        let errorMessage = "Gagal membuat invoice pembayaran";
+        try {
+            const errorData = await response.json();
+            console.error("Xendit API error:", errorData);
+            errorMessage = errorData.message || errorMessage;
+        } catch {
+            console.error("Xendit API error: non-JSON response", response.status, response.statusText);
+        }
+
+        return {
+            success: false,
+            error: errorMessage,
+        };
     }
 
     const invoice = await response.json();
@@ -337,7 +365,8 @@ export async function checkInvoiceStatus(paymentId: string) {
         throw new Error("Payment not found");
     }
 
-    if (!XENDIT_SECRET_KEY) {
+    const xenditSecretKey = await getXenditSecretKey();
+    if (!xenditSecretKey) {
         throw new Error("Xendit API key not configured");
     }
 
@@ -345,7 +374,7 @@ export async function checkInvoiceStatus(paymentId: string) {
     const response = await fetch(`${XENDIT_API_URL}/v2/invoices/${payment.xendit_invoice_id}`, {
         method: "GET",
         headers: {
-            "Authorization": `Basic ${Buffer.from(XENDIT_SECRET_KEY + ":").toString("base64")}`,
+            "Authorization": `Basic ${Buffer.from(xenditSecretKey + ":").toString("base64")}`,
         },
     });
 
