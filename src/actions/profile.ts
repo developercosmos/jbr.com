@@ -7,6 +7,7 @@ import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { decryptPdpField, encryptPdpField } from "@/lib/crypto/pdp-field";
 
 const phonePattern = /^(?:\+62|62|0)[0-9]{8,13}$/;
 
@@ -68,7 +69,7 @@ export async function updateProfile(input: z.input<typeof updateProfileSchema>) 
         .update(users)
         .set({
             name: validated.name,
-            phone: validated.phone,
+            phone: encryptPdpField(validated.phone),
             image: validated.avatarUrl || null,
             locale: validated.locale,
             updated_at: new Date(),
@@ -89,6 +90,9 @@ export async function updateProfile(input: z.input<typeof updateProfileSchema>) 
 
     return {
         success: true as const,
-        user: updatedUser,
+        user: {
+            ...updatedUser,
+            phone: decryptPdpField(updatedUser.phone),
+        },
     };
 }

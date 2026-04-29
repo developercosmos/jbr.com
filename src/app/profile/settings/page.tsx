@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { SettingsForm } from "./SettingsForm";
+import { decryptPdpField } from "@/lib/crypto/pdp-field";
 
 export default async function ProfileSettingsPage() {
     const session = await auth.api.getSession({
@@ -42,7 +43,12 @@ export default async function ProfileSettingsPage() {
                 </p>
             </div>
 
-            <SettingsForm user={user} />
+            <SettingsForm
+                user={{
+                    ...user,
+                    phone: decryptPdpField(user.phone),
+                }}
+            />
         </div>
     );
 }

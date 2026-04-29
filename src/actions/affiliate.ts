@@ -20,6 +20,7 @@ import {
 } from "@/actions/accounting/posting";
 import { getSetting } from "@/actions/accounting/settings";
 import { logger } from "@/lib/logger";
+import { decryptPdpField, encryptPdpField } from "@/lib/crypto/pdp-field";
 
 const ATTRIBUTION_WINDOW_DAYS = Number(process.env.AFFILIATE_ATTRIBUTION_DAYS || 30);
 const DEFAULT_COMMISSION_RATE = Number(process.env.AFFILIATE_DEFAULT_RATE || 5);
@@ -85,7 +86,7 @@ export async function enrollAffiliate(input: z.infer<typeof enrollSchema>) {
             code,
             status: "ACTIVE",
             payout_method: validated.payoutMethod,
-            payout_account: validated.payoutAccount,
+            payout_account: encryptPdpField(validated.payoutAccount),
         })
         .returning();
 
@@ -308,7 +309,7 @@ export async function getAffiliateDashboard() {
             code: account.code,
             status: account.status,
             payoutMethod: account.payout_method,
-            payoutAccount: account.payout_account,
+            payoutAccount: decryptPdpField(account.payout_account),
         },
         totals,
         attributions: recent.map((a) => ({
@@ -324,12 +325,17 @@ export async function getAffiliateDashboard() {
 
 export async function listAffiliatesForAdmin() {
     await requireAdmin();
-    return db.query.affiliate_accounts.findMany({
+    const rows = await db.query.affiliate_accounts.findMany({
         orderBy: [desc(affiliate_accounts.created_at)],
         with: {
             user: { columns: { id: true, name: true, email: true } },
         },
     });
+
+    return rows.map((row) => ({
+        ...row,
+        payout_account: decryptPdpField(row.payout_account),
+    }));
 }
 
 const overrideRateSchema = z.object({

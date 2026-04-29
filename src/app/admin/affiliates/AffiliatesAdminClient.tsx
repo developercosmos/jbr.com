@@ -23,9 +23,16 @@ interface Props {
 export default function AffiliatesAdminClient({ initial }: Props) {
     const router = useRouter();
     const [drafts, setDrafts] = useState<Record<string, string>>({});
+    const [revealedPayout, setRevealedPayout] = useState<Record<string, boolean>>({});
     const [info, setInfo] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
+
+    function maskPayoutAccount(value: string | null): string {
+        if (!value) return "";
+        if (value.length <= 4) return "*".repeat(value.length);
+        return `${"*".repeat(Math.max(value.length - 4, 4))}${value.slice(-4)}`;
+    }
 
     function handleSetRate(userId: string) {
         setError(null);
@@ -110,7 +117,21 @@ export default function AffiliatesAdminClient({ initial }: Props) {
                                         {a.userName ?? "—"} · {a.userEmail}
                                     </div>
                                     <div className="text-xs text-slate-500">
-                                        Payout: {a.payoutMethod ?? "—"} {a.payoutAccount ?? ""}
+                                        Payout: {a.payoutMethod ?? "—"} {revealedPayout[a.userId] ? (a.payoutAccount ?? "") : maskPayoutAccount(a.payoutAccount)}
+                                        {a.payoutAccount && (
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setRevealedPayout((prev) => ({
+                                                        ...prev,
+                                                        [a.userId]: !prev[a.userId],
+                                                    }))
+                                                }
+                                                className="ml-2 text-[11px] font-semibold text-brand-primary hover:underline"
+                                            >
+                                                {revealedPayout[a.userId] ? "Sembunyikan" : "Tampilkan"}
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
