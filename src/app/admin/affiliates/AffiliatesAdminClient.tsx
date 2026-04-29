@@ -2,8 +2,14 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Banknote, Ban } from "lucide-react";
-import { processAffiliatePayoutBatch, setAffiliateRateOverride, suspendAffiliate } from "@/actions/affiliate";
+import { Loader2, Banknote, Ban, CheckCircle2, XCircle } from "lucide-react";
+import {
+    approveAffiliateApplication,
+    processAffiliatePayoutBatch,
+    rejectAffiliateApplication,
+    setAffiliateRateOverride,
+    suspendAffiliate,
+} from "@/actions/affiliate";
 
 interface Account {
     userId: string;
@@ -12,6 +18,8 @@ interface Account {
     rateOverride: number | null;
     payoutMethod: string | null;
     payoutAccount: string | null;
+    reviewNotes: string | null;
+    reviewedAt: string | null;
     userName: string | null;
     userEmail: string | null;
 }
@@ -24,6 +32,7 @@ export default function AffiliatesAdminClient({ initial }: Props) {
     const router = useRouter();
     const [drafts, setDrafts] = useState<Record<string, string>>({});
     const [revealedPayout, setRevealedPayout] = useState<Record<string, boolean>>({});
+    const [decisionNotes, setDecisionNotes] = useState<Record<string, string>>({});
     const [info, setInfo] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
@@ -60,6 +69,38 @@ export default function AffiliatesAdminClient({ initial }: Props) {
                 router.refresh();
             } catch (err) {
                 console.error(err);
+            }
+        });
+    }
+
+    function handleApprove(userId: string) {
+        setError(null);
+        startTransition(async () => {
+            try {
+                await approveAffiliateApplication(userId);
+                setInfo("Pengajuan affiliate berhasil di-approve.");
+                router.refresh();
+            } catch (err) {
+                setError(err instanceof Error ? err.message : "Approve affiliate gagal.");
+            }
+        });
+    }
+
+    function handleReject(userId: string) {
+        const notes = decisionNotes[userId]?.trim() || "";
+        if (!notes) {
+            setError("Alasan reject affiliate wajib diisi.");
+            return;
+        }
+
+        setError(null);
+        startTransition(async () => {
+            try {
+                await rejectAffiliateApplication(userId, notes);
+                setInfo("Pengajuan affiliate berhasil di-reject.");
+                router.refresh();
+            } catch (err) {
+                setError(err instanceof Error ? err.message : "Reject affiliate gagal.");
             }
         });
     }
@@ -105,11 +146,12 @@ export default function AffiliatesAdminClient({ initial }: Props) {
                         <div className="p-8 text-center text-sm text-slate-500">Belum ada akun afiliasi.</div>
                     ) : (
                         initial.map((a) => (
-                            <div key={a.userId} className="p-5 flex flex-wrap items-center gap-3 justify-between">
+                            <div key={a.userId} className="p-5 space-y-3">
+                                <div className="flex flex-wrap items-center gap-3 justify-between">
                                 <div className="space-y-1 text-sm">
                                     <div className="flex items-center gap-2">
                                         <strong className="font-mono">{a.code}</strong>
-                                        <span className={`text-xs px-2 py-0.5 rounded-full ${a.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : a.status === "SUSPENDED" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>
+                                        <span className={`text-xs px-2 py-0.5 rounded-full ${a.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : a.status === "SUSPENDED" || a.status === "REJECTED" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>
                                             {a.status}
                                         </span>
                                     </div>
@@ -133,6 +175,11 @@ export default function AffiliatesAdminClient({ initial }: Props) {
                                             </button>
                                         )}
                                     </div>
+                                    {a.reviewNotes && (
+                                        <div className="text-xs text-slate-500">
+                                            Catatan review: {a.reviewNotes}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
                                     <input
@@ -152,6 +199,24 @@ export default function AffiliatesAdminClient({ initial }: Props) {
                                     >
                                         Set rate
                                     </button>
+                                    {a.status === "PENDING" && (
+                                        <>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleApprove(a.userId)}
+                                                className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                                            >
+                                                <CheckCircle2 className="w-3 h-3" /> Approve
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleReject(a.userId)}
+                                                className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-rose-300 text-rose-700 hover:bg-rose-50"
+                                            >
+                                                <XCircle className="w-3 h-3" /> Reject
+                                            </button>
+                                        </>
+                                    )}
                                     {a.status === "ACTIVE" && (
                                         <button
                                             type="button"
@@ -162,6 +227,21 @@ export default function AffiliatesAdminClient({ initial }: Props) {
                                         </button>
                                     )}
                                 </div>
+                            </div>
+                            {a.status === "PENDING" && (
+                                <textarea
+                                    rows={2}
+                                    value={decisionNotes[a.userId] ?? ""}
+                                    onChange={(e) =>
+                                        setDecisionNotes((prev) => ({
+                                            ...prev,
+                                            [a.userId]: e.target.value,
+                                        }))
+                                    }
+                                    placeholder="Tulis alasan reject jika pengajuan affiliate perlu diperbaiki."
+                                    className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-black/20 px-3 py-2 text-sm"
+                                />
+                            )}
                             </div>
                         ))
                     )}

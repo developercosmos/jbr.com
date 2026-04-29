@@ -87,6 +87,9 @@ export const users = pgTable(
         store_banner_url: text("store_banner_url"),
         payout_bank_name: text("payout_bank_name"),
         store_status: storeStatusEnum("store_status").default("ACTIVE"),
+        store_review_notes: text("store_review_notes"),
+        store_reviewed_at: timestamp("store_reviewed_at"),
+        store_reviewer_id: text("store_reviewer_id").references(() => users.id, { onDelete: "set null" }),
         buyer_score: decimal("buyer_score", { precision: 3, scale: 2 }).default("0").notNull(),
         buyer_score_count: integer("buyer_score_count").default(0).notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
@@ -578,7 +581,7 @@ export const player_profiles = pgTable("player_profiles", {
 // ============================================
 // AFF-01..04: AFFILIATE
 // ============================================
-export const affiliateStatusEnum = pgEnum("affiliate_status", ["PENDING", "ACTIVE", "SUSPENDED"]);
+export const affiliateStatusEnum = pgEnum("affiliate_status", ["PENDING", "ACTIVE", "REJECTED", "SUSPENDED"]);
 export const attributionStatusEnum = pgEnum("attribution_status", ["PENDING", "CLEARED", "REVERSED"]);
 
 export const affiliate_accounts = pgTable("affiliate_accounts", {
@@ -586,7 +589,7 @@ export const affiliate_accounts = pgTable("affiliate_accounts", {
         .primaryKey()
         .references(() => users.id, { onDelete: "cascade" }),
     code: text("code").notNull().unique(),
-    status: affiliateStatusEnum("status").default("ACTIVE").notNull(),
+    status: affiliateStatusEnum("status").default("PENDING").notNull(),
     commission_rate_override: decimal("commission_rate_override", { precision: 5, scale: 2 }),
     payout_method: text("payout_method"),
     payout_account: text("payout_account"),
@@ -599,6 +602,9 @@ export const affiliate_accounts = pgTable("affiliate_accounts", {
     bank_name: text("bank_name"),
     bank_account_number: text("bank_account_number"),
     bank_account_name: text("bank_account_name"),
+    review_notes: text("review_notes"),
+    reviewed_at: timestamp("reviewed_at"),
+    reviewer_id: text("reviewer_id").references(() => users.id, { onDelete: "set null" }),
     created_at: timestamp("created_at").defaultNow().notNull(),
     updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -647,7 +653,16 @@ export const affiliate_attributions = pgTable(
 );
 
 export const affiliateAccountsRelations = relations(affiliate_accounts, ({ one, many }) => ({
-    user: one(users, { fields: [affiliate_accounts.user_id], references: [users.id] }),
+    user: one(users, {
+        fields: [affiliate_accounts.user_id],
+        references: [users.id],
+        relationName: "affiliate_owner",
+    }),
+    reviewer: one(users, {
+        fields: [affiliate_accounts.reviewer_id],
+        references: [users.id],
+        relationName: "affiliate_reviewer",
+    }),
     attributions: many(affiliate_attributions),
 }));
 
@@ -936,6 +951,18 @@ export const usersRelations = relations(users, ({ one, many }) => ({
         relationName: "seller_kyc_profile",
     }),
     reviewedSellerKyc: many(seller_kyc, { relationName: "seller_kyc_reviewer" }),
+    affiliateAccount: one(affiliate_accounts, {
+        fields: [users.id],
+        references: [affiliate_accounts.user_id],
+        relationName: "affiliate_owner",
+    }),
+    reviewedAffiliates: many(affiliate_accounts, { relationName: "affiliate_reviewer" }),
+    storeReviewer: one(users, {
+        fields: [users.store_reviewer_id],
+        references: [users.id],
+        relationName: "store_reviewer",
+    }),
+    reviewedStores: many(users, { relationName: "store_reviewer" }),
 }));
 
 export const productsRelations = relations(products, ({ one, many }) => ({

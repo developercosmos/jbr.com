@@ -10,6 +10,7 @@ import { z } from "zod";
 import { uploadFile as uploadToStorage } from "@/lib/storage";
 import { getFileTypeFromMime } from "@/lib/file-utils";
 import { decryptPdpField, encryptPdpField } from "@/lib/crypto/pdp-field";
+import { sendSellerKycApprovedEmail, sendSellerKycRejectedEmail } from "@/lib/email";
 
 const sellerTierCaps: Record<"T0" | "T1" | "T2", number> = {
     T0: 10_000_000,
@@ -403,6 +404,11 @@ export async function getKycSubmissionCounts() {
 export async function reviewSellerKycApplication(input: z.infer<typeof reviewSellerKycSchema>) {
     const admin = await requireAdmin();
     const validated = reviewSellerKycSchema.parse(input);
+    const trimmedNotes = validated.notes?.trim();
+
+    if (validated.decision === "REJECTED" && !trimmedNotes) {
+        throw new Error("Catatan penolakan wajib diisi.");
+    }
 
     const kycProfile = await db.query.seller_kyc.findFirst({
         where: eq(seller_kyc.user_id, validated.sellerId),
@@ -412,7 +418,17 @@ export async function reviewSellerKycApplication(input: z.infer<typeof reviewSel
         },
     });
 
-    if (!kycProfile) {
+    const seller = await db.query.users.findFirst({
+        where: eq(users.id, validated.sellerId),
+        columns: {
+            id: true,
+            name: true,
+            email: true,
+            store_name: true,
+        },
+    });
+
+    if (!kycProfile || !seller) {
         throw new Error("Pengajuan KYC seller tidak ditemukan.");
     }
 
@@ -425,7 +441,7 @@ export async function reviewSellerKycApplication(input: z.infer<typeof reviewSel
             status: validated.decision,
             reviewed_at: new Date(),
             reviewer_id: admin.id,
-            notes: encryptPdpField(validated.notes),
+            notes: trimmedNotes ? encryptPdpField(trimmedNotes) : null,
             updated_at: new Date(),
         })
         .where(eq(seller_kyc.user_id, validated.sellerId));
@@ -438,6 +454,34 @@ export async function reviewSellerKycApplication(input: z.infer<typeof reviewSel
                 updated_at: new Date(),
             })
             .where(eq(users.id, validated.sellerId));
+    }
+
+    await db.insert(notifications).values({
+        user_id: seller.id,
+        type: "SYSTEM",
+        title: validated.decision === "APPROVED" ? "KYC Seller Disetujui" : "KYC Seller Perlu Revisi",
+        message: validated.decision === "APPROVED"
+            ? `Pengajuan KYC Anda telah disetujui ke tier ${approvedTier}.`
+            : `Pengajuan KYC Anda perlu diperbaiki: ${trimmedNotes}`,
+        idempotency_key: `SELLER_KYC_${validated.decision}:${seller.id}:${Date.now()}`,
+        data: {
+            tier: approvedTier,
+            reason: trimmedNotes ?? null,
+        },
+    });
+
+    if (validated.decision === "APPROVED") {
+        await sendSellerKycApprovedEmail(
+            seller.email,
+            seller.store_name || seller.name,
+            approvedTier
+        );
+    } else if (trimmedNotes) {
+        await sendSellerKycRejectedEmail(
+            seller.email,
+            seller.store_name || seller.name,
+            trimmedNotes
+        );
     }
 
     revalidatePath("/admin/users");

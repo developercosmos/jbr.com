@@ -146,7 +146,13 @@ export async function moveSavedItemToCart(cartItemId: string) {
         with: { product: { columns: { stock: true } }, variant: { columns: { stock: true } } },
     });
     if (!item) throw new Error("Cart item not found");
-    const stockAvailable = item.variant?.stock ?? item.product.stock;
+    const variantStock = Array.isArray(item.variant)
+        ? item.variant[0]?.stock
+        : item.variant?.stock;
+    const productStock = Array.isArray(item.product)
+        ? item.product[0]?.stock
+        : item.product?.stock;
+    const stockAvailable = variantStock ?? productStock ?? 0;
     if (stockAvailable < item.quantity) {
         throw new Error("Stok tidak mencukupi untuk memindahkan item ini ke keranjang.");
     }
@@ -177,7 +183,13 @@ export async function updateCartItemQuantity(cartItemId: string, quantity: numbe
         throw new Error("Cart item not found");
     }
 
-    const availableStock = existingCartItem.variant?.stock ?? existingCartItem.product.stock;
+    const variantStock = Array.isArray(existingCartItem.variant)
+        ? existingCartItem.variant[0]?.stock
+        : existingCartItem.variant?.stock;
+    const productStock = Array.isArray(existingCartItem.product)
+        ? existingCartItem.product[0]?.stock
+        : existingCartItem.product?.stock;
+    const availableStock = variantStock ?? productStock ?? 0;
 
     if (quantity > availableStock) {
         throw new Error("Requested quantity exceeds available stock");

@@ -236,17 +236,22 @@ export async function acceptOffer(offerId: string) {
         throw new Error("Penawaran sudah kadaluarsa.");
     }
 
-    if (offer.listing.status !== "PUBLISHED") {
+    const listing = Array.isArray(offer.listing) ? offer.listing[0] : offer.listing;
+    if (!listing) {
+        throw new Error("Produk tidak ditemukan.");
+    }
+
+    if (listing.status !== "PUBLISHED") {
         throw new Error("Produk sudah tidak tersedia.");
     }
 
-    if (offer.listing.stock <= 0) {
+    if (listing.stock <= 0) {
         throw new Error("Stok produk habis.");
     }
 
     if (
-        offer.listing.min_acceptable_price !== null &&
-        Number(offer.amount) < Number(offer.listing.min_acceptable_price)
+        listing.min_acceptable_price !== null &&
+        Number(offer.amount) < Number(listing.min_acceptable_price)
     ) {
         throw new Error("Penawaran di bawah harga minimum yang diizinkan.");
     }
@@ -269,7 +274,7 @@ export async function acceptOffer(offerId: string) {
         event: "OFFER_ACCEPTED",
         recipientUserId: offer.buyer_id,
         offerId: offer.id,
-        productTitle: offer.listing.title,
+        productTitle: listing.title,
         amount: formatCurrency(Number(offer.amount)),
     });
 

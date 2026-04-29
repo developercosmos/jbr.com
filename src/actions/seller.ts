@@ -64,10 +64,38 @@ export async function getSellerProfileByUserId(userId: string) {
             store_tagline: true,
             store_banner_url: true,
             store_status: true,
+            store_review_notes: true,
+            store_reviewed_at: true,
+            store_reviewer_id: true,
             payout_bank_name: true,
             tier: true,
         },
     });
+}
+
+async function notifyAdminsSellerReviewNeeded(sessionUserId: string, storeName: string, storeSlug: string) {
+    const admins = await db.query.users.findMany({
+        where: eq(users.role, "ADMIN"),
+        columns: { id: true },
+    });
+
+    const issuedAt = Date.now();
+
+    await Promise.all(
+        admins.map((admin) =>
+            db.insert(notifications).values({
+                user_id: admin.id,
+                type: "SELLER_REVIEW_NEEDED",
+                title: "Seller Baru Perlu Review",
+                message: `${storeName} menunggu review aktivasi seller.`,
+                idempotency_key: `SELLER_REVIEW_NEEDED:${sessionUserId}:${issuedAt}:${admin.id}`,
+                data: {
+                    seller_id: sessionUserId,
+                    store_slug: storeSlug,
+                },
+            })
+        )
+    );
 }
 
 export async function checkStoreSlugAvailability(storeSlug: string) {
@@ -180,11 +208,6 @@ export async function activateSellerProfile(input: z.infer<typeof activateSeller
 
     // Fan out notification inserts in parallel — the seller's own activation
     // notification and the admin review notifications are independent.
-    const admins = await db.query.users.findMany({
-        where: eq(users.role, "ADMIN"),
-        columns: { id: true },
-    });
-
     const notificationInserts: Promise<unknown>[] = [
         db.insert(notifications).values({
             user_id: sessionUser.id,
@@ -200,21 +223,9 @@ export async function activateSellerProfile(input: z.infer<typeof activateSeller
     ];
 
     if (updatedUser.store_status === "PENDING_REVIEW") {
-        for (const admin of admins) {
-            notificationInserts.push(
-                db.insert(notifications).values({
-                    user_id: admin.id,
-                    type: "SELLER_REVIEW_NEEDED",
-                    title: "Seller Baru Perlu Review",
-                    message: `${validated.storeName} baru saja mengaktifkan toko dan menunggu review admin.`,
-                    idempotency_key: `SELLER_REVIEW_NEEDED:${sessionUser.id}:${admin.id}`,
-                    data: {
-                        seller_id: sessionUser.id,
-                        store_slug: validated.storeSlug,
-                    },
-                })
-            );
-        }
+        notificationInserts.push(
+            notifyAdminsSellerReviewNeeded(sessionUser.id, validated.storeName, validated.storeSlug)
+        );
     }
 
     await Promise.all(notificationInserts);
@@ -233,6 +244,58 @@ export async function activateSellerProfile(input: z.infer<typeof activateSeller
         redirectTo: "/seller/settings?welcome=1#kyc",
         storeStatus: updatedUser.store_status,
     };
+}
+
+export async function resubmitSellerActivationReview() {
+    const sessionUser = await getCurrentUser();
+
+    const seller = await db.query.users.findFirst({
+        where: eq(users.id, sessionUser.id),
+        columns: {
+            id: true,
+            store_name: true,
+            store_slug: true,
+            store_status: true,
+        },
+    });
+
+    if (!seller?.store_name || !seller.store_slug) {
+        throw new Error("Profil seller belum lengkap.");
+    }
+
+    if (seller.store_status !== "VACATION") {
+        throw new Error("Pengajuan hanya bisa diajukan ulang setelah direject.");
+    }
+
+    await db
+        .update(users)
+        .set({
+            store_status: "PENDING_REVIEW",
+            store_review_notes: null,
+            store_reviewed_at: null,
+            store_reviewer_id: null,
+            updated_at: new Date(),
+        })
+        .where(eq(users.id, sessionUser.id));
+
+    await db.insert(notifications).values({
+        user_id: sessionUser.id,
+        type: "SYSTEM",
+        title: "Pengajuan Seller Dikirim Ulang",
+        message: "Perubahan toko Anda telah dikirim ulang untuk direview admin.",
+        idempotency_key: `SELLER_RESUBMITTED:${sessionUser.id}:${Date.now()}`,
+        data: {
+            store_slug: seller.store_slug,
+        },
+    });
+
+    await notifyAdminsSellerReviewNeeded(sessionUser.id, seller.store_name, seller.store_slug);
+
+    revalidatePath("/seller");
+    revalidatePath("/seller/settings");
+    revalidatePath("/admin/users");
+
+    return { success: true as const };
 }
 
 export async function ensureCurrentUserCanSell() {

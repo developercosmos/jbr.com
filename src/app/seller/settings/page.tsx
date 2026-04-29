@@ -98,6 +98,8 @@ export default async function SellerSettingsPage({ searchParams }: PageProps) {
                     }}
                     addresses={addressesForForm}
                     storeUrl={`/store/${sellerProfile.store_slug}`}
+                    storeStatus={sellerProfile.store_status}
+                    storeReviewNotes={sellerProfile.store_review_notes ?? null}
                 />
 
                 {/* KYC Section */}

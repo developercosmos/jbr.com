@@ -18,6 +18,7 @@ interface UserData {
     storeSlug?: string | null;
     storeDescription?: string | null;
     payoutBankName?: string | null;
+    storeReviewNotes?: string | null;
 }
 
 export function UserActions({ user, isBanned, isPendingVerification, isPendingStoreReview, canViewStoreDetail }: { user: UserData; isBanned: boolean; isPendingVerification: boolean; isPendingStoreReview: boolean; canViewStoreDetail: boolean }) {
@@ -27,6 +28,7 @@ export function UserActions({ user, isBanned, isPendingVerification, isPendingSt
     const [showStoreDetail, setShowStoreDetail] = useState(false);
     const [resendSuccess, setResendSuccess] = useState(false);
     const [reviewFeedback, setReviewFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+    const [sellerReviewNotes, setSellerReviewNotes] = useState(user.storeReviewNotes ?? "");
 
     const handleBan = () => {
         startTransition(async () => {
@@ -80,8 +82,12 @@ export function UserActions({ user, isBanned, isPendingVerification, isPendingSt
     const handleRejectSeller = () => {
         startTransition(async () => {
             setReviewFeedback(null);
+            if (!sellerReviewNotes.trim()) {
+                setReviewFeedback({ type: "error", message: "Alasan reject wajib diisi." });
+                return;
+            }
             try {
-                const result = await rejectSellerActivation(user.id);
+                const result = await rejectSellerActivation(user.id, sellerReviewNotes);
                 setReviewFeedback({ type: "success", message: result.message || "Reject berhasil." });
                 setTimeout(() => {
                     setShowStoreDetail(false);
@@ -228,6 +234,28 @@ export function UserActions({ user, isBanned, isPendingVerification, isPendingSt
                                     <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">/{user.storeSlug || "-"}</div>
                                 </div>
                             </div>
+
+                            {user.storeReviewNotes && (
+                                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                                    <div className="font-semibold mb-1">Catatan review terakhir</div>
+                                    <div>{user.storeReviewNotes}</div>
+                                </div>
+                            )}
+
+                            {isPendingStoreReview && (
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                        Alasan reject / catatan revisi
+                                    </label>
+                                    <textarea
+                                        rows={3}
+                                        value={sellerReviewNotes}
+                                        onChange={(e) => setSellerReviewNotes(e.target.value)}
+                                        placeholder="Jelaskan data apa yang perlu diperbaiki atau dilengkapi seller."
+                                        className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-black/20 px-3 py-2 text-sm text-slate-900 dark:text-white"
+                                    />
+                                </div>
+                            )}
 
                             <div className="rounded-xl border border-slate-200 dark:border-slate-800 p-3">
                                 <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1 flex items-center gap-1.5">

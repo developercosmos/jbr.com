@@ -19,12 +19,18 @@ interface DashboardData {
     account: {
         code: string;
         status: string;
+        reviewNotes: string | null;
+        reviewedAt: string | null;
         payoutMethod: string | null;
         payoutAccount: string | null;
         fullName: string | null;
+        nik: string | null;
         phone: string | null;
         instagramHandle: string | null;
+        ktpUrl: string | null;
+        statementUrl: string | null;
         bankName: string | null;
+        bankAccountNumber: string | null;
         bankAccountName: string | null;
     } | null;
     prefill: {
@@ -60,19 +66,28 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
     const router = useRouter();
     const [data] = useState(initial);
     const { prefill } = data;
+    const account = data.account;
+    const isRejected = account?.status === "REJECTED";
+    const canEditApplication = !account || isRejected;
 
     // ── enrollment form state ──────────────────────────────────────────────
-    const [fullName, setFullName] = useState(prefill.name ?? "");
-    const [nik, setNik] = useState("");
+    const [fullName, setFullName] = useState(account?.fullName ?? prefill.name ?? "");
+    const [nik, setNik] = useState(account?.nik ?? "");
     const [phone, setPhone] = useState(
-        prefill.phone ? prefill.phone.replace(/^\+62/, "").replace(/^0/, "") : ""
+        (account?.phone ?? prefill.phone) ? (account?.phone ?? prefill.phone ?? "").replace(/^\+62/, "").replace(/^0/, "") : ""
     );
-    const [instagram, setInstagram] = useState("");
-    const [referralCode, setReferralCode] = useState(prefill.suggestedCode);
-    const [ktpUrl, setKtpUrl] = useState("");
-    const [statementUrl, setStatementUrl] = useState("");
-    const [bankModal, setBankModal] = useState<BankModal>({ bankName: "", bankAccountNumber: "", bankAccountName: "" });
-    const [bankSaved, setBankSaved] = useState(false);
+    const [instagram, setInstagram] = useState(account?.instagramHandle ?? "");
+    const [referralCode, setReferralCode] = useState(account?.code ?? prefill.suggestedCode);
+    const [ktpUrl, setKtpUrl] = useState(account?.ktpUrl ?? "");
+    const [statementUrl, setStatementUrl] = useState(account?.statementUrl ?? "");
+    const [bankModal, setBankModal] = useState<BankModal>({
+        bankName: account?.bankName ?? "",
+        bankAccountNumber: account?.bankAccountNumber ?? "",
+        bankAccountName: account?.bankAccountName ?? "",
+    });
+    const [bankSaved, setBankSaved] = useState(
+        Boolean(account?.bankName && account?.bankAccountNumber && account?.bankAccountName)
+    );
     const [showBankModal, setShowBankModal] = useState(false);
     const [agreed, setAgreed] = useState(false);
 
@@ -183,17 +198,30 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
     // ══════════════════════════════════════════════════════════════════════
     // Registration form (not yet enrolled)
     // ══════════════════════════════════════════════════════════════════════
-    if (!data.account) {
+    if (canEditApplication) {
         return (
             <>
                 <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 p-6 space-y-5">
                     <div>
-                        <h2 className="text-lg font-bold text-slate-900 dark:text-white">Daftar sebagai Affiliate</h2>
+                        <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                            {isRejected ? "Ajukan Ulang Affiliate" : "Daftar sebagai Affiliate"}
+                        </h2>
                         <p className="text-sm text-slate-500 mt-1">
-                            Isi data diri Anda untuk mendaftarkan akun afiliasi. Setelah terdaftar Anda akan mendapat
-                            link unik dan komisi dari setiap pesanan via link Anda. Self-purchase tidak dihitung.
+                            {isRejected
+                                ? "Perbarui data affiliate Anda sesuai catatan review admin, lalu kirim ulang untuk ditinjau kembali."
+                                : "Isi data diri Anda untuk mendaftarkan akun afiliasi. Setelah terdaftar Anda akan mendapat link unik dan komisi dari setiap pesanan via link Anda. Self-purchase tidak dihitung."}
                         </p>
                     </div>
+
+                    {isRejected && account?.reviewNotes && (
+                        <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-sm text-rose-700 dark:text-rose-300">
+                            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                            <div>
+                                <div className="font-medium">Pengajuan affiliate sebelumnya ditolak</div>
+                                <div>{account.reviewNotes}</div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* KYC status banner */}
                     {kycVerified && (
@@ -446,7 +474,7 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
                         className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-900 hover:bg-slate-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
                     >
                         {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                        Buat Akun Afiliasi
+                        {isRejected ? "Ajukan Ulang Affiliate" : "Buat Akun Afiliasi"}
                     </button>
                 </div>
 
@@ -513,10 +541,48 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
         );
     }
 
+    if (account.status === "PENDING" || account.status === "SUSPENDED") {
+        const isPendingReview = account.status === "PENDING";
+
+        return (
+            <div className="space-y-4">
+                <div className={`rounded-xl border p-5 space-y-3 ${isPendingReview ? "bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-200" : "bg-rose-50 border-rose-200 text-rose-900 dark:bg-rose-900/20 dark:border-rose-800 dark:text-rose-200"}`}>
+                    <div className="flex items-start gap-2">
+                        <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                        <div>
+                            <div className="font-semibold">
+                                {isPendingReview ? "Pengajuan affiliate sedang direview" : "Akun affiliate sedang disuspend"}
+                            </div>
+                            <div className="text-sm opacity-90 mt-1">
+                                {isPendingReview
+                                    ? "Admin belum menyelesaikan peninjauan. Anda akan menerima notifikasi dan email setelah keputusan dibuat."
+                                    : "Akses affiliate Anda sedang dinonaktifkan. Hubungi admin untuk bantuan lebih lanjut."}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="text-sm">
+                        Kode pengajuan: <strong>{account.code}</strong>
+                    </div>
+                    {account.reviewNotes && (
+                        <div className="text-sm">
+                            Catatan admin: {account.reviewNotes}
+                        </div>
+                    )}
+                    {(account.bankName || account.bankAccountName) && (
+                        <div className="text-sm">
+                            Rekening: <strong>{account.bankName}</strong>
+                            {account.bankAccountName ? ` a/n ${account.bankAccountName}` : ""}
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // Dashboard (already enrolled)
     // ══════════════════════════════════════════════════════════════════════
-    const link = `${baseUrl}?ref=${data.account.code}`;
+    const link = `${baseUrl}?ref=${account.code}`;
 
     return (
         <div className="space-y-4">
@@ -534,15 +600,15 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
                     </button>
                 </div>
                 <div className="text-xs text-slate-500">
-                    Kode: <strong>{data.account.code}</strong> · Status:{" "}
-                    <span className={data.account.status === "ACTIVE" ? "text-emerald-600" : "text-rose-600"}>
-                        {data.account.status}
+                    Kode: <strong>{account.code}</strong> · Status: {" "}
+                    <span className={account.status === "ACTIVE" ? "text-emerald-600" : "text-rose-600"}>
+                        {account.status}
                     </span>
-                    {data.account.fullName && <> · {data.account.fullName}</>}
+                    {account.fullName && <> · {account.fullName}</>}
                 </div>
-                {(data.account.bankName || data.account.bankAccountName) && (
+                {(account.bankName || account.bankAccountName) && (
                     <div className="text-xs text-slate-500">
-                        Bank: <strong>{data.account.bankName}</strong>{data.account.bankAccountName && ` a/n ${data.account.bankAccountName}`}
+                        Bank: <strong>{account.bankName}</strong>{account.bankAccountName && ` a/n ${account.bankAccountName}`}
                     </div>
                 )}
             </div>

@@ -335,11 +335,12 @@ export default async function UserManagementPage() {
                                                     storeSlug: user.store_slug,
                                                     storeDescription: user.store_description,
                                                     payoutBankName: user.payout_bank_name,
+                                                    storeReviewNotes: user.store_review_notes,
                                                 }}
                                                 isBanned={user.store_status === "BANNED"}
                                                 isPendingVerification={!user.email_verified}
                                                 isPendingStoreReview={user.store_status === "PENDING_REVIEW"}
-                                                canViewStoreDetail={Boolean(user.store_name || user.store_slug || user.store_description || user.payout_bank_name)}
+                                                canViewStoreDetail={Boolean(user.store_name || user.store_slug || user.store_description || user.payout_bank_name || user.store_review_notes)}
                                             />
                                         </td>
                                     </tr>

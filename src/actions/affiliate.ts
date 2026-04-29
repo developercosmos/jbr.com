@@ -5,6 +5,7 @@ import {
     affiliate_accounts,
     affiliate_attributions,
     affiliate_clicks,
+    notifications,
     orders,
     seller_kyc,
     users,
@@ -22,6 +23,7 @@ import {
 import { getSetting } from "@/actions/accounting/settings";
 import { logger } from "@/lib/logger";
 import { decryptPdpField, encryptPdpField } from "@/lib/crypto/pdp-field";
+import { sendAffiliateApprovedEmail, sendAffiliateRejectedEmail } from "@/lib/email";
 
 const ATTRIBUTION_WINDOW_DAYS = Number(process.env.AFFILIATE_ATTRIBUTION_DAYS || 30);
 const DEFAULT_COMMISSION_RATE = Number(process.env.AFFILIATE_DEFAULT_RATE || 5);
@@ -54,6 +56,29 @@ function generateCodeFromName(name: string): string {
     return RESERVED_CODES.has(candidate) ? `${candidate}1` : candidate;
 }
 
+async function resolveAffiliateCode(desiredCode: string | undefined, userName: string | null, excludeUserId?: string) {
+    let code = desiredCode
+        ? desiredCode.toLowerCase()
+        : generateCodeFromName(userName || "aff");
+
+    if (RESERVED_CODES.has(code)) code = `${code}1`;
+
+    for (let i = 0; i < 8; i++) {
+        const conflict = await db.query.affiliate_accounts.findFirst({
+            where: eq(affiliate_accounts.code, code),
+            columns: { user_id: true },
+        });
+
+        if (!conflict || conflict.user_id === excludeUserId) {
+            return code;
+        }
+
+        code = generateCodeFromName(`${userName || "aff"}${i}`);
+    }
+
+    throw new Error("Gagal membuat kode referral unik. Silakan coba lagi.");
+}
+
 const enrollSchema = z.object({
     payoutMethod: z.string().max(40).optional(),
     payoutAccount: z.string().max(120).optional(),
@@ -76,48 +101,75 @@ export async function enrollAffiliate(input: z.infer<typeof enrollSchema>) {
     const existing = await db.query.affiliate_accounts.findFirst({
         where: eq(affiliate_accounts.user_id, user.id),
     });
-    if (existing) {
+
+    if (existing?.status === "ACTIVE" || existing?.status === "PENDING") {
         return { success: true, code: existing.code, alreadyEnrolled: true };
     }
 
-    // Use user-provided referral code if given and available, else auto-generate
-    let code = validated.referralCode
-        ? validated.referralCode.toLowerCase()
-        : generateCodeFromName(user.name || "aff");
-
-    if (RESERVED_CODES.has(code)) code = `${code}1`;
-
-    for (let i = 0; i < 5; i++) {
-        const conflict = await db.query.affiliate_accounts.findFirst({
-            where: eq(affiliate_accounts.code, code),
-            columns: { user_id: true },
-        });
-        if (!conflict) break;
-        code = generateCodeFromName(`${user.name || "aff"}${i}`);
+    if (existing?.status === "SUSPENDED") {
+        throw new Error("Akun affiliate Anda sedang disuspend. Hubungi admin untuk bantuan lebih lanjut.");
     }
 
-    const [created] = await db
-        .insert(affiliate_accounts)
-        .values({
-            user_id: user.id,
-            code,
-            status: "ACTIVE",
-            payout_method: validated.payoutMethod,
-            payout_account: encryptPdpField(validated.payoutAccount),
-            full_name: validated.fullName,
-            nik: encryptPdpField(validated.nik),
-            phone: validated.phone,
-            instagram_handle: validated.instagramHandle,
-            ktp_url: validated.ktpUrl,
-            statement_url: validated.statementUrl,
-            bank_name: validated.bankName,
-            bank_account_number: encryptPdpField(validated.bankAccountNumber),
-            bank_account_name: validated.bankAccountName,
-        })
-        .returning();
+    const code = await resolveAffiliateCode(validated.referralCode, user.name, existing?.user_id);
+
+    const payload = {
+        code,
+        status: "PENDING" as const,
+        payout_method: validated.payoutMethod,
+        payout_account: encryptPdpField(validated.payoutAccount),
+        full_name: validated.fullName,
+        nik: encryptPdpField(validated.nik),
+        phone: validated.phone,
+        instagram_handle: validated.instagramHandle,
+        ktp_url: validated.ktpUrl,
+        statement_url: validated.statementUrl,
+        bank_name: validated.bankName,
+        bank_account_number: encryptPdpField(validated.bankAccountNumber),
+        bank_account_name: validated.bankAccountName,
+        review_notes: null,
+        reviewed_at: null,
+        reviewer_id: null,
+        updated_at: new Date(),
+    };
+
+    const [saved] = existing
+        ? await db
+            .update(affiliate_accounts)
+            .set(payload)
+            .where(eq(affiliate_accounts.user_id, user.id))
+            .returning()
+        : await db
+            .insert(affiliate_accounts)
+            .values({
+                user_id: user.id,
+                ...payload,
+            })
+            .returning();
+
+    const admins = await db.query.users.findMany({
+        where: eq(users.role, "ADMIN"),
+        columns: { id: true },
+    });
+
+    await Promise.all(
+        admins.map((admin) =>
+            db.insert(notifications).values({
+                user_id: admin.id,
+                type: "SYSTEM",
+                title: "Pengajuan Affiliate Baru",
+                message: `${validated.fullName || user.name || user.email} mengajukan akun affiliate dan menunggu review admin.`,
+                idempotency_key: `AFFILIATE_REVIEW_NEEDED:${user.id}:${Date.now()}:${admin.id}`,
+                data: {
+                    affiliate_user_id: user.id,
+                    code,
+                },
+            })
+        )
+    );
 
     revalidatePath("/affiliate");
-    return { success: true, code: created.code };
+    revalidatePath("/admin/affiliates");
+    return { success: true, code: saved.code };
 }
 
 export async function recordAffiliateClick(opts: {
@@ -304,12 +356,18 @@ export async function getAffiliateDashboard() {
             account: null as null | {
                 code: string;
                 status: string;
+                reviewNotes: string | null;
+                reviewedAt: string | null;
                 payoutMethod: string | null;
                 payoutAccount: string | null;
                 fullName: string | null;
+                nik: string | null;
                 phone: string | null;
                 instagramHandle: string | null;
+                ktpUrl: string | null;
+                statementUrl: string | null;
                 bankName: string | null;
+                bankAccountNumber: string | null;
                 bankAccountName: string | null;
             },
             prefill,
@@ -363,12 +421,18 @@ export async function getAffiliateDashboard() {
         account: {
             code: account.code,
             status: account.status,
+            reviewNotes: account.review_notes,
+            reviewedAt: account.reviewed_at?.toISOString() ?? null,
             payoutMethod: account.payout_method,
             payoutAccount: decryptPdpField(account.payout_account),
             fullName: account.full_name,
+            nik: decryptPdpField(account.nik),
             phone: account.phone,
             instagramHandle: account.instagram_handle,
+            ktpUrl: account.ktp_url,
+            statementUrl: account.statement_url,
             bankName: account.bank_name,
+            bankAccountNumber: decryptPdpField(account.bank_account_number),
             bankAccountName: account.bank_account_name,
         },
         prefill,
@@ -396,7 +460,116 @@ export async function listAffiliatesForAdmin() {
     return rows.map((row) => ({
         ...row,
         payout_account: decryptPdpField(row.payout_account),
+        bank_account_number: decryptPdpField(row.bank_account_number),
     }));
+}
+
+export async function approveAffiliateApplication(affiliateUserId: string) {
+    const admin = await requireAdmin();
+
+    const [updated] = await db
+        .update(affiliate_accounts)
+        .set({
+            status: "ACTIVE",
+            review_notes: null,
+            reviewed_at: new Date(),
+            reviewer_id: admin.id,
+            updated_at: new Date(),
+        })
+        .where(and(eq(affiliate_accounts.user_id, affiliateUserId), eq(affiliate_accounts.status, "PENDING")))
+        .returning({
+            user_id: affiliate_accounts.user_id,
+            code: affiliate_accounts.code,
+            full_name: affiliate_accounts.full_name,
+        });
+
+    if (!updated) {
+        throw new Error("Pengajuan affiliate tidak ditemukan atau sudah diproses.");
+    }
+
+    const affiliateUser = await db.query.users.findFirst({
+        where: eq(users.id, affiliateUserId),
+        columns: { id: true, email: true, name: true },
+    });
+
+    if (!affiliateUser) {
+        throw new Error("User affiliate tidak ditemukan.");
+    }
+
+    await db.insert(notifications).values({
+        user_id: affiliateUser.id,
+        type: "SYSTEM",
+        title: "Pengajuan Affiliate Disetujui",
+        message: `Akun affiliate Anda telah disetujui. Kode referral aktif: ${updated.code}.`,
+        idempotency_key: `AFFILIATE_APPROVED:${affiliateUser.id}`,
+        data: { code: updated.code },
+    });
+
+    await sendAffiliateApprovedEmail(
+        affiliateUser.email,
+        updated.full_name || affiliateUser.name,
+        updated.code
+    );
+
+    revalidatePath("/affiliate");
+    revalidatePath("/admin/affiliates");
+    return { success: true };
+}
+
+export async function rejectAffiliateApplication(affiliateUserId: string, notes: string) {
+    const admin = await requireAdmin();
+
+    const trimmedNotes = notes.trim();
+    if (!trimmedNotes) {
+        throw new Error("Alasan reject wajib diisi.");
+    }
+
+    const [updated] = await db
+        .update(affiliate_accounts)
+        .set({
+            status: "REJECTED",
+            review_notes: trimmedNotes,
+            reviewed_at: new Date(),
+            reviewer_id: admin.id,
+            updated_at: new Date(),
+        })
+        .where(and(eq(affiliate_accounts.user_id, affiliateUserId), eq(affiliate_accounts.status, "PENDING")))
+        .returning({
+            user_id: affiliate_accounts.user_id,
+            full_name: affiliate_accounts.full_name,
+        });
+
+    if (!updated) {
+        throw new Error("Pengajuan affiliate tidak ditemukan atau sudah diproses.");
+    }
+
+    const affiliateUser = await db.query.users.findFirst({
+        where: eq(users.id, affiliateUserId),
+        columns: { id: true, email: true, name: true },
+    });
+
+    if (!affiliateUser) {
+        throw new Error("User affiliate tidak ditemukan.");
+    }
+
+    await db.insert(notifications).values({
+        user_id: affiliateUser.id,
+        type: "SYSTEM",
+        title: "Pengajuan Affiliate Perlu Revisi",
+        message: `Pengajuan affiliate Anda perlu diperbaiki: ${trimmedNotes}`,
+        idempotency_key: `AFFILIATE_REJECTED:${affiliateUser.id}:${Date.now()}`,
+        data: { reason: trimmedNotes },
+    });
+
+    await sendAffiliateRejectedEmail(
+        affiliateUser.email,
+        updated.full_name || affiliateUser.name,
+        trimmedNotes
+    );
+
+    revalidatePath("/affiliate");
+    revalidatePath("/admin/affiliates");
+    return { success: true };
 }
 
 const overrideRateSchema = z.object({

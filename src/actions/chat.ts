@@ -7,6 +7,11 @@ import { headers } from "next/headers";
 import { eq, desc, and, or, asc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
+function firstRelation<T>(value: T | T[] | null | undefined): T | null {
+    if (Array.isArray(value)) return value[0] ?? null;
+    return value ?? null;
+}
+
 // Get current user
 async function getCurrentUser() {
     const session = await auth.api.getSession({
@@ -74,15 +79,15 @@ export async function getConversations() {
     // Transform to include other party info
     return userConversations.map((conv) => {
         const isUserBuyer = conv.buyer_id === user.id;
-        const otherParty = isUserBuyer ? conv.seller : conv.buyer;
+        const otherParty = firstRelation(isUserBuyer ? conv.seller : conv.buyer);
         const lastMessage = conv.messages[0] || null;
 
         return {
             id: conv.id,
             otherParty: {
-                id: otherParty.id,
-                name: otherParty.store_name || otherParty.name,
-                image: otherParty.image,
+                id: otherParty?.id || "",
+                name: otherParty?.store_name || otherParty?.name || "Pengguna",
+                image: otherParty?.image || null,
             },
             product: conv.product,
             lastMessage: lastMessage
@@ -168,31 +173,34 @@ export async function getMessages(conversationId: string) {
         );
 
     const isUserBuyer = conversation.buyer_id === user.id;
-    const otherParty = isUserBuyer ? conversation.seller : conversation.buyer;
+    const otherParty = firstRelation(isUserBuyer ? conversation.seller : conversation.buyer);
 
     return {
         conversation: {
             id: conversation.id,
             otherParty: {
-                id: otherParty.id,
-                name: otherParty.store_name || otherParty.name,
-                image: otherParty.image,
+                id: otherParty?.id || "",
+                name: otherParty?.store_name || otherParty?.name || "Pengguna",
+                image: otherParty?.image || null,
             },
             product: conversation.product,
         },
-        messages: conversationMessages.map((msg) => ({
-            id: msg.id,
-            content: msg.content,
-            attachmentUrl: msg.attachment_url,
-            isFromMe: msg.sender_id === user.id,
-            sender: {
-                id: msg.sender.id,
-                name: msg.sender.store_name || msg.sender.name,
-                image: msg.sender.image,
-            },
-            isRead: msg.is_read,
-            createdAt: msg.created_at,
-        })),
+        messages: conversationMessages.map((msg) => {
+            const sender = firstRelation(msg.sender);
+            return {
+                id: msg.id,
+                content: msg.content,
+                attachmentUrl: msg.attachment_url,
+                isFromMe: msg.sender_id === user.id,
+                sender: {
+                    id: sender?.id || "",
+                    name: sender?.store_name || sender?.name || "Pengguna",
+                    image: sender?.image || null,
+                },
+                isRead: msg.is_read,
+                createdAt: msg.created_at,
+            };
+        }),
         currentUserId: user.id,
     };
 }

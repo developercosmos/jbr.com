@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useRef, ChangeEvent } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 import {
     updateSellerProfile,
+    resubmitSellerActivationReview,
     uploadSellerBanner,
     uploadSellerLogo,
 } from "@/actions/seller";
@@ -52,11 +54,16 @@ export default function StoreSettingsForm({
     profile,
     addresses,
     storeUrl,
+    storeStatus,
+    storeReviewNotes,
 }: {
     profile: SellerProfile;
     addresses: AddressOption[];
     storeUrl: string;
+    storeStatus: "ACTIVE" | "PENDING_REVIEW" | "VACATION" | "BANNED" | null;
+    storeReviewNotes: string | null;
 }) {
+    const router = useRouter();
     const [bannerUrl, setBannerUrl] = useState<string | null>(profile.store_banner_url);
     const [logoUrl, setLogoUrl] = useState<string | null>(profile.image);
     const [bannerUploading, setBannerUploading] = useState(false);
@@ -157,11 +164,52 @@ export default function StoreSettingsForm({
         });
     };
 
+    const handleResubmitReview = () => {
+        startTransition(async () => {
+            try {
+                const res = await resubmitSellerActivationReview();
+                if (res.success) {
+                    showToast({ type: "success", message: "Pengajuan review ulang berhasil dikirim" });
+                    router.refresh();
+                }
+            } catch (error) {
+                showToast({
+                    type: "error",
+                    message: error instanceof Error ? error.message : "Gagal mengajukan review ulang",
+                });
+            }
+        });
+    };
+
     const initials = (profile.store_name || profile.name || "??").slice(0, 2).toUpperCase();
     const selectedAddress = addresses.find((a) => a.id === pickupAddressId);
 
     return (
         <div className="space-y-8">
+            {storeStatus === "PENDING_REVIEW" && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    Pengajuan aktivasi seller Anda sedang direview admin. Anda akan menerima notifikasi setelah keputusan dibuat.
+                </div>
+            )}
+
+            {storeStatus === "VACATION" && storeReviewNotes && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 space-y-3 text-sm text-rose-900">
+                    <div>
+                        <div className="font-semibold mb-1">Pengajuan seller perlu revisi</div>
+                        <div>{storeReviewNotes}</div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleResubmitReview}
+                        disabled={isPending}
+                        className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
+                    >
+                        {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                        Ajukan Review Ulang
+                    </button>
+                </div>
+            )}
+
             {/* Toast */}
             {toast && (
                 <div

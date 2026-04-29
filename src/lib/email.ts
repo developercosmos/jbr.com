@@ -433,6 +433,173 @@ export async function sendNewOrderNotificationToSeller(
     });
 }
 
+export async function sendSellerActivationApprovedEmail(
+    email: string,
+    sellerName: string,
+    storeName: string,
+    storeSlug: string
+): Promise<boolean> {
+    const content = `
+        <h2>Aktivasi Seller Disetujui</h2>
+        <p>Halo ${sellerName},</p>
+        <p>Pengajuan aktivasi seller untuk toko <strong>${storeName}</strong> telah disetujui.</p>
+
+        <div class="highlight">
+            <p style="margin: 0;"><strong>Status:</strong> Toko Anda sudah aktif dan siap menerima pesanan.</p>
+        </div>
+
+        <p style="text-align: center; margin-top: 30px;">
+            <a href="${APP_URL}/store/${storeSlug}" class="button">Lihat Toko</a>
+        </p>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: `Seller Disetujui - ${APP_NAME}`,
+        html: getBaseTemplate(content),
+    });
+}
+
+export async function sendSellerActivationRejectedEmail(
+    email: string,
+    sellerName: string,
+    storeName: string,
+    reason: string
+): Promise<boolean> {
+    const content = `
+        <h2>Aktivasi Seller Perlu Revisi</h2>
+        <p>Halo ${sellerName},</p>
+        <p>Pengajuan aktivasi seller untuk toko <strong>${storeName}</strong> belum dapat disetujui.</p>
+
+        <div class="highlight">
+            <p style="margin: 0 0 8px 0;"><strong>Alasan review:</strong></p>
+            <p style="margin: 0;">${reason}</p>
+        </div>
+
+        <p>Silakan perbarui data toko Anda lalu ajukan review ulang.</p>
+
+        <p style="text-align: center; margin-top: 30px;">
+            <a href="${APP_URL}/seller/settings" class="button">Perbaiki Data Toko</a>
+        </p>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: `Aktivasi Seller Perlu Revisi - ${APP_NAME}`,
+        html: getBaseTemplate(content),
+    });
+}
+
+export async function sendSellerKycApprovedEmail(
+    email: string,
+    sellerName: string,
+    tier: string
+): Promise<boolean> {
+    const content = `
+        <h2>KYC Seller Disetujui</h2>
+        <p>Halo ${sellerName},</p>
+        <p>Pengajuan KYC seller Anda telah disetujui.</p>
+
+        <div class="highlight">
+            <p style="margin: 0;"><strong>Tier aktif:</strong> ${tier}</p>
+        </div>
+
+        <p style="text-align: center; margin-top: 30px;">
+            <a href="${APP_URL}/seller/settings#kyc" class="button">Lihat Status KYC</a>
+        </p>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: `KYC Seller Disetujui - ${APP_NAME}`,
+        html: getBaseTemplate(content),
+    });
+}
+
+export async function sendSellerKycRejectedEmail(
+    email: string,
+    sellerName: string,
+    reason: string
+): Promise<boolean> {
+    const content = `
+        <h2>KYC Seller Perlu Revisi</h2>
+        <p>Halo ${sellerName},</p>
+        <p>Pengajuan KYC seller Anda belum dapat disetujui.</p>
+
+        <div class="highlight">
+            <p style="margin: 0 0 8px 0;"><strong>Catatan reviewer:</strong></p>
+            <p style="margin: 0;">${reason}</p>
+        </div>
+
+        <p>Silakan lengkapi atau perbaiki dokumen yang diminta lalu kirim ulang pengajuan Anda.</p>
+
+        <p style="text-align: center; margin-top: 30px;">
+            <a href="${APP_URL}/seller/settings#kyc" class="button">Perbaiki Pengajuan KYC</a>
+        </p>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: `KYC Seller Perlu Revisi - ${APP_NAME}`,
+        html: getBaseTemplate(content),
+    });
+}
+
+export async function sendAffiliateApprovedEmail(
+    email: string,
+    affiliateName: string,
+    code: string
+): Promise<boolean> {
+    const content = `
+        <h2>Pengajuan Affiliate Disetujui</h2>
+        <p>Halo ${affiliateName},</p>
+        <p>Pengajuan program affiliate Anda telah disetujui.</p>
+
+        <div class="highlight">
+            <p style="margin: 0;"><strong>Kode referral:</strong> ${code}</p>
+        </div>
+
+        <p style="text-align: center; margin-top: 30px;">
+            <a href="${APP_URL}/affiliate" class="button">Buka Dashboard Affiliate</a>
+        </p>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: `Affiliate Disetujui - ${APP_NAME}`,
+        html: getBaseTemplate(content),
+    });
+}
+
+export async function sendAffiliateRejectedEmail(
+    email: string,
+    affiliateName: string,
+    reason: string
+): Promise<boolean> {
+    const content = `
+        <h2>Pengajuan Affiliate Perlu Revisi</h2>
+        <p>Halo ${affiliateName},</p>
+        <p>Pengajuan affiliate Anda belum dapat disetujui.</p>
+
+        <div class="highlight">
+            <p style="margin: 0 0 8px 0;"><strong>Alasan review:</strong></p>
+            <p style="margin: 0;">${reason}</p>
+        </div>
+
+        <p>Silakan lengkapi atau perbaiki data yang diminta lalu ajukan ulang melalui dashboard affiliate.</p>
+
+        <p style="text-align: center; margin-top: 30px;">
+            <a href="${APP_URL}/affiliate" class="button">Ajukan Ulang Affiliate</a>
+        </p>
+    `;
+
+    return sendEmail({
+        to: email,
+        subject: `Affiliate Perlu Revisi - ${APP_NAME}`,
+        html: getBaseTemplate(content),
+    });
+}
+
 export async function sendProductApprovedEmail(
     email: string,
     sellerName: string,

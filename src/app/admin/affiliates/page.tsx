@@ -12,6 +12,8 @@ export default async function AdminAffiliatesPage() {
         rateOverride: a.commission_rate_override === null ? null : Number(a.commission_rate_override),
         payoutMethod: a.payout_method,
         payoutAccount: a.payout_account,
+        reviewNotes: a.review_notes,
+        reviewedAt: a.reviewed_at?.toISOString() ?? null,
         userName: a.user?.name ?? null,
         userEmail: a.user?.email ?? null,
     }));

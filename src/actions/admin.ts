@@ -1,12 +1,13 @@
 "use server";
 
 import { db } from "@/db";
-import { users, products, orders, order_items, product_variants } from "@/db/schema";
+import { users, products, orders, order_items, product_variants, notifications } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { eq, desc, count, sql, and, gte, ilike, or, exists, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { categories } from "@/db/schema";
+import { sendSellerActivationApprovedEmail, sendSellerActivationRejectedEmail } from "@/lib/email";
 
 // Get current admin user
 async function getCurrentAdmin() {
@@ -314,12 +315,15 @@ export async function unbanUser(userId: string) {
 }
 
 export async function approveSellerActivation(userId: string) {
-    await getCurrentAdmin();
+    const admin = await getCurrentAdmin();
 
     const updated = await db
         .update(users)
         .set({
             store_status: "ACTIVE",
+            store_review_notes: null,
+            store_reviewed_at: new Date(),
+            store_reviewer_id: admin.id,
             updated_at: new Date(),
         })
         .where(
@@ -328,26 +332,63 @@ export async function approveSellerActivation(userId: string) {
                 eq(users.store_status, "PENDING_REVIEW")
             )
         )
-        .returning({ id: users.id });
+        .returning({
+            id: users.id,
+            name: users.name,
+            email: users.email,
+            store_name: users.store_name,
+            store_slug: users.store_slug,
+        });
 
     if (updated.length === 0) {
         throw new Error("Pengajuan tidak ditemukan atau sudah diproses.");
     }
 
+    const seller = updated[0];
+
+    await db.insert(notifications).values({
+        user_id: seller.id,
+        type: "SYSTEM",
+        title: "Aktivasi Seller Disetujui",
+        message: `Toko ${seller.store_name || "Anda"} telah disetujui dan sudah aktif untuk berjualan.`,
+        idempotency_key: `SELLER_ACTIVATION_APPROVED:${seller.id}`,
+        data: {
+            store_slug: seller.store_slug,
+        },
+    });
+
+    if (seller.email && seller.store_name && seller.store_slug) {
+        await sendSellerActivationApprovedEmail(
+            seller.email,
+            seller.name || seller.store_name,
+            seller.store_name,
+            seller.store_slug
+        );
+    }
+
     revalidatePath("/admin");
     revalidatePath("/admin/users");
     revalidatePath("/admin/kyc");
+    revalidatePath("/seller/settings");
     return { success: true, message: "Pengajuan seller berhasil di-approve." };
 }
 
-export async function rejectSellerActivation(userId: string) {
-    await getCurrentAdmin();
+export async function rejectSellerActivation(userId: string, notes: string) {
+    const admin = await getCurrentAdmin();
+    const trimmedNotes = notes.trim();
+
+    if (!trimmedNotes) {
+        throw new Error("Alasan reject wajib diisi.");
+    }
 
     // Use VACATION so the seller is not banned and can resubmit profile updates.
     const updated = await db
         .update(users)
         .set({
             store_status: "VACATION",
+            store_review_notes: trimmedNotes,
+            store_reviewed_at: new Date(),
+            store_reviewer_id: admin.id,
             updated_at: new Date(),
         })
         .where(
@@ -356,15 +397,43 @@ export async function rejectSellerActivation(userId: string) {
                 eq(users.store_status, "PENDING_REVIEW")
             )
         )
-        .returning({ id: users.id });
+        .returning({
+            id: users.id,
+            name: users.name,
+            email: users.email,
+            store_name: users.store_name,
+        });
 
     if (updated.length === 0) {
         throw new Error("Pengajuan tidak ditemukan atau sudah diproses.");
     }
 
+    const seller = updated[0];
+
+    await db.insert(notifications).values({
+        user_id: seller.id,
+        type: "SYSTEM",
+        title: "Aktivasi Seller Perlu Revisi",
+        message: `Pengajuan seller Anda perlu diperbaiki: ${trimmedNotes}`,
+        idempotency_key: `SELLER_ACTIVATION_REJECTED:${seller.id}:${Date.now()}`,
+        data: {
+            reason: trimmedNotes,
+        },
+    });
+
+    if (seller.email && seller.store_name) {
+        await sendSellerActivationRejectedEmail(
+            seller.email,
+            seller.name || seller.store_name,
+            seller.store_name,
+            trimmedNotes
+        );
+    }
+
     revalidatePath("/admin");
     revalidatePath("/admin/users");
     revalidatePath("/admin/kyc");
+    revalidatePath("/seller/settings");
     return { success: true, message: "Pengajuan seller berhasil di-reject." };
 }
 
