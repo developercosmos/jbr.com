@@ -313,6 +313,51 @@ export async function unbanUser(userId: string) {
     return { success: true };
 }
 
+export async function approveSellerActivation(userId: string) {
+    await getCurrentAdmin();
+
+    await db
+        .update(users)
+        .set({
+            store_status: "ACTIVE",
+            updated_at: new Date(),
+        })
+        .where(
+            and(
+                eq(users.id, userId),
+                eq(users.store_status, "PENDING_REVIEW")
+            )
+        );
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/users");
+    revalidatePath("/admin/kyc");
+    return { success: true };
+}
+
+export async function rejectSellerActivation(userId: string) {
+    await getCurrentAdmin();
+
+    // Use VACATION so the seller is not banned and can resubmit profile updates.
+    await db
+        .update(users)
+        .set({
+            store_status: "VACATION",
+            updated_at: new Date(),
+        })
+        .where(
+            and(
+                eq(users.id, userId),
+                eq(users.store_status, "PENDING_REVIEW")
+            )
+        );
+
+    revalidatePath("/admin");
+    revalidatePath("/admin/users");
+    revalidatePath("/admin/kyc");
+    return { success: true };
+}
+
 export async function deleteUser(userId: string) {
     const admin = await getCurrentAdmin();
 
