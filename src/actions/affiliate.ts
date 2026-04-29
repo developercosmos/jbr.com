@@ -6,6 +6,7 @@ import {
     affiliate_attributions,
     affiliate_clicks,
     orders,
+    seller_kyc,
     users,
 } from "@/db/schema";
 import { auth } from "@/lib/auth";
@@ -56,6 +57,16 @@ function generateCodeFromName(name: string): string {
 const enrollSchema = z.object({
     payoutMethod: z.string().max(40).optional(),
     payoutAccount: z.string().max(120).optional(),
+    fullName: z.string().max(120).optional(),
+    nik: z.string().max(20).optional(),
+    phone: z.string().max(20).optional(),
+    instagramHandle: z.string().max(80).optional(),
+    ktpUrl: z.string().max(512).optional(),
+    statementUrl: z.string().max(512).optional(),
+    bankName: z.string().max(60).optional(),
+    bankAccountNumber: z.string().max(40).optional(),
+    bankAccountName: z.string().max(120).optional(),
+    referralCode: z.string().min(5).max(20).regex(/^[a-z0-9]+$/i).optional(),
 });
 
 export async function enrollAffiliate(input: z.infer<typeof enrollSchema>) {
@@ -69,7 +80,13 @@ export async function enrollAffiliate(input: z.infer<typeof enrollSchema>) {
         return { success: true, code: existing.code, alreadyEnrolled: true };
     }
 
-    let code = generateCodeFromName(user.name || "aff");
+    // Use user-provided referral code if given and available, else auto-generate
+    let code = validated.referralCode
+        ? validated.referralCode.toLowerCase()
+        : generateCodeFromName(user.name || "aff");
+
+    if (RESERVED_CODES.has(code)) code = `${code}1`;
+
     for (let i = 0; i < 5; i++) {
         const conflict = await db.query.affiliate_accounts.findFirst({
             where: eq(affiliate_accounts.code, code),
@@ -87,6 +104,15 @@ export async function enrollAffiliate(input: z.infer<typeof enrollSchema>) {
             status: "ACTIVE",
             payout_method: validated.payoutMethod,
             payout_account: encryptPdpField(validated.payoutAccount),
+            full_name: validated.fullName,
+            nik: encryptPdpField(validated.nik),
+            phone: validated.phone,
+            instagram_handle: validated.instagramHandle,
+            ktp_url: validated.ktpUrl,
+            statement_url: validated.statementUrl,
+            bank_name: validated.bankName,
+            bank_account_number: encryptPdpField(validated.bankAccountNumber),
+            bank_account_name: validated.bankAccountName,
         })
         .returning();
 
@@ -246,9 +272,32 @@ export async function reverseAttributionForRefund(orderId: string, memo?: string
 
 export async function getAffiliateDashboard() {
     const user = await getCurrentUser();
-    const account = await db.query.affiliate_accounts.findFirst({
-        where: eq(affiliate_accounts.user_id, user.id),
-    });
+
+    // Fetch account, user profile, and KYC in parallel for pre-fill
+    const [account, userProfile, kycRecord] = await Promise.all([
+        db.query.affiliate_accounts.findFirst({
+            where: eq(affiliate_accounts.user_id, user.id),
+        }),
+        db.query.users.findFirst({
+            where: eq(users.id, user.id),
+            columns: { name: true, phone: true },
+        }),
+        db.query.seller_kyc.findFirst({
+            where: eq(seller_kyc.user_id, user.id),
+            columns: { status: true, ktp_file_id: true },
+        }),
+    ]);
+
+    // Auto-generate a candidate referral code to suggest to the user
+    const suggestedCode = generateCodeFromName(user.name || "aff");
+
+    const prefill = {
+        name: userProfile?.name ?? null,
+        phone: userProfile?.phone ?? null,
+        kycStatus: kycRecord?.status ?? null,
+        kycHasKtp: !!kycRecord?.ktp_file_id,
+        suggestedCode,
+    };
 
     if (!account) {
         return {
@@ -257,7 +306,13 @@ export async function getAffiliateDashboard() {
                 status: string;
                 payoutMethod: string | null;
                 payoutAccount: string | null;
+                fullName: string | null;
+                phone: string | null;
+                instagramHandle: string | null;
+                bankName: string | null;
+                bankAccountName: string | null;
             },
+            prefill,
             totals: { clicks: 0, conversions: 0, pending: 0, cleared: 0, reversed: 0 },
             attributions: [] as Array<{
                 id: string;
@@ -310,7 +365,13 @@ export async function getAffiliateDashboard() {
             status: account.status,
             payoutMethod: account.payout_method,
             payoutAccount: decryptPdpField(account.payout_account),
+            fullName: account.full_name,
+            phone: account.phone,
+            instagramHandle: account.instagram_handle,
+            bankName: account.bank_name,
+            bankAccountName: account.bank_account_name,
         },
+        prefill,
         totals,
         attributions: recent.map((a) => ({
             id: a.id,
