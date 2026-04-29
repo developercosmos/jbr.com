@@ -9,7 +9,10 @@ interface ProductGalleryProps {
 }
 
 export function ProductGallery({ images }: ProductGalleryProps) {
-    const [activeImage, setActiveImage] = useState(images[0]);
+    const sanitizedImages = images.filter(
+        (img): img is string => typeof img === "string" && img.trim().length > 0
+    );
+    const [activeImage, setActiveImage] = useState(sanitizedImages[0] ?? "");
 
     return (
         <div className="flex flex-col gap-4">
@@ -19,10 +22,14 @@ export function ProductGallery({ images }: ProductGalleryProps) {
                 <div className="absolute top-4 left-4 z-10 bg-slate-900/80 backdrop-blur-sm text-white text-xs font-bold px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
                     Pre-loved
                 </div>
-                <div
-                    className="w-full h-full bg-center bg-cover transition-transform duration-500 group-hover:scale-110 cursor-zoom-in"
-                    style={{ backgroundImage: `url('${activeImage}')` }}
-                ></div>
+                {activeImage ? (
+                    <div
+                        className="w-full h-full bg-center bg-cover transition-transform duration-500 group-hover:scale-110 cursor-zoom-in"
+                        style={{ backgroundImage: `url('${activeImage}')` }}
+                    ></div>
+                ) : (
+                    <div className="w-full h-full bg-slate-100 dark:bg-slate-800" />
+                )}
                 {/* Zoom Hint */}
                 <div className="absolute bottom-4 right-4 bg-black/50 p-2 rounded-lg text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                     <ZoomIn className="w-4 h-4" />
@@ -30,7 +37,7 @@ export function ProductGallery({ images }: ProductGalleryProps) {
             </div>
             {/* Thumbnails */}
             <div className="grid grid-cols-5 gap-3">
-                {images.map((img, index) => (
+                {sanitizedImages.map((img, index) => (
                     <button
                         key={index}
                         onClick={() => setActiveImage(img)}
