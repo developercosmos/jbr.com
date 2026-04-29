@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { uploadFile as uploadToStorage } from "@/lib/storage";
 import { getFileTypeFromMime } from "@/lib/file-utils";
+import { decryptPdpField, encryptPdpField } from "@/lib/crypto/pdp-field";
 
 const sellerTierCaps: Record<"T0" | "T1" | "T2", number> = {
     T0: 10_000_000,
@@ -88,7 +89,7 @@ export async function seedSellerKycProfile(userId: string) {
             status: "APPROVED",
             submitted_at: new Date(),
             reviewed_at: new Date(),
-            notes: "Auto-approved T0 after seller activation.",
+            notes: encryptPdpField("Auto-approved T0 after seller activation."),
         })
         .returning({
             id: seller_kyc.id,
@@ -103,7 +104,7 @@ export async function seedSellerKycProfile(userId: string) {
 }
 
 export async function getSellerKycProfile(userId: string) {
-    return db.query.seller_kyc.findFirst({
+    const profile = await db.query.seller_kyc.findFirst({
         where: eq(seller_kyc.user_id, userId),
         with: {
             ktpFile: true,
@@ -118,6 +119,12 @@ export async function getSellerKycProfile(userId: string) {
             },
         },
     });
+
+    if (!profile) return null;
+    return {
+        ...profile,
+        notes: decryptPdpField(profile.notes),
+    };
 }
 
 export async function ensureSellerWithinMonthlyGmvCap(sellerId: string, pendingOrderTotal: number) {
@@ -217,7 +224,7 @@ export async function submitSellerKycApplication(input: z.infer<typeof submitSel
             submitted_at: new Date(),
             reviewed_at: null,
             reviewer_id: null,
-            notes: validated.notes,
+            notes: encryptPdpField(validated.notes),
             updated_at: new Date(),
         })
         .onConflictDoUpdate({
@@ -231,7 +238,7 @@ export async function submitSellerKycApplication(input: z.infer<typeof submitSel
                 submitted_at: new Date(),
                 reviewed_at: null,
                 reviewer_id: null,
-                notes: validated.notes,
+                notes: encryptPdpField(validated.notes),
                 updated_at: new Date(),
             },
         });
@@ -372,7 +379,10 @@ export async function listKycSubmissions(filter?: z.infer<typeof kycListFilterSc
         },
     });
 
-    return submissions;
+    return submissions.map((submission) => ({
+        ...submission,
+        notes: decryptPdpField(submission.notes),
+    }));
 }
 
 export async function getKycSubmissionCounts() {
@@ -415,7 +425,7 @@ export async function reviewSellerKycApplication(input: z.infer<typeof reviewSel
             status: validated.decision,
             reviewed_at: new Date(),
             reviewer_id: admin.id,
-            notes: validated.notes,
+            notes: encryptPdpField(validated.notes),
             updated_at: new Date(),
         })
         .where(eq(seller_kyc.user_id, validated.sellerId));

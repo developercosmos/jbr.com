@@ -136,7 +136,8 @@ export default function KycSection({ profile, currentTier }: KycSectionProps) {
                     <p className="font-semibold text-slate-900">Perlindungan Data Pribadi (PDP)</p>
                     <p>
                         Dokumen identitas (KTP, selfie dengan KTP, dan dokumen bisnis) diproses hanya untuk tujuan verifikasi identitas/KYC,
-                        pencegahan fraud, dan pemenuhan kewajiban hukum. Berkas disimpan sebagai file privat, akses dibatasi untuk petugas
+                        pencegahan fraud, dan pemenuhan kewajiban hukum. Berkas disimpan sebagai file privat, data sensitif pada sistem kami
+                        dilindungi dengan enkripsi di level aplikasi, akses dibatasi untuk petugas
                         berwenang, dan tidak dipublikasikan ke profil toko.
                     </p>
                 </div>
