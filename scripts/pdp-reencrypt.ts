@@ -1,7 +1,7 @@
 import { config } from "dotenv";
 
 config({ path: ".env.production" });
-config({ path: ".env.local" });
+config({ path: ".env.local", override: true });
 
 type SweepStats = {
     usersPhone: number;
