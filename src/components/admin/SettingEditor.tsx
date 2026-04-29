@@ -11,6 +11,7 @@ interface SettingMeta {
     desc: string;
     impact: string;
     example: string;
+    allowedValues?: string[];
 }
 
 interface Props {
