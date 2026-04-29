@@ -53,6 +53,7 @@ export default async function AdminDashboardPage() {
         orderCount,
         openDisputes,
         pendingKyc,
+        pendingSellerReview,
     ] = await Promise.all([
         db.select({ count: sql<number>`count(*)` }).from(users).then((r) => Number(r[0]?.count ?? 0)),
         db.select({ count: sql<number>`count(*)` }).from(products).then((r) => Number(r[0]?.count ?? 0)),
@@ -69,6 +70,10 @@ export default async function AdminDashboardPage() {
             .from(seller_kyc)
             .where(eq(seller_kyc.status, "PENDING_REVIEW"))
             .then((r) => Number(r[0]?.count ?? 0)),
+        db.select({ count: sql<number>`count(*)` })
+            .from(users)
+            .where(eq(users.store_status, "PENDING_REVIEW"))
+            .then((r) => Number(r[0]?.count ?? 0)),
     ]);
 
     const surfaces: Array<{
@@ -79,7 +84,7 @@ export default async function AdminDashboardPage() {
         badge?: number;
     }> = [
             { href: "/admin/moderation", label: "Moderation", description: "Review draft listings", icon: ShieldCheck, badge: pendingProducts },
-            { href: "/admin/users", label: "Users", description: "Manage accounts and roles", icon: Users },
+            { href: "/admin/users", label: "Users", description: "Manage accounts and seller review", icon: Users, badge: pendingSellerReview },
             { href: "/admin/categories", label: "Categories", description: "Catalog taxonomy", icon: FolderOpen },
             { href: "/admin/products", label: "Products", description: "All listings", icon: Package },
             { href: "/admin/orders", label: "Orders", description: "Marketplace orders", icon: ShoppingBag },
@@ -114,6 +119,7 @@ export default async function AdminDashboardPage() {
                     <Stat label="Pending review" value={pendingProducts} highlight={pendingProducts > 0} />
                     <Stat label="Orders" value={orderCount} />
                     <Stat label="Open disputes" value={openDisputes} highlight={openDisputes > 0} />
+                    <Stat label="Pending seller" value={pendingSellerReview} highlight={pendingSellerReview > 0} />
                     <Stat label="Pending KYC" value={pendingKyc} highlight={pendingKyc > 0} />
                 </div>
 
