@@ -12,6 +12,8 @@ export type SettingMeta = {
     desc: string;
     impact: string;
     example: string;
+    /** If set, the editor renders a <select> instead of a free-text input. */
+    allowedValues?: string[];
 };
 
 export const settingMeta: Record<string, SettingMeta> = {
@@ -71,6 +73,7 @@ export const settingMeta: Record<string, SettingMeta> = {
         desc: "Rezim pajak yang berlaku bagi entitas: UMKM PP55 (final 0.5%), Badan reguler (22%), atau Final lainnya.",
         impact: "Menentukan tarif PPh yang dipakai di posting.",
         example: '"UMKM_PP55", "BADAN", "FINAL"',
+        allowedValues: ["UMKM_PP55", "BADAN", "FINAL"],
     },
     "tax.ppn_rate": {
         label: "Tarif PPN",
@@ -83,6 +86,7 @@ export const settingMeta: Record<string, SettingMeta> = {
         desc: "Apakah harga sudah termasuk PPN (INCLUSIVE) atau belum (EXCLUSIVE).",
         impact: "Memengaruhi cara PPN diekstraksi dari harga jual.",
         example: '"INCLUSIVE", "EXCLUSIVE"',
+        allowedValues: ["INCLUSIVE", "EXCLUSIVE"],
     },
     "tax.pph23_rate": {
         label: "Tarif PPh Pasal 23",
@@ -113,6 +117,7 @@ export const settingMeta: Record<string, SettingMeta> = {
         desc: "Format file yang digunakan saat ekspor data ke Coretax DJP.",
         impact: "Memengaruhi struktur file ekspor pajak.",
         example: '"CSV", "XML"',
+        allowedValues: ["CSV", "XML"],
     },
 
     // ============ LOGISTICS / ESCROW / CURRENCY ============
@@ -121,6 +126,7 @@ export const settingMeta: Record<string, SettingMeta> = {
         desc: "PASS_THROUGH (logistik tidak diakui sebagai revenue) atau MARKUP (markup diakui).",
         impact: "Menentukan apakah biaya kirim memengaruhi P&L.",
         example: '"PASS_THROUGH", "MARKUP"',
+        allowedValues: ["PASS_THROUGH", "MARKUP"],
     },
     "logistics.default_markup_account_code": {
         label: "Akun Markup Logistik",
@@ -217,6 +223,7 @@ export const settingMeta: Record<string, SettingMeta> = {
         desc: "HALF_EVEN (banker's rounding) atau HALF_UP untuk pembulatan PPN/PPh.",
         impact: "Memengaruhi 1-rupiah selisih pada agregasi besar.",
         example: '"HALF_EVEN", "HALF_UP"',
+        allowedValues: ["HALF_EVEN", "HALF_UP"],
     },
     "posting.default_book": {
         label: "Buku Default",
@@ -237,18 +244,21 @@ export const settingMeta: Record<string, SettingMeta> = {
         desc: "Format Balance Sheet yang dipakai laporan.",
         impact: "Memengaruhi pengelompokan akun pada Neraca cetak.",
         example: '"PSAK1_CLASSIFIED", "PSAK1_LIQUIDITY"',
+        allowedValues: ["PSAK1_CLASSIFIED", "PSAK1_LIQUIDITY"],
     },
     "report.profit_loss_classification": {
         label: "Klasifikasi P&L",
         desc: "Klasifikasi beban pada Profit & Loss.",
         impact: "BY_FUNCTION (HPP, Penjualan, Adm) vs BY_NATURE (Gaji, Sewa, Penyusutan).",
         example: '"BY_FUNCTION", "BY_NATURE"',
+        allowedValues: ["BY_FUNCTION", "BY_NATURE"],
     },
     "report.cash_flow_method": {
         label: "Metode Cash Flow",
         desc: "Metode penyusunan laporan arus kas.",
         impact: "INDIRECT mulai dari net income; DIRECT memilah penerimaan/pengeluaran kas.",
         example: '"INDIRECT", "DIRECT"',
+        allowedValues: ["INDIRECT", "DIRECT"],
     },
 
     // ============ NOTIFICATION ============
@@ -283,12 +293,14 @@ export const settingMeta: Record<string, SettingMeta> = {
         desc: "Komisi dihitung dari subtotal kotor atau setelah dikurangi fee platform.",
         impact: "NET_OF_FEE menghasilkan komisi lebih kecil.",
         example: '"GROSS", "NET_OF_FEE"',
+        allowedValues: ["GROSS", "NET_OF_FEE"],
     },
     "affiliate.withholding_kind": {
         label: "Jenis Withholding",
         desc: "Jenis pemotongan PPh atas komisi affiliate.",
         impact: "Menentukan tarif & laporan SPT yang relevan.",
         example: '"PPH_21", "PPH_23", "NONE"',
+        allowedValues: ["PPH_21", "PPH_23", "NONE"],
     },
     "affiliate.withholding_rate": {
         label: "Tarif Withholding",
@@ -319,9 +331,11 @@ export const settingMeta: Record<string, SettingMeta> = {
         desc: "Frekuensi payout otomatis ke affiliate.",
         impact: "MONTHLY = sekali sebulan, WEEKLY = mingguan.",
         example: '"MONTHLY", "WEEKLY", "MANUAL"',
+        allowedValues: ["MONTHLY", "WEEKLY", "MANUAL"],
     },
     "affiliate.clawback_policy": {
         label: "Kebijakan Clawback (Tarik-Balik Komisi)",
+        allowedValues: ["OFFSET_NEXT", "INVOICE", "WRITE_OFF"],
         desc: 'Apa yang terjadi bila komisi affiliate sudah di-approve atau sudah dibayar, lalu ordernya di-refund atau dibatalkan pembeli. Ada 3 pilihan:\n• OFFSET_NEXT — Komisi yang harus ditarik kembali dipotong otomatis dari payout berikutnya. Paling simpel, tidak perlu invoice tambahan.\n• INVOICE — Platform menerbitkan tagihan (invoice) ke affiliate untuk melunasi komisi yang sudah terlanjur dibayar. Cocok bila affiliate sudah menarik dananya dan tidak ada saldo berikutnya.\n• WRITE_OFF — Komisi dihapuskan begitu saja (dianggap kerugian platform). Biasanya dipakai bila nilainya kecil dan tidak worth dikejar.',
         impact: "OFFSET_NEXT = potong dari payout berikutnya (rekomen default). INVOICE = tagih affiliate secara terpisah. WRITE_OFF = hapus beban, rugi ditanggung platform.",
         example: '"OFFSET_NEXT"  ← default yang disarankan\n"INVOICE"\n"WRITE_OFF"',
@@ -365,6 +379,7 @@ export const settingMeta: Record<string, SettingMeta> = {
         desc: "Metode penilaian inventory: WEIGHTED_AVG, FIFO, atau STANDARD.",
         impact: "Memengaruhi nilai COGS & saldo inventory.",
         example: '"WEIGHTED_AVG", "FIFO", "STANDARD"',
+        allowedValues: ["WEIGHTED_AVG", "FIFO", "STANDARD"],
     },
     "firstparty.default_revenue_account_code": {
         label: "Akun Revenue 1P",

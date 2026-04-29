@@ -108,7 +108,13 @@ export function SettingEditor({ settingKey, currentValue, inferredType, notes, e
                 </label>
                 <label className="flex flex-col flex-1 min-w-[200px]">
                     <span className="text-[10px] uppercase tracking-wider text-slate-500">Value</span>
-                    {type === "boolean" ? (
+                    {meta?.allowedValues && type === "string" ? (
+                        <select name="value" value={value} onChange={(e) => setValue(e.target.value)} className="mt-0.5 rounded border border-slate-300 px-2 py-1">
+                            {meta.allowedValues.map((v) => (
+                                <option key={v} value={v}>{v}</option>
+                            ))}
+                        </select>
+                    ) : type === "boolean" ? (
                         <select name="value" value={value} onChange={(e) => setValue(e.target.value)} className="mt-0.5 rounded border border-slate-300 px-2 py-1">
                             <option value="true">true</option>
                             <option value="false">false</option>
