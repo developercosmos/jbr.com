@@ -8,6 +8,7 @@ import { Store, Package, Star, MapPin, Calendar, ChevronRight } from "lucide-rea
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { checkIsFollowing, getFollowerCount } from "@/actions/store";
+import { getSellerReputationSummary } from "@/actions/reputation";
 import { StoreActionButtons } from "@/components/store/StoreActionButtons";
 
 type Props = {
@@ -59,6 +60,7 @@ export default async function StorePage({ params }: Props) {
     const isOwnStore = session?.user?.id === seller.id;
     const isFollowing = session?.user ? await checkIsFollowing(seller.id) : false;
     const followerCount = await getFollowerCount(seller.id);
+    const reputation = await getSellerReputationSummary(seller.id);
 
     const sellerProducts = await getSellerProducts(seller.id);
 
@@ -108,7 +110,11 @@ export default async function StorePage({ params }: Props) {
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     <Star className="w-4 h-4 text-yellow-500" />
-                                    <span>4.8 rating</span>
+                                    {reputation.ratingCount > 0 ? (
+                                        <span>{reputation.avgRating.toFixed(1)} rating ({reputation.ratingCount})</span>
+                                    ) : (
+                                        <span>Belum ada review</span>
+                                    )}
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     <Calendar className="w-4 h-4" />
