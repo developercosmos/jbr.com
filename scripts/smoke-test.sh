@@ -32,11 +32,11 @@ if [ -z "${CRON_SECRET:-}" ]; then
 fi
 
 TS=$(date -u +%FT%TZ)
-RESPONSE=$(curl -sS --max-time 60 -w "\n__HTTP_STATUS__%{http_code}\n" \
+RESPONSE=$(curl -sS --max-time 60 -w "\nSTATUSCODE:%{http_code}" \
     -H "Authorization: Bearer $CRON_SECRET" \
     "http://localhost:3000/api/cron/smoke-test" 2>&1)
-HTTP_STATUS=$(echo "$RESPONSE" | grep "__HTTP_STATUS__" | cut -d_ -f7)
-BODY=$(echo "$RESPONSE" | sed '/__HTTP_STATUS__/d')
+HTTP_STATUS=$(echo "$RESPONSE" | grep -oE 'STATUSCODE:[0-9]+$' | sed 's/STATUSCODE://')
+BODY=$(echo "$RESPONSE" | sed '/STATUSCODE:/d')
 
 if [ "$HTTP_STATUS" = "200" ]; then
     rm -f "$FAIL_MARKER"
