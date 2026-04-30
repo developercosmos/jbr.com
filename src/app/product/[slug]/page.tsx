@@ -133,6 +133,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                             }}
                             sellerReputation={sellerReputation}
                             isAuthenticated={Boolean(session?.user)}
+                            currentUserId={session?.user?.id ?? null}
                             initialOfferAmount={offerDraft?.amount ?? null}
                             sellerJoinedAt={product.seller?.store_reviewed_at ?? product.seller?.created_at ?? null}
                             sellerVerified={Boolean(product.seller?.email_verified && product.seller?.store_status === "ACTIVE")}

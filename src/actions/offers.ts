@@ -292,12 +292,20 @@ export async function createOffer(input: z.infer<typeof createOfferSchema>) {
         },
     });
 
-    if (!product) throw new Error("Produk tidak ditemukan.");
-    if (product.status !== "PUBLISHED") throw new Error("Produk tidak dapat ditawar saat ini.");
-    if (!product.bargain_enabled) throw new Error("Penjual tidak mengaktifkan penawaran untuk produk ini.");
-    if (product.seller_id === user.id) throw new Error("Anda tidak bisa menawar produk Anda sendiri.");
+    if (!product) {
+        return { success: false as const, error: "not_found" as const, message: "Produk tidak ditemukan." };
+    }
+    if (product.status !== "PUBLISHED") {
+        return { success: false as const, error: "not_available" as const, message: "Produk tidak dapat ditawar saat ini." };
+    }
+    if (!product.bargain_enabled) {
+        return { success: false as const, error: "bargain_disabled" as const, message: "Penjual tidak mengaktifkan penawaran untuk produk ini." };
+    }
+    if (product.seller_id === user.id) {
+        return { success: false as const, error: "self_offer" as const, message: "Anda tidak bisa menawar produk Anda sendiri." };
+    }
     if (validated.amount >= Number(product.price)) {
-        throw new Error("Penawaran harus lebih rendah dari harga listing. Gunakan checkout normal.");
+        return { success: false as const, error: "above_listing" as const, message: "Penawaran harus lebih rendah dari harga listing. Gunakan checkout normal." };
     }
 
     // Reject if there is already an active offer for this listing from this buyer.
@@ -310,7 +318,7 @@ export async function createOffer(input: z.infer<typeof createOfferSchema>) {
         columns: { id: true, status: true },
     });
     if (existingActive) {
-        throw new Error("Anda sudah punya penawaran aktif untuk produk ini.");
+        return { success: false as const, error: "duplicate_active" as const, message: "Anda sudah punya penawaran aktif untuk produk ini." };
     }
 
     const expiresAt = addHours(new Date(), OFFER_TTL_HOURS);

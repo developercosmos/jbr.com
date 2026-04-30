@@ -72,6 +72,8 @@ interface ProductInfoProps {
         reliabilityTier?: "BRONZE" | "SILVER" | "GOLD" | "PLATINUM";
     } | null;
     isAuthenticated: boolean;
+    /** Current viewer user id; null = guest. Used to hide self-offer UI. */
+    currentUserId?: string | null;
     initialOfferAmount?: string | null;
     sellerJoinedAt?: string | Date | null;
     sellerVerified?: boolean;
@@ -125,11 +127,13 @@ export function ProductInfo({
     product,
     sellerReputation,
     isAuthenticated,
+    currentUserId,
     initialOfferAmount,
     sellerJoinedAt,
     sellerVerified,
     matchScore,
 }: ProductInfoProps) {
+    const isOwnProduct = !!currentUserId && product.seller?.id === currentUserId;
     const router = useRouter();
     const inlineOfferEnabled = useFlag("pdp.inline_offer");
     const sellerBadgesEnabled = useFlag("pdp.seller_badges");
@@ -476,15 +480,22 @@ export function ProductInfo({
                     intentSignal: getCurrentIntentSignal(),
                 });
 
-                if (!result.success && result.error === "rate_limited") {
-                    const retryMinutes = Math.max(1, Math.ceil((result.retryAfterSec ?? 0) / 60));
-                    setOfferMessage({ type: "error", text: `Terlalu sering menawar. Coba lagi dalam ${retryMinutes} menit.` });
-                    void recordProductEvent({
-                        productId: product.id,
-                        eventType: "OFFER_RATE_LIMITED",
-                        source: "pdp",
-                        meta: { retryAfterSec: result.retryAfterSec ?? 0 },
-                    }).catch(() => undefined);
+                if (!result.success) {
+                    if (result.error === "rate_limited") {
+                        const retryMinutes = Math.max(1, Math.ceil((result.retryAfterSec ?? 0) / 60));
+                        setOfferMessage({ type: "error", text: `Terlalu sering menawar. Coba lagi dalam ${retryMinutes} menit.` });
+                        void recordProductEvent({
+                            productId: product.id,
+                            eventType: "OFFER_RATE_LIMITED",
+                            source: "pdp",
+                            meta: { retryAfterSec: result.retryAfterSec ?? 0 },
+                        }).catch(() => undefined);
+                        return;
+                    }
+                    setOfferMessage({
+                        type: "error",
+                        text: ("message" in result && result.message) ? result.message : "Tawaran tidak dapat dikirim.",
+                    });
                     return;
                 }
 
@@ -613,7 +624,11 @@ export function ProductInfo({
                     </button>
                 </div>
 
-                {product.bargain_enabled && inlineOfferEnabled ? (
+                {isOwnProduct ? (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                        Ini produk Anda sendiri. Pembeli yang akan melihat panel tawar di sini.
+                    </div>
+                ) : product.bargain_enabled && inlineOfferEnabled ? (
                     <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
                         <div>
                             <div className="flex items-center gap-2 font-semibold text-slate-900">
