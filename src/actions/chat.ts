@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { conversations, messages } from "@/db/schema";
+import { categories, conversations, messages } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { eq, desc, and, or, asc } from "drizzle-orm";
@@ -134,9 +134,7 @@ export async function getMessages(conversationId: string) {
                     condition: true,
                     condition_rating: true,
                     slug: true,
-                },
-                with: {
-                    category: { columns: { slug: true, name: true } },
+                    category_id: true,
                 },
             },
         },
@@ -144,6 +142,24 @@ export async function getMessages(conversationId: string) {
 
     if (!conversation) {
         throw new Error("Conversation not found or access denied");
+    }
+
+    // DIF-12: lookup category slug separately. Nested `with` inside a `with`
+    // tripped drizzle's relational query builder ("referencedTable undefined")
+    // on some Postgres environments — keeping it as an explicit follow-up
+    // fetch avoids the bug and is a single indexed lookup.
+    let conversationCategory: { slug: string; name: string } | null = null;
+    const conversationProduct = firstRelation(conversation.product) as
+        | { category_id?: string | null }
+        | null;
+    if (conversationProduct?.category_id) {
+        const category = await db.query.categories.findFirst({
+            where: eq(categories.id, conversationProduct.category_id),
+            columns: { slug: true, name: true },
+        });
+        if (category) {
+            conversationCategory = { slug: category.slug, name: category.name };
+        }
     }
 
     // Get all messages for this conversation
@@ -186,7 +202,11 @@ export async function getMessages(conversationId: string) {
                 name: otherParty?.store_name || otherParty?.name || "Pengguna",
                 image: otherParty?.image || null,
             },
-            product: firstRelation(conversation.product),
+            product: (() => {
+                const p = firstRelation(conversation.product);
+                if (!p) return null;
+                return Object.assign({}, p, { category: conversationCategory });
+            })(),
         },
         messages: conversationMessages.map((msg) => {
             const sender = firstRelation(msg.sender);

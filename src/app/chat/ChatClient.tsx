@@ -426,7 +426,7 @@ export function ChatClient({
                                         <p className="text-slate-900 text-sm font-bold truncate">
                                             {chat.otherParty.name}
                                         </p>
-                                        <span className="text-[10px] font-medium text-slate-400">
+                                        <span className="text-[10px] font-medium text-slate-400" suppressHydrationWarning>
                                             {chat.lastMessage ? formatTime(chat.lastMessage.createdAt) : ""}
                                         </span>
                                     </div>
@@ -635,7 +635,7 @@ export function ChatClient({
                                                 msg.isFromMe && "pr-1"
                                             )}
                                         >
-                                            <span>{formatTime(msg.createdAt)}</span>
+                                            <span suppressHydrationWarning>{formatTime(msg.createdAt)}</span>
                                             {msg.isFromMe &&
                                                 (msg.isRead ? (
                                                     <CheckCheck className="w-3 h-3 text-brand-primary" />
