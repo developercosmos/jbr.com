@@ -135,6 +135,9 @@ export async function getMessages(conversationId: string) {
                     condition_rating: true,
                     slug: true,
                 },
+                with: {
+                    category: { columns: { slug: true, name: true } },
+                },
             },
         },
     });

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runEscrowAutoRelease } from "@/actions/escrow";
 import { runDisputeSlaSweep } from "@/actions/disputes";
-import { recomputeAllSellerRatingsForActiveSellers } from "@/actions/reputation";
+import { recomputeAllSellerRatingsForActiveSellers, runBuyerRatingOutlierDetection } from "@/actions/reputation";
+import { runFeatureFlagScheduledToggle, runFeatureFlagCleanupNotices } from "@/actions/admin/feature-flags-cron";
+import { runPresencePruneSweep } from "@/actions/pdp-presence";
 import { runOfferExpirySweep, runOfferSlaFollowupSweep } from "@/actions/offers";
 import { clearAttributionsForCompletedOrders } from "@/actions/affiliate";
 import { runWishlistPriceDropSweep } from "@/actions/wishlist-alerts";
@@ -45,6 +47,10 @@ export async function POST(request: NextRequest) {
             sellerDigest,
             searchIndexReconcile,
             glReconciliation,
+            buyerRatingOutliers,
+            flagScheduled,
+            flagCleanup,
+            presencePrune,
         ] = await Promise.all([
             runEscrowAutoRelease(),
             runDisputeSlaSweep(),
@@ -59,6 +65,10 @@ export async function POST(request: NextRequest) {
             runSellerWeeklyDigestSweep(),
             runSearchIndexReconcile(),
             runGlReconciliation(),
+            runBuyerRatingOutlierDetection(),
+            runFeatureFlagScheduledToggle(),
+            runFeatureFlagCleanupNotices(),
+            runPresencePruneSweep(),
         ]);
 
         return NextResponse.json({
@@ -76,6 +86,10 @@ export async function POST(request: NextRequest) {
             sellerDigest,
             searchIndexReconcile,
             glReconciliation,
+            buyerRatingOutliers,
+            flagScheduled,
+            flagCleanup,
+            presencePrune,
             ranAt: new Date().toISOString(),
         });
     } catch (error) {

@@ -31,7 +31,7 @@ export function KillSwitchClient({
         }
         startTransition(async () => {
             try {
-                await activateFeatureFlagKillSwitch({ scope, reason });
+                await activateFeatureFlagKillSwitch({ scope, reason, confirmationPhrase: confirmText });
                 setMessage({ type: "success", text: "Kill-switch berhasil diaktifkan." });
                 router.refresh();
             } catch (error) {

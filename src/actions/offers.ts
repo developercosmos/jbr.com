@@ -39,7 +39,39 @@ const createOfferSchema = z.object({
     variantId: z.string().uuid().nullable().optional(),
     amount: z.number().positive(),
     notes: z.string().max(500).optional(),
+    // DIF-13: Optional client-emitted intent telemetry. Server clamps to [0,100].
+    intentSignal: z
+        .object({
+            timeOnPageMs: z.number().int().min(0).max(60 * 60 * 1000).optional(),
+            scrollDepthPct: z.number().int().min(0).max(100).optional(),
+        })
+        .optional(),
 });
+
+/**
+ * DIF-13: Compute a coarse 0–100 intent score from time-on-page + scroll depth.
+ *
+ * Goal: distinguish a buyer who skimmed for 4 seconds and clicked submit
+ * (low-intent, possibly bot-like) from a buyer who read the listing for 90s
+ * and scrolled the whole page (high-intent). Used as a default sort key in
+ * the seller offer inbox.
+ */
+function computeIntentScore(signal?: {
+    timeOnPageMs?: number;
+    scrollDepthPct?: number;
+}): { intentScore: number | null; scrollDepthPct: number | null } {
+    if (!signal) return { intentScore: null, scrollDepthPct: null };
+    const tMs = Math.max(0, signal.timeOnPageMs ?? 0);
+    const scroll = Math.max(0, Math.min(100, signal.scrollDepthPct ?? 0));
+    // log10(tMs) saturates: 1s=0, 1min=4.78, 1h=6.56. Cap raw at 5 (~30s).
+    const timeComponent = tMs > 0 ? Math.min(60, Math.log10(Math.max(tMs, 100)) * 12) : 0;
+    const scrollComponent = scroll * 0.4; // 0..40
+    const raw = Math.round(timeComponent + scrollComponent);
+    return {
+        intentScore: Math.max(0, Math.min(100, raw)),
+        scrollDepthPct: Math.round(scroll),
+    };
+}
 
 const prepareOfferLoginSchema = z.object({
     listingId: z.string().uuid(),
@@ -308,6 +340,8 @@ export async function createOffer(input: z.infer<typeof createOfferSchema>) {
             floorPrice: effectiveFloorPrice,
         });
 
+    const intent = computeIntentScore(validated.intentSignal);
+
     const [offer] = await db
         .insert(offers)
         .values({
@@ -321,6 +355,8 @@ export async function createOffer(input: z.infer<typeof createOfferSchema>) {
             round: 1,
             root_offer_id: offerId,
             is_auto_counter: false,
+            intent_score: intent.intentScore ?? undefined,
+            scroll_depth_pct: intent.scrollDepthPct ?? undefined,
             actor_role: "buyer",
             expires_at: expiresAt,
             decided_at: initialStatus === "REJECTED" ? new Date() : null,

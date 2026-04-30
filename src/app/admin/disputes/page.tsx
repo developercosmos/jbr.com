@@ -3,6 +3,7 @@ import Image from "next/image";
 import { getDisputes } from "@/actions/admin";
 import { DisputeActions } from "./DisputeActions";
 import { DisputeFilters } from "./DisputeFilters";
+import { BuyerRatingDisputeActions } from "./BuyerRatingDisputeActions";
 
 // Type labels
 const TYPE_LABELS: Record<string, string> = {
@@ -71,7 +72,7 @@ function formatDate(date: Date) {
 }
 
 interface PageProps {
-    searchParams: Promise<{ search?: string; status?: string; priority?: string }>;
+    searchParams: Promise<{ search?: string; status?: string; priority?: string; subject?: string }>;
 }
 
 export default async function AdminDisputesPage({ searchParams }: PageProps) {
@@ -85,6 +86,7 @@ export default async function AdminDisputesPage({ searchParams }: PageProps) {
             search: params.search,
             status: params.status,
             priority: params.priority,
+            subject: params.subject,
         });
     } catch (e) {
         console.error("Failed to fetch disputes:", e);
@@ -134,6 +136,7 @@ export default async function AdminDisputesPage({ searchParams }: PageProps) {
                     currentSearch={params.search}
                     currentStatus={params.status}
                     currentPriority={params.priority}
+                    currentSubject={params.subject}
                 />
 
                 {/* Disputes List */}
@@ -254,8 +257,21 @@ export default async function AdminDisputesPage({ searchParams }: PageProps) {
                                         </div>
 
                                         {/* Actions */}
-                                        <div className="min-w-[160px]">
-                                            <DisputeActions disputeId={dispute.id} status={dispute.status} />
+                                        <div className="min-w-[200px] space-y-3">
+                                            {dispute.dispute_subject === "BUYER_RATING" ? (
+                                                <BuyerRatingDisputeActions
+                                                    disputeId={dispute.id}
+                                                    targetRatingId={dispute.target_rating_id}
+                                                    currentStatus={dispute.status}
+                                                />
+                                            ) : (
+                                                <DisputeActions disputeId={dispute.id} status={dispute.status} />
+                                            )}
+                                            {dispute.dispute_subject === "BUYER_RATING" && (
+                                                <span className="inline-block px-2 py-1 text-[10px] font-bold rounded bg-purple-100 text-purple-700 uppercase">
+                                                    Buyer Rating Dispute
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

@@ -25,6 +25,8 @@ const EVENT_TYPES = [
     "SELLER_BADGE_VIEW",
     "SELLER_CARD_CLICK",
     "CHAT_INITIATED_FROM_PDP",
+    "PDP_TIME_ON_PAGE_BUCKET",
+    "CHAT_SUGGESTION_USED",
 ] as const;
 
 const recordSchema = z.object({

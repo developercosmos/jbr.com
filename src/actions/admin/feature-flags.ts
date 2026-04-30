@@ -35,6 +35,14 @@ const FLAG_REGISTRY = [
     { key: "dif.match_score", description: "Match score recommendation (DIF-15)", category: "differentiator" },
 ] as const;
 
+const audienceSchema = z.object({
+    roles: z.array(z.string().trim().max(40)).max(20).optional(),
+    userIds: z.array(z.string().trim().max(120)).max(200).optional(),
+    cohorts: z.array(z.string().trim().max(60)).max(20).optional(),
+});
+
+const variantsSchema = z.record(z.string().trim().min(1).max(40), z.number().int().min(0).max(100));
+
 const updateFlagSchema = z.object({
     key: z.string().min(1),
     reason: z.string().trim().min(3).max(300),
@@ -44,12 +52,36 @@ const updateFlagSchema = z.object({
     parentKey: z.string().trim().max(120).nullable().optional(),
     scheduledEnableAt: z.string().nullable().optional(),
     scheduledDisableAt: z.string().nullable().optional(),
+    audience: audienceSchema.optional(),
+    variants: variantsSchema.nullable().optional(),
+    /**
+     * For trust-category flags only: typed confirmation phrase that the admin
+     * understands the risk. We require literal "SAYA YAKIN" as a soft 2FA
+     * substitute until the auth layer ships TOTP.
+     */
+    confirmationPhrase: z.string().trim().max(120).optional(),
 });
 
 const killSwitchSchema = z.object({
     scope: z.enum(["all-new", "pdp-only", "differentiator-only"]),
     reason: z.string().trim().min(3).max(300),
+    confirmationPhrase: z.string().trim().max(120).optional(),
 });
+
+const TRUST_CONFIRMATION_PHRASE = "SAYA YAKIN";
+
+function isTrustCategory(category: string | null | undefined): boolean {
+    return category === "trust";
+}
+
+function assertTrustConfirmation(category: string | null | undefined, phrase: string | undefined) {
+    if (!isTrustCategory(category)) return;
+    if ((phrase ?? "").toUpperCase() !== TRUST_CONFIRMATION_PHRASE) {
+        throw new Error(
+            `Flag kategori 'trust' membutuhkan konfirmasi: ketik "${TRUST_CONFIRMATION_PHRASE}" pada field konfirmasi.`
+        );
+    }
+}
 
 async function requireAdmin() {
     const session = await auth.api.getSession({ headers: await headers() });
@@ -72,6 +104,7 @@ async function writeAuditLog(input: {
     beforeState: Record<string, unknown>;
     afterState: Record<string, unknown>;
     reason: string;
+    confirmationPhrase?: string | null;
 }) {
     const hdrs = await headers();
     const forwardedFor = hdrs.get("x-forwarded-for") ?? "";
@@ -86,6 +119,7 @@ async function writeAuditLog(input: {
         reason: input.reason,
         ip_address: ipAddress,
         user_agent: userAgent,
+        confirmation_phrase: input.confirmationPhrase ?? null,
     });
 }
 
@@ -180,7 +214,12 @@ export async function getFeatureFlagAuditLog(options?: { key?: string; limit?: n
     });
 }
 
-export async function toggleFeatureFlag(key: string, enabled: boolean, reason: string) {
+export async function toggleFeatureFlag(
+    key: string,
+    enabled: boolean,
+    reason: string,
+    options?: { confirmationPhrase?: string }
+) {
     const admin = await requireAdmin();
     const cleanReason = reason.trim();
     if (cleanReason.length < 3) {
@@ -193,6 +232,8 @@ export async function toggleFeatureFlag(key: string, enabled: boolean, reason: s
     if (!existing) {
         throw new Error("Feature flag tidak ditemukan.");
     }
+
+    assertTrustConfirmation(existing.category, options?.confirmationPhrase);
 
     const [updated] = await db
         .update(feature_flags)
@@ -211,6 +252,7 @@ export async function toggleFeatureFlag(key: string, enabled: boolean, reason: s
         beforeState: existing as unknown as Record<string, unknown>,
         afterState: updated as unknown as Record<string, unknown>,
         reason: cleanReason,
+        confirmationPhrase: options?.confirmationPhrase ?? null,
     });
 
     await revalidateFlagSurfaces();
@@ -228,8 +270,18 @@ export async function updateFeatureFlag(input: z.infer<typeof updateFlagSchema>)
         throw new Error("Feature flag tidak ditemukan.");
     }
 
+    assertTrustConfirmation(existing.category, validated.confirmationPhrase);
+
     const scheduledEnableAt = validated.scheduledEnableAt ? new Date(validated.scheduledEnableAt) : null;
     const scheduledDisableAt = validated.scheduledDisableAt ? new Date(validated.scheduledDisableAt) : null;
+
+    // Variant weights must sum to <= 100. Reject malformed configs early.
+    if (validated.variants && Object.keys(validated.variants).length > 0) {
+        const sum = Object.values(validated.variants).reduce((acc, v) => acc + v, 0);
+        if (sum > 100) {
+            throw new Error("Total bobot variant tidak boleh melebihi 100%.");
+        }
+    }
 
     const [updated] = await db
         .update(feature_flags)
@@ -240,6 +292,11 @@ export async function updateFeatureFlag(input: z.infer<typeof updateFlagSchema>)
             parent_key: validated.parentKey === undefined ? existing.parent_key : validated.parentKey,
             scheduled_enable_at: scheduledEnableAt,
             scheduled_disable_at: scheduledDisableAt,
+            audience: validated.audience ?? (existing.audience as Record<string, unknown>),
+            variants:
+                validated.variants === null
+                    ? null
+                    : validated.variants ?? (existing.variants as Record<string, number> | null),
             updated_at: new Date(),
             updated_by: admin.id,
         })
@@ -252,6 +309,7 @@ export async function updateFeatureFlag(input: z.infer<typeof updateFlagSchema>)
         beforeState: existing as unknown as Record<string, unknown>,
         afterState: updated as unknown as Record<string, unknown>,
         reason: validated.reason,
+        confirmationPhrase: validated.confirmationPhrase ?? null,
     });
 
     await revalidateFlagSurfaces();
@@ -261,6 +319,9 @@ export async function updateFeatureFlag(input: z.infer<typeof updateFlagSchema>)
 export async function activateFeatureFlagKillSwitch(input: z.infer<typeof killSwitchSchema>) {
     const admin = await requireAdmin();
     const validated = killSwitchSchema.parse(input);
+    if ((validated.confirmationPhrase ?? "").toUpperCase() !== "MATIKAN SEMUA") {
+        throw new Error("Kill-switch wajib konfirmasi: ketik 'MATIKAN SEMUA'.");
+    }
     const existing = await db.query.feature_flag_kill_switch.findFirst({ where: eq(feature_flag_kill_switch.id, 1) });
 
     const [updated] = await db
@@ -281,6 +342,7 @@ export async function activateFeatureFlagKillSwitch(input: z.infer<typeof killSw
         beforeState: (existing ?? {}) as Record<string, unknown>,
         afterState: updated as unknown as Record<string, unknown>,
         reason: validated.reason,
+        confirmationPhrase: validated.confirmationPhrase ?? null,
     });
 
     await revalidateFlagSurfaces();

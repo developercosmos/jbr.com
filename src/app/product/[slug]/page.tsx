@@ -13,6 +13,8 @@ import { getProductBySlug } from "@/actions/products";
 import { getSellerReputationSummary } from "@/actions/reputation";
 import { getMatchScore } from "@/actions/niche";
 import { PdpRecentlyViewedRecorder } from "@/components/RecentlyViewedStrip";
+import { buildImageVariants, pickImageVariant } from "@/lib/image-variants";
+import { PdpPresenceChip } from "@/components/product/PdpPresenceChip";
 
 // CACHE-01: ISR — PDP is anonymous-safe (session-aware bits are all client-side
 // useEffect inside PdpRecentlyViewedRecorder). 5 min revalidate; product
@@ -43,6 +45,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
         reviewThumbnailEnabled,
         compareModeEnabled,
         matchScoreEnabled,
+        livePresenceEnabled,
+        smartQuestionsEnabled,
+        intentScoreEnabled,
         offerDraft,
     ] = await Promise.all([
         isFeatureEnabled("pdp.inline_offer", flagContext),
@@ -51,6 +56,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
         isFeatureEnabled("pdp.review_thumbnail", flagContext),
         isFeatureEnabled("dif.compare_mode", flagContext),
         isFeatureEnabled("dif.match_score", flagContext),
+        isFeatureEnabled("dif.live_presence", flagContext),
+        isFeatureEnabled("dif.smart_questions", flagContext),
+        isFeatureEnabled("dif.intent_score", flagContext),
         readOfferDraftCookie(product.id),
     ]);
 
@@ -95,8 +103,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
                             "pdp.inline_offer": inlineOfferEnabled,
                             "pdp.seller_badges": sellerBadgesEnabled,
                             "pdp.seller_join_date": sellerJoinDateEnabled,
+                            "dif.live_presence": livePresenceEnabled,
+                            "dif.smart_questions": smartQuestionsEnabled,
+                            "dif.intent_score": intentScoreEnabled,
                         }}
                     >
+                        {livePresenceEnabled && (
+                            <div className="mb-3">
+                                <PdpPresenceChip productId={product.id} />
+                            </div>
+                        )}
                         <ProductInfo
                             product={{
                                 id: product.id,
@@ -135,11 +151,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 image={product.images?.[0] ?? null}
             />
 
-            {/* Product Reviews */}
+            {/* Product Reviews — CACHE-03: prefer pre-baked thumb variant URL */}
             <ProductReviews
                 productId={product.id}
                 showProductThumbnail={reviewThumbnailEnabled}
-                productThumbnailSrc={product.images?.[0] ?? null}
+                productThumbnailSrc={
+                    product.images?.[0]
+                        ? pickImageVariant({ ...buildImageVariants(product.images[0]) }, product.images[0], 80)
+                        : null
+                }
                 productTitle={product.title}
             />
 

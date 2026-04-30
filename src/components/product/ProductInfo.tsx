@@ -152,6 +152,32 @@ export function ProductInfo({
     const [offerWinProbability, setOfferWinProbability] = useState<{ probabilityPct: number | null; sampleSize: number } | null>(null);
     const offerFocusRecorded = useRef(false);
     const badgeViewRecorded = useRef(false);
+    // DIF-13: track time-on-page + scroll depth for offer intent score.
+    const pdpMountedAtRef = useRef<number>(typeof performance !== "undefined" ? performance.now() : Date.now());
+    const maxScrollPctRef = useRef<number>(0);
+    const intentScoreEnabled = useFlag("dif.intent_score");
+
+    useEffect(() => {
+        if (!intentScoreEnabled || typeof window === "undefined") return;
+        const handler = () => {
+            const doc = document.documentElement;
+            const scrollable = Math.max(1, doc.scrollHeight - doc.clientHeight);
+            const pct = Math.min(100, Math.max(0, Math.round((window.scrollY / scrollable) * 100)));
+            if (pct > maxScrollPctRef.current) maxScrollPctRef.current = pct;
+        };
+        handler();
+        window.addEventListener("scroll", handler, { passive: true });
+        return () => window.removeEventListener("scroll", handler);
+    }, [intentScoreEnabled]);
+
+    function getCurrentIntentSignal(): { timeOnPageMs: number; scrollDepthPct: number } | undefined {
+        if (!intentScoreEnabled) return undefined;
+        const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+        return {
+            timeOnPageMs: Math.max(0, Math.round(now - pdpMountedAtRef.current)),
+            scrollDepthPct: Math.max(0, Math.min(100, Math.round(maxScrollPctRef.current))),
+        };
+    }
 
     const formatPrice = (price: string) => {
         return new Intl.NumberFormat("id-ID", {
@@ -447,6 +473,7 @@ export function ProductInfo({
                     listingId: product.id,
                     variantId: selectedVariant?.id ?? undefined,
                     amount: numericAmount,
+                    intentSignal: getCurrentIntentSignal(),
                 });
 
                 if (!result.success && result.error === "rate_limited") {

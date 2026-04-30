@@ -7,6 +7,9 @@ import { Search, Edit, MoreVertical, Paperclip, Smile, Send, Check, CheckCheck, 
 import { cn } from "@/lib/utils";
 import { getMessages, sendMessage, getConversations } from "@/actions/chat";
 import { submitBuyerInteractionRating } from "@/actions/reputation";
+import { ChatSuggestionChips } from "@/components/chat/ChatSuggestionChips";
+import { getChatSuggestions } from "@/lib/chat-suggestions";
+import { useFlag } from "@/lib/use-flag";
 
 type Conversation = {
     id: string;
@@ -90,6 +93,42 @@ function formatPrice(price: string) {
         currency: "IDR",
         minimumFractionDigits: 0,
     }).format(parseFloat(price));
+}
+
+/**
+ * DIF-12: Render smart question chips when (a) the feature flag is enabled,
+ * (b) the buyer hasn't sent any message yet, and (c) we have product context.
+ */
+function ChatSuggestionsSlot({
+    conversationData,
+    onSelect,
+}: {
+    conversationData: ConversationData | null;
+    onSelect: (text: string) => Promise<void>;
+}) {
+    const enabled = useFlag("dif.smart_questions");
+    if (!enabled || !conversationData) return null;
+    const product = conversationData.conversation.product as
+        | (NonNullable<ConversationData["conversation"]["product"]> & {
+              category?: { slug?: string | null; name?: string | null } | null;
+          })
+        | null;
+    if (!product) return null;
+    const buyerHasSent = conversationData.messages.some((m) => m.isFromMe);
+    if (buyerHasSent) return null;
+
+    const suggestions = getChatSuggestions({
+        categorySlug: product.category?.slug ?? null,
+        productTitle: product.title ?? null,
+    });
+
+    return (
+        <ChatSuggestionChips
+            suggestions={suggestions}
+            productId={product.id}
+            onSelect={onSelect}
+        />
+    );
 }
 
 export function ChatClient({
@@ -203,6 +242,43 @@ export function ChatClient({
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [conversationData?.messages]);
+
+    // DIF-12: send suggestion text directly without going through input.
+    const sendSuggestion = async (text: string) => {
+        if (!activeConversationId || isSending) return;
+        const content = text.trim();
+        if (!content) return;
+        setIsSending(true);
+        try {
+            const newMessage = await sendMessage(activeConversationId, content);
+            setMessageInput("");
+            if (conversationData) {
+                setConversationData({
+                    ...conversationData,
+                    messages: [
+                        ...conversationData.messages,
+                        {
+                            id: newMessage.id,
+                            content: newMessage.content,
+                            attachmentUrl: newMessage.attachmentUrl,
+                            isFromMe: true,
+                            sender: {
+                                id: conversationData.currentUserId,
+                                name: "You",
+                                image: null,
+                            },
+                            isRead: false,
+                            createdAt: newMessage.createdAt,
+                        },
+                    ],
+                });
+            }
+        } catch (error) {
+            console.error("Failed to send suggestion:", error);
+        } finally {
+            setIsSending(false);
+        }
+    };
 
     const handleSendMessage = async () => {
         if (!messageInput.trim() || !activeConversationId || isSending) return;
@@ -572,6 +648,16 @@ export function ChatClient({
                             )}
                             <div ref={messagesEndRef} />
                         </div>
+
+                        <ChatSuggestionsSlot
+                            conversationData={conversationData}
+                            onSelect={async (text) => {
+                                setMessageInput(text);
+                                // small delay so the textarea visibly fills before send
+                                await Promise.resolve();
+                                await sendSuggestion(text);
+                            }}
+                        />
 
                         {/* Input Area */}
                         <div className="flex-none p-4 bg-white border-t border-slate-200 z-20">

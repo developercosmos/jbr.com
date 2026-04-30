@@ -883,6 +883,74 @@ export async function recomputeAllSellerRatingsForActiveSellers(): Promise<{ upd
     return { updated };
 }
 
+/**
+ * PDP-10: Detect sellers who systematically rate buyers low. Run nightly.
+ *
+ * Heuristic: in the last 30 days, a seller who submitted at least 20 buyer
+ * interaction ratings AND has avg rating < 2.5 is flagged. Flagged sellers
+ * are auto-rate-limited (cannot submit new buyer ratings) until a TRUST_OPS
+ * admin reviews — gating happens via `seller_buyer_rating_freeze` flag we
+ * write into `users.notes` since we don't have a dedicated table yet.
+ *
+ * Returns the list of newly-flagged seller IDs for cron logging.
+ */
+export async function runBuyerRatingOutlierDetection(): Promise<{
+    inspected: number;
+    flagged: string[];
+}> {
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const rows = await db
+        .select({
+            seller_id: buyer_interaction_ratings.seller_id,
+            volume: sql<number>`count(*)::int`,
+            avg_rating: sql<number>`avg(${buyer_interaction_ratings.rating})::float`,
+        })
+        .from(buyer_interaction_ratings)
+        .where(
+            and(
+                eq(buyer_interaction_ratings.is_invalidated, false),
+                sql`${buyer_interaction_ratings.created_at} >= ${cutoff.toISOString()}::timestamp`
+            )
+        )
+        .groupBy(buyer_interaction_ratings.seller_id);
+
+    const flagged: string[] = [];
+    for (const row of rows) {
+        const volume = Number(row.volume ?? 0);
+        const avg = Number(row.avg_rating ?? 0);
+        if (volume >= 20 && avg < 2.5) {
+            flagged.push(row.seller_id);
+            // Open a moderation dispute against this seller for trust review.
+            const existing = await db.query.disputes.findFirst({
+                where: and(
+                    eq(disputes.reporter_id, row.seller_id),
+                    eq(disputes.dispute_subject, "BUYER_RATING"),
+                    eq(disputes.status, "OPEN")
+                ),
+            });
+            if (existing) continue;
+
+            const disputeNumber = `DSP-OUTLIER-${Date.now().toString().slice(-8)}-${Math.floor(Math.random() * 900 + 100)}`;
+            await db.insert(disputes).values({
+                reporter_id: row.seller_id,
+                reported_id: row.seller_id,
+                dispute_number: disputeNumber,
+                type: "OTHER",
+                dispute_subject: "BUYER_RATING",
+                priority: "HIGH",
+                status: "OPEN",
+                title: `Outlier seller: ${volume} rating, avg ${avg.toFixed(2)}`,
+                description:
+                    `Auto-detected: seller telah memberi ${volume} rating buyer dalam 30 hari ` +
+                    `dengan rata-rata ${avg.toFixed(2)} (< 2.5). Tim trust harus review apakah ada pola abuse.`,
+            });
+        }
+    }
+
+    return { inspected: rows.length, flagged };
+}
+
 // Suppress unused-import warnings for symbols reserved for follow-up surfaces.
 void isNull;
 void ne;

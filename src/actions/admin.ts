@@ -739,6 +739,7 @@ export async function getDisputes(filters?: {
     search?: string;
     status?: string;
     priority?: string;
+    subject?: string;
 }) {
     await getCurrentAdmin();
 
@@ -766,6 +767,10 @@ export async function getDisputes(filters?: {
 
     if (filters?.priority && filters.priority !== "all") {
         conditions.push(eq(disputes.priority, filters.priority as any));
+    }
+
+    if (filters?.subject && filters.subject !== "all") {
+        conditions.push(eq(disputes.dispute_subject, filters.subject as any));
     }
 
     const allDisputes = await db.query.disputes.findMany({

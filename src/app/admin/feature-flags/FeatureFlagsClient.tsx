@@ -12,6 +12,7 @@ type FeatureFlagRow = {
     enabled: boolean;
     rollout_pct: number;
     audience: { roles?: string[]; userIds?: string[]; cohorts?: string[] };
+    variants: Record<string, number> | null;
     parent_key: string | null;
     scheduled_enable_at: string | Date | null;
     scheduled_disable_at: string | Date | null;
@@ -61,6 +62,11 @@ export function FeatureFlagsClient({
         parentKey: string;
         scheduledEnableAt: string;
         scheduledDisableAt: string;
+        roles: string;
+        userIds: string;
+        cohorts: string;
+        variants: string;
+        confirmationPhrase: string;
     }>>(() => Object.fromEntries(initialFlags.map((flag) => [flag.key, {
         rolloutPct: String(flag.rollout_pct),
         owner: flag.owner ?? "",
@@ -68,6 +74,13 @@ export function FeatureFlagsClient({
         parentKey: flag.parent_key ?? "",
         scheduledEnableAt: toInputDateTime(flag.scheduled_enable_at),
         scheduledDisableAt: toInputDateTime(flag.scheduled_disable_at),
+        roles: (flag.audience?.roles ?? []).join(", "),
+        userIds: (flag.audience?.userIds ?? []).join(", "),
+        cohorts: (flag.audience?.cohorts ?? []).join(", "),
+        variants: flag.variants
+            ? Object.entries(flag.variants).map(([k, v]) => `${k}=${v}`).join(", ")
+            : "",
+        confirmationPhrase: "",
     }])));
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
     const [isPending, startTransition] = useTransition();
@@ -104,16 +117,43 @@ export function FeatureFlagsClient({
     function handleToggle(key: string, nextEnabled: boolean) {
         const cleanReason = requireReason(key);
         if (!cleanReason) return;
+        const flag = initialFlags.find((f) => f.key === key);
+        const confirmationPhrase = drafts[key]?.confirmationPhrase ?? "";
+        if (flag?.category === "trust" && confirmationPhrase.toUpperCase() !== "SAYA YAKIN") {
+            setMessage({ type: "error", text: `Flag '${key}' kategori trust. Ketik SAYA YAKIN di field konfirmasi sebelum toggle.` });
+            return;
+        }
         setMessage(null);
         startTransition(async () => {
             try {
-                await toggleFeatureFlag(key, nextEnabled, cleanReason);
+                await toggleFeatureFlag(key, nextEnabled, cleanReason, { confirmationPhrase });
                 setMessage({ type: "success", text: `Flag ${key} berhasil diperbarui.` });
                 router.refresh();
             } catch (error) {
                 setMessage({ type: "error", text: error instanceof Error ? error.message : "Gagal toggle flag." });
             }
         });
+    }
+
+    function parseCsv(value: string): string[] {
+        return value
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+    }
+
+    function parseVariants(value: string): Record<string, number> | null {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        const out: Record<string, number> = {};
+        for (const part of trimmed.split(",")) {
+            const [k, v] = part.split("=").map((s) => s.trim());
+            if (!k) continue;
+            const n = Number(v);
+            if (!Number.isFinite(n) || n < 0 || n > 100) continue;
+            out[k] = Math.round(n);
+        }
+        return Object.keys(out).length > 0 ? out : null;
     }
 
     function handleSave(key: string) {
@@ -132,6 +172,13 @@ export function FeatureFlagsClient({
                     parentKey: draft.parentKey || null,
                     scheduledEnableAt: draft.scheduledEnableAt || null,
                     scheduledDisableAt: draft.scheduledDisableAt || null,
+                    audience: {
+                        roles: parseCsv(draft.roles),
+                        userIds: parseCsv(draft.userIds),
+                        cohorts: parseCsv(draft.cohorts),
+                    },
+                    variants: parseVariants(draft.variants),
+                    confirmationPhrase: draft.confirmationPhrase || undefined,
                 });
                 setMessage({ type: "success", text: `Konfigurasi ${key} berhasil disimpan.` });
                 router.refresh();
@@ -219,14 +266,22 @@ export function FeatureFlagsClient({
                                 </div>
                                 <p className="text-sm text-slate-600">{flag.description}</p>
                             </div>
-                            <button
-                                type="button"
-                                disabled={isPending}
-                                onClick={() => handleToggle(flag.key, !flag.enabled)}
-                                className={`px-4 py-2 rounded-xl font-semibold text-sm transition-colors ${flag.enabled ? "bg-rose-600 text-white hover:bg-rose-700" : "bg-brand-primary text-white hover:bg-brand-primary/90"}`}
-                            >
-                                {isPending ? <RefreshCw className="w-4 h-4 animate-spin inline" /> : flag.enabled ? "Disable" : "Enable"}
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <Link
+                                    href={`/admin/feature-flags/${encodeURIComponent(flag.key)}/impact`}
+                                    className="px-3 py-2 rounded-xl border border-slate-200 hover:border-brand-primary hover:text-brand-primary text-sm transition-colors"
+                                >
+                                    Impact
+                                </Link>
+                                <button
+                                    type="button"
+                                    disabled={isPending}
+                                    onClick={() => handleToggle(flag.key, !flag.enabled)}
+                                    className={`px-4 py-2 rounded-xl font-semibold text-sm transition-colors ${flag.enabled ? "bg-rose-600 text-white hover:bg-rose-700" : "bg-brand-primary text-white hover:bg-brand-primary/90"}`}
+                                >
+                                    {isPending ? <RefreshCw className="w-4 h-4 animate-spin inline" /> : flag.enabled ? "Disable" : "Enable"}
+                                </button>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -283,10 +338,64 @@ export function FeatureFlagsClient({
                                     className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50"
                                 />
                             </label>
-                            <div className="text-sm rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                                <div className="font-medium text-slate-700 mb-1">Audience (S1)</div>
-                                <div className="text-xs text-slate-500 break-all">{JSON.stringify(flag.audience ?? {})}</div>
-                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <label className="text-sm space-y-1">
+                                <span className="font-medium text-slate-700">Audience: roles (CSV)</span>
+                                <input
+                                    type="text"
+                                    placeholder="ADMIN, STAFF, BETA"
+                                    value={drafts[flag.key]?.roles ?? ""}
+                                    onChange={(event) => setDraftValue(flag.key, "roles", event.target.value)}
+                                    className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50 font-mono text-xs"
+                                />
+                            </label>
+                            <label className="text-sm space-y-1">
+                                <span className="font-medium text-slate-700">Audience: userIds (CSV)</span>
+                                <input
+                                    type="text"
+                                    placeholder="usr_..."
+                                    value={drafts[flag.key]?.userIds ?? ""}
+                                    onChange={(event) => setDraftValue(flag.key, "userIds", event.target.value)}
+                                    className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50 font-mono text-xs"
+                                />
+                            </label>
+                            <label className="text-sm space-y-1">
+                                <span className="font-medium text-slate-700">Audience: cohorts (CSV)</span>
+                                <input
+                                    type="text"
+                                    placeholder="beta-pdp, internal"
+                                    value={drafts[flag.key]?.cohorts ?? ""}
+                                    onChange={(event) => setDraftValue(flag.key, "cohorts", event.target.value)}
+                                    className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50 font-mono text-xs"
+                                />
+                            </label>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <label className="text-sm space-y-1">
+                                <span className="font-medium text-slate-700">Variants A/B/C (FORMAT: name=weight, total ≤ 100)</span>
+                                <input
+                                    type="text"
+                                    placeholder="control=50, variant_a=50"
+                                    value={drafts[flag.key]?.variants ?? ""}
+                                    onChange={(event) => setDraftValue(flag.key, "variants", event.target.value)}
+                                    className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50 font-mono text-xs"
+                                />
+                            </label>
+                            {flag.category === "trust" && (
+                                <label className="text-sm space-y-1">
+                                    <span className="font-medium text-rose-700">Konfirmasi trust (ketik: SAYA YAKIN)</span>
+                                    <input
+                                        type="text"
+                                        placeholder="SAYA YAKIN"
+                                        value={drafts[flag.key]?.confirmationPhrase ?? ""}
+                                        onChange={(event) => setDraftValue(flag.key, "confirmationPhrase", event.target.value)}
+                                        className="w-full rounded-lg border border-rose-300 px-3 py-2 bg-rose-50 font-mono text-xs"
+                                    />
+                                </label>
+                            )}
                         </div>
 
                         <label className="block text-sm space-y-1">

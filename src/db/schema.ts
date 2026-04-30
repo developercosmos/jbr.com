@@ -842,6 +842,8 @@ export const offers = pgTable(
         parent_offer_id: uuid("parent_offer_id"),
         root_offer_id: uuid("root_offer_id").notNull(),
         is_auto_counter: boolean("is_auto_counter").default(false).notNull(),
+        intent_score: integer("intent_score"),
+        scroll_depth_pct: integer("scroll_depth_pct"),
         actor_role: text("actor_role").notNull(),
         expires_at: timestamp("expires_at").notNull(),
         decided_at: timestamp("decided_at"),
@@ -1596,11 +1598,27 @@ export const feature_flag_audit_log = pgTable(
         reason: text("reason"),
         ip_address: text("ip_address"),
         user_agent: text("user_agent"),
+        confirmation_phrase: text("confirmation_phrase"),
         created_at: timestamp("created_at").defaultNow().notNull(),
     },
     (table) => ({
         key_time_idx: index("idx_flag_audit_key_time").on(table.flag_key, table.created_at),
         changed_by_idx: index("idx_flag_audit_changed_by").on(table.changed_by),
+    })
+);
+
+export const pdp_presence_pings = pgTable(
+    "pdp_presence_pings",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        product_id: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
+        session_id: text("session_id").notNull(),
+        intent: text("intent").default("view").notNull(),
+        last_seen_at: timestamp("last_seen_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        product_seen_idx: index("idx_presence_product_seen").on(table.product_id, table.last_seen_at),
+        unique_session: uniqueIndex("uniq_presence_product_session").on(table.product_id, table.session_id),
     })
 );
 

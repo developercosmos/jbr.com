@@ -8,9 +8,10 @@ interface DisputeFiltersProps {
     currentSearch?: string;
     currentStatus?: string;
     currentPriority?: string;
+    currentSubject?: string;
 }
 
-export function DisputeFilters({ currentSearch, currentStatus, currentPriority }: DisputeFiltersProps) {
+export function DisputeFilters({ currentSearch, currentStatus, currentPriority, currentSubject }: DisputeFiltersProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [isPending, startTransition] = useTransition();
@@ -43,7 +44,7 @@ export function DisputeFilters({ currentSearch, currentStatus, currentPriority }
         router.push("/admin/disputes");
     };
 
-    const hasFilters = currentSearch || currentStatus || currentPriority;
+    const hasFilters = currentSearch || currentStatus || currentPriority || currentSubject;
 
     return (
         <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -86,6 +87,18 @@ export function DisputeFilters({ currentSearch, currentStatus, currentPriority }
                 <option value="HIGH">Tinggi</option>
                 <option value="NORMAL">Normal</option>
                 <option value="LOW">Rendah</option>
+            </select>
+
+            {/* Subject Filter (PDP-10) */}
+            <select
+                value={currentSubject || "all"}
+                onChange={(e) => updateFilters({ subject: e.target.value })}
+                className="px-4 py-2.5 bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-primary/20"
+            >
+                <option value="all">Semua Subjek</option>
+                <option value="ORDER">Order</option>
+                <option value="BUYER_RATING">Sengketa Rating Buyer</option>
+                <option value="OTHER">Lainnya</option>
             </select>
 
             {/* Clear Filters */}
