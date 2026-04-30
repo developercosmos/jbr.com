@@ -3,23 +3,11 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, RefreshCw, Save, ShieldAlert, SlidersHorizontal } from "lucide-react";
+import { CheckCircle2, ShieldAlert, SlidersHorizontal, Search } from "lucide-react";
 import { toggleFeatureFlag, updateFeatureFlag } from "@/actions/admin/feature-flags";
-
-type FeatureFlagRow = {
-    key: string;
-    description: string;
-    enabled: boolean;
-    rollout_pct: number;
-    audience: { roles?: string[]; userIds?: string[]; cohorts?: string[] };
-    variants: Record<string, number> | null;
-    parent_key: string | null;
-    scheduled_enable_at: string | Date | null;
-    scheduled_disable_at: string | Date | null;
-    category: string;
-    owner: string | null;
-    notes: string | null;
-};
+import { FEATURE_FLAG_META } from "@/lib/feature-flag-metadata";
+import { HelpDrawer } from "./HelpDrawer";
+import { FeatureFlagCard, type FlagRow } from "./FeatureFlagCard";
 
 type KillSwitchRow = {
     active: boolean;
@@ -27,6 +15,39 @@ type KillSwitchRow = {
     reason: string | null;
     activated_at: string | Date | null;
 } | null;
+
+type DraftValue = {
+    rolloutPct: string;
+    owner: string;
+    notes: string;
+    parentKey: string;
+    scheduledEnableAt: string;
+    scheduledDisableAt: string;
+    roles: string;
+    userIds: string;
+    cohorts: string;
+    variants: string;
+    confirmationPhrase: string;
+    reason: string;
+};
+
+const CATEGORY_META: Record<string, { label: string; icon: string; description: string }> = {
+    pdp: {
+        label: "Halaman Produk",
+        icon: "📦",
+        description: "Fitur yang muncul di halaman detail produk: tawar inline, badge seller, thumbnail review.",
+    },
+    trust: {
+        label: "Trust & Safety",
+        icon: "🛡️",
+        description: "Fitur yang menyangkut rating buyer, dispute, dan privacy data — wajib konfirmasi tambahan.",
+    },
+    differentiator: {
+        label: "Fitur Unggulan",
+        icon: "⭐",
+        description: "Fitur kompetitif yang membedakan JBR: live presence, auto-counter, audit replay, smart questions, dll.",
+    },
+};
 
 function toInputDateTime(value: string | Date | null): string {
     if (!value) return "";
@@ -44,30 +65,8 @@ function formatDate(value: string | Date | null): string {
     return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
-export function FeatureFlagsClient({
-    initialFlags,
-    killSwitch,
-}: {
-    initialFlags: FeatureFlagRow[];
-    killSwitch: KillSwitchRow;
-}) {
-    const router = useRouter();
-    const [query, setQuery] = useState("");
-    const [category, setCategory] = useState("all");
-    const [reason, setReason] = useState<Record<string, string>>({});
-    const [drafts, setDrafts] = useState<Record<string, {
-        rolloutPct: string;
-        owner: string;
-        notes: string;
-        parentKey: string;
-        scheduledEnableAt: string;
-        scheduledDisableAt: string;
-        roles: string;
-        userIds: string;
-        cohorts: string;
-        variants: string;
-        confirmationPhrase: string;
-    }>>(() => Object.fromEntries(initialFlags.map((flag) => [flag.key, {
+function buildDraft(flag: FlagRow): DraftValue {
+    return {
         rolloutPct: String(flag.rollout_pct),
         owner: flag.owner ?? "",
         notes: flag.notes ?? "",
@@ -81,21 +80,79 @@ export function FeatureFlagsClient({
             ? Object.entries(flag.variants).map(([k, v]) => `${k}=${v}`).join(", ")
             : "",
         confirmationPhrase: "",
-    }])));
+        reason: "",
+    };
+}
+
+function parseCsv(value: string): string[] {
+    return value.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+function parseVariants(value: string): Record<string, number> | null {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const out: Record<string, number> = {};
+    for (const part of trimmed.split(",")) {
+        const [k, v] = part.split("=").map((s) => s.trim());
+        if (!k) continue;
+        const n = Number(v);
+        if (!Number.isFinite(n) || n < 0 || n > 100) continue;
+        out[k] = Math.round(n);
+    }
+    return Object.keys(out).length > 0 ? out : null;
+}
+
+export function FeatureFlagsClient({
+    initialFlags,
+    killSwitch,
+}: {
+    initialFlags: FlagRow[];
+    killSwitch: KillSwitchRow;
+}) {
+    const router = useRouter();
+    const [query, setQuery] = useState("");
+    const [category, setCategory] = useState<string>("all");
+    const [statusFilter, setStatusFilter] = useState<string>("all");
+    const [drafts, setDrafts] = useState<Record<string, DraftValue>>(
+        () => Object.fromEntries(initialFlags.map((f) => [f.key, buildDraft(f)]))
+    );
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
     const [isPending, startTransition] = useTransition();
 
-    const categories = useMemo(() => ["all", ...new Set(initialFlags.map((flag) => flag.category))], [initialFlags]);
-    const filteredFlags = useMemo(() => {
-        return initialFlags.filter((flag) => {
-            const matchesCategory = category === "all" || flag.category === category;
-            const haystack = `${flag.key} ${flag.description} ${flag.owner ?? ""}`.toLowerCase();
-            const matchesQuery = query.trim() === "" || haystack.includes(query.trim().toLowerCase());
-            return matchesCategory && matchesQuery;
-        });
-    }, [category, initialFlags, query]);
+    const allFlagKeys = useMemo(() => initialFlags.map((f) => f.key), [initialFlags]);
 
-    function setDraftValue(key: string, field: keyof typeof drafts[string], value: string) {
+    const filtered = useMemo(() => {
+        return initialFlags.filter((flag) => {
+            if (category !== "all" && flag.category !== category) return false;
+            if (statusFilter === "enabled" && !flag.enabled) return false;
+            if (statusFilter === "disabled" && flag.enabled) return false;
+            if (statusFilter === "trust" && flag.category !== "trust") return false;
+
+            const q = query.trim().toLowerCase();
+            if (!q) return true;
+            const meta = FEATURE_FLAG_META[flag.key];
+            const haystack = [
+                flag.key,
+                flag.description,
+                flag.owner ?? "",
+                meta?.friendlyName ?? "",
+                meta?.description ?? "",
+                meta?.ticket ?? "",
+            ].join(" ").toLowerCase();
+            return haystack.includes(q);
+        });
+    }, [initialFlags, category, statusFilter, query]);
+
+    const grouped = useMemo(() => {
+        const groups: Record<string, FlagRow[]> = {};
+        for (const flag of filtered) {
+            const cat = flag.category || "other";
+            (groups[cat] ??= []).push(flag);
+        }
+        return groups;
+    }, [filtered]);
+
+    function setDraftField(key: string, field: keyof DraftValue, value: string) {
         setDrafts((prev) => ({
             ...prev,
             [key]: {
@@ -105,29 +162,28 @@ export function FeatureFlagsClient({
         }));
     }
 
-    function requireReason(key: string): string | null {
-        const value = (reason[key] ?? "").trim();
-        if (value.length < 3) {
-            setMessage({ type: "error", text: `Alasan untuk ${key} minimal 3 karakter.` });
-            return null;
-        }
-        return value;
-    }
-
-    function handleToggle(key: string, nextEnabled: boolean) {
-        const cleanReason = requireReason(key);
-        if (!cleanReason) return;
-        const flag = initialFlags.find((f) => f.key === key);
-        const confirmationPhrase = drafts[key]?.confirmationPhrase ?? "";
-        if (flag?.category === "trust" && confirmationPhrase.toUpperCase() !== "SAYA YAKIN") {
-            setMessage({ type: "error", text: `Flag '${key}' kategori trust. Ketik SAYA YAKIN di field konfirmasi sebelum toggle.` });
+    function handleToggle(flag: FlagRow) {
+        const draft = drafts[flag.key];
+        const cleanReason = (draft.reason ?? "").trim();
+        if (cleanReason.length < 3) {
+            setMessage({ type: "error", text: `Isi alasan dulu untuk "${flag.key}" (minimal 3 karakter).` });
             return;
         }
+        if (flag.category === "trust" && draft.confirmationPhrase.toUpperCase() !== "SAYA YAKIN") {
+            setMessage({ type: "error", text: `Flag trust "${flag.key}" wajib konfirmasi: ketik SAYA YAKIN.` });
+            return;
+        }
+        const nextEnabled = !flag.enabled;
         setMessage(null);
         startTransition(async () => {
             try {
-                await toggleFeatureFlag(key, nextEnabled, cleanReason, { confirmationPhrase });
-                setMessage({ type: "success", text: `Flag ${key} berhasil diperbarui.` });
+                await toggleFeatureFlag(flag.key, nextEnabled, cleanReason, {
+                    confirmationPhrase: draft.confirmationPhrase || undefined,
+                });
+                setMessage({
+                    type: "success",
+                    text: `${flag.key} → ${nextEnabled ? "ENABLED" : "DISABLED"}.`,
+                });
                 router.refresh();
             } catch (error) {
                 setMessage({ type: "error", text: error instanceof Error ? error.message : "Gagal toggle flag." });
@@ -135,36 +191,18 @@ export function FeatureFlagsClient({
         });
     }
 
-    function parseCsv(value: string): string[] {
-        return value
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean);
-    }
-
-    function parseVariants(value: string): Record<string, number> | null {
-        const trimmed = value.trim();
-        if (!trimmed) return null;
-        const out: Record<string, number> = {};
-        for (const part of trimmed.split(",")) {
-            const [k, v] = part.split("=").map((s) => s.trim());
-            if (!k) continue;
-            const n = Number(v);
-            if (!Number.isFinite(n) || n < 0 || n > 100) continue;
-            out[k] = Math.round(n);
+    function handleSave(flag: FlagRow) {
+        const draft = drafts[flag.key];
+        const cleanReason = (draft.reason ?? "").trim();
+        if (cleanReason.length < 3) {
+            setMessage({ type: "error", text: `Isi alasan dulu untuk "${flag.key}" (minimal 3 karakter).` });
+            return;
         }
-        return Object.keys(out).length > 0 ? out : null;
-    }
-
-    function handleSave(key: string) {
-        const cleanReason = requireReason(key);
-        if (!cleanReason) return;
-        const draft = drafts[key];
         setMessage(null);
         startTransition(async () => {
             try {
                 await updateFeatureFlag({
-                    key,
+                    key: flag.key,
                     reason: cleanReason,
                     rolloutPct: Number(draft.rolloutPct || 0),
                     owner: draft.owner,
@@ -180,7 +218,7 @@ export function FeatureFlagsClient({
                     variants: parseVariants(draft.variants),
                     confirmationPhrase: draft.confirmationPhrase || undefined,
                 });
-                setMessage({ type: "success", text: `Konfigurasi ${key} berhasil disimpan.` });
+                setMessage({ type: "success", text: `Konfigurasi ${flag.key} tersimpan.` });
                 router.refresh();
             } catch (error) {
                 setMessage({ type: "error", text: error instanceof Error ? error.message : "Gagal menyimpan flag." });
@@ -188,262 +226,152 @@ export function FeatureFlagsClient({
         });
     }
 
+    const totalEnabled = initialFlags.filter((f) => f.enabled).length;
+    const totalTrust = initialFlags.filter((f) => f.category === "trust").length;
+
     return (
-        <div className="space-y-6">
+        <div className="space-y-5">
+            {/* Header */}
             <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                     <div>
                         <h1 className="text-2xl sm:text-3xl font-heading font-bold tracking-tight text-slate-900 uppercase flex items-center gap-3">
                             <SlidersHorizontal className="w-7 h-7 text-brand-primary" />
                             Feature Flags
                         </h1>
-                        <p className="text-slate-500 mt-1">Kelola rollout, toggle, dan emergency control semua fitur baru tanpa redeploy.</p>
+                        <p className="text-slate-500 mt-1 text-sm max-w-2xl">
+                            Saklar fitur untuk kontrol rollout tanpa redeploy. Toggle, atur persentase user, jadwalkan, atau matikan instan saat ada masalah.
+                            <span className="text-slate-400">
+                                {" "}
+                                ({totalEnabled}/{initialFlags.length} aktif · {totalTrust} kategori trust)
+                            </span>
+                        </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-sm">
-                        <Link href="/admin/feature-flags/audit" className="px-4 py-2 rounded-lg border border-slate-200 hover:border-brand-primary hover:text-brand-primary transition-colors">
+                        <HelpDrawer />
+                        <Link
+                            href="/admin/feature-flags/audit"
+                            className="px-3 py-2 rounded-lg border border-slate-200 hover:border-brand-primary hover:text-brand-primary transition-colors"
+                        >
                             Audit Log
                         </Link>
-                        <Link href="/admin/feature-flags/kill-switch" className="px-4 py-2 rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 transition-colors">
+                        <Link
+                            href="/admin/feature-flags/kill-switch"
+                            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-rose-200 text-rose-700 hover:bg-rose-50 transition-colors"
+                        >
+                            <ShieldAlert className="w-4 h-4" />
                             Kill Switch
                         </Link>
                     </div>
                 </div>
 
-                <div className={`rounded-xl border px-4 py-3 text-sm ${killSwitch?.active ? "border-rose-200 bg-rose-50 text-rose-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                {/* Kill switch banner */}
+                <div
+                    className={`rounded-xl border px-4 py-3 text-sm ${killSwitch?.active
+                        ? "border-rose-200 bg-rose-50 text-rose-700"
+                        : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        }`}
+                >
                     <div className="flex items-center gap-2 font-semibold">
-                        {killSwitch?.active ? <ShieldAlert className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
-                        {killSwitch?.active ? `Kill-switch aktif (${killSwitch.scope})` : "Kill-switch nonaktif"}
+                        {killSwitch?.active ? (
+                            <ShieldAlert className="w-4 h-4" />
+                        ) : (
+                            <CheckCircle2 className="w-4 h-4" />
+                        )}
+                        {killSwitch?.active ? `Kill-switch AKTIF (scope: ${killSwitch.scope})` : "Kill-switch nonaktif"}
                     </div>
-                    <div className="mt-1 text-xs opacity-80">
-                        Alasan: {killSwitch?.reason || "-"} · Diperbarui: {formatDate(killSwitch?.activated_at ?? null)}
-                    </div>
+                    {killSwitch?.active && (
+                        <div className="mt-1 text-xs opacity-80">
+                            Alasan: {killSwitch.reason || "-"} · Diaktifkan: {formatDate(killSwitch.activated_at)}
+                        </div>
+                    )}
                 </div>
 
-                <div className="flex flex-col lg:flex-row gap-3">
-                    <input
-                        type="search"
-                        value={query}
-                        onChange={(event) => setQuery(event.target.value)}
-                        placeholder="Cari key, deskripsi, atau owner"
-                        className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50"
-                    />
+                {/* Filters */}
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3">
+                    <div className="relative">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="search"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            placeholder="Cari nama fitur, key, deskripsi, owner, atau tiket..."
+                            className="w-full rounded-lg border border-slate-200 pl-10 pr-4 py-2 bg-slate-50 text-sm"
+                        />
+                    </div>
                     <select
                         value={category}
-                        onChange={(event) => setCategory(event.target.value)}
-                        className="rounded-xl border border-slate-200 px-4 py-2.5 bg-slate-50"
+                        onChange={(e) => setCategory(e.target.value)}
+                        className="rounded-lg border border-slate-200 px-4 py-2 bg-slate-50 text-sm"
                     >
-                        {categories.map((item) => (
-                            <option key={item} value={item}>
-                                {item}
-                            </option>
-                        ))}
+                        <option value="all">Semua Kategori</option>
+                        <option value="pdp">📦 Halaman Produk</option>
+                        <option value="trust">🛡️ Trust & Safety</option>
+                        <option value="differentiator">⭐ Fitur Unggulan</option>
+                    </select>
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="rounded-lg border border-slate-200 px-4 py-2 bg-slate-50 text-sm"
+                    >
+                        <option value="all">Semua Status</option>
+                        <option value="enabled">Hanya Aktif</option>
+                        <option value="disabled">Hanya Mati</option>
+                        <option value="trust">Hanya Trust</option>
                     </select>
                 </div>
 
                 {message && (
-                    <div className={`rounded-xl border px-4 py-3 text-sm ${message.type === "success"
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "border-rose-200 bg-rose-50 text-rose-700"
-                        }`}>
+                    <div
+                        className={`rounded-lg border px-4 py-3 text-sm ${message.type === "success"
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "border-rose-200 bg-rose-50 text-rose-700"
+                            }`}
+                    >
                         {message.text}
                     </div>
                 )}
             </div>
 
-            <div className="space-y-4">
-                {filteredFlags.map((flag) => (
-                    <div key={flag.key} className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
-                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                            <div className="space-y-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <h2 className="font-semibold text-slate-900">{flag.key}</h2>
-                                    <span className={`text-[11px] font-bold uppercase px-2 py-1 rounded-full ${flag.enabled ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
-                                        {flag.enabled ? "enabled" : "disabled"}
-                                    </span>
-                                    <span className="text-[11px] font-bold uppercase px-2 py-1 rounded-full bg-brand-primary/10 text-brand-primary">
-                                        {flag.category}
-                                    </span>
-                                </div>
-                                <p className="text-sm text-slate-600">{flag.description}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Link
-                                    href={`/admin/feature-flags/${encodeURIComponent(flag.key)}/impact`}
-                                    className="px-3 py-2 rounded-xl border border-slate-200 hover:border-brand-primary hover:text-brand-primary text-sm transition-colors"
-                                >
-                                    Impact
-                                </Link>
-                                <button
-                                    type="button"
-                                    disabled={isPending}
-                                    onClick={() => handleToggle(flag.key, !flag.enabled)}
-                                    className={`px-4 py-2 rounded-xl font-semibold text-sm transition-colors ${flag.enabled ? "bg-rose-600 text-white hover:bg-rose-700" : "bg-brand-primary text-white hover:bg-brand-primary/90"}`}
-                                >
-                                    {isPending ? <RefreshCw className="w-4 h-4 animate-spin inline" /> : flag.enabled ? "Disable" : "Enable"}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                            <label className="text-sm space-y-1">
-                                <span className="font-medium text-slate-700">Rollout %</span>
-                                <input
-                                    type="number"
-                                    min={0}
-                                    max={100}
-                                    value={drafts[flag.key]?.rolloutPct ?? "0"}
-                                    onChange={(event) => setDraftValue(flag.key, "rolloutPct", event.target.value)}
-                                    className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50"
-                                />
-                            </label>
-                            <label className="text-sm space-y-1">
-                                <span className="font-medium text-slate-700">Owner</span>
-                                <input
-                                    type="text"
-                                    value={drafts[flag.key]?.owner ?? ""}
-                                    onChange={(event) => setDraftValue(flag.key, "owner", event.target.value)}
-                                    className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50"
-                                />
-                            </label>
-                            <label className="text-sm space-y-1">
-                                <span className="font-medium text-slate-700">Parent Flag</span>
-                                <select
-                                    value={drafts[flag.key]?.parentKey ?? ""}
-                                    onChange={(event) => setDraftValue(flag.key, "parentKey", event.target.value)}
-                                    className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50"
-                                >
-                                    <option value="">Tanpa parent</option>
-                                    {initialFlags.filter((candidate) => candidate.key !== flag.key).map((candidate) => (
-                                        <option key={candidate.key} value={candidate.key}>
-                                            {candidate.key}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-                            <label className="text-sm space-y-1">
-                                <span className="font-medium text-slate-700">Scheduled Enable</span>
-                                <input
-                                    type="datetime-local"
-                                    value={drafts[flag.key]?.scheduledEnableAt ?? ""}
-                                    onChange={(event) => setDraftValue(flag.key, "scheduledEnableAt", event.target.value)}
-                                    className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50"
-                                />
-                            </label>
-                            <label className="text-sm space-y-1">
-                                <span className="font-medium text-slate-700">Scheduled Disable</span>
-                                <input
-                                    type="datetime-local"
-                                    value={drafts[flag.key]?.scheduledDisableAt ?? ""}
-                                    onChange={(event) => setDraftValue(flag.key, "scheduledDisableAt", event.target.value)}
-                                    className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50"
-                                />
-                            </label>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <label className="text-sm space-y-1">
-                                <span className="font-medium text-slate-700">Audience: roles (CSV)</span>
-                                <input
-                                    type="text"
-                                    placeholder="ADMIN, STAFF, BETA"
-                                    value={drafts[flag.key]?.roles ?? ""}
-                                    onChange={(event) => setDraftValue(flag.key, "roles", event.target.value)}
-                                    className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50 font-mono text-xs"
-                                />
-                            </label>
-                            <label className="text-sm space-y-1">
-                                <span className="font-medium text-slate-700">Audience: userIds (CSV)</span>
-                                <input
-                                    type="text"
-                                    placeholder="usr_..."
-                                    value={drafts[flag.key]?.userIds ?? ""}
-                                    onChange={(event) => setDraftValue(flag.key, "userIds", event.target.value)}
-                                    className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50 font-mono text-xs"
-                                />
-                            </label>
-                            <label className="text-sm space-y-1">
-                                <span className="font-medium text-slate-700">Audience: cohorts (CSV)</span>
-                                <input
-                                    type="text"
-                                    placeholder="beta-pdp, internal"
-                                    value={drafts[flag.key]?.cohorts ?? ""}
-                                    onChange={(event) => setDraftValue(flag.key, "cohorts", event.target.value)}
-                                    className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50 font-mono text-xs"
-                                />
-                            </label>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <label className="text-sm space-y-1">
-                                <span className="font-medium text-slate-700">Variants A/B/C (FORMAT: name=weight, total ≤ 100)</span>
-                                <input
-                                    type="text"
-                                    placeholder="control=50, variant_a=50"
-                                    value={drafts[flag.key]?.variants ?? ""}
-                                    onChange={(event) => setDraftValue(flag.key, "variants", event.target.value)}
-                                    className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50 font-mono text-xs"
-                                />
-                            </label>
-                            {flag.category === "trust" && (
-                                <label className="text-sm space-y-1">
-                                    <span className="font-medium text-rose-700">Konfirmasi trust (ketik: SAYA YAKIN)</span>
-                                    <input
-                                        type="text"
-                                        placeholder="SAYA YAKIN"
-                                        value={drafts[flag.key]?.confirmationPhrase ?? ""}
-                                        onChange={(event) => setDraftValue(flag.key, "confirmationPhrase", event.target.value)}
-                                        className="w-full rounded-lg border border-rose-300 px-3 py-2 bg-rose-50 font-mono text-xs"
-                                    />
-                                </label>
-                            )}
-                        </div>
-
-                        <label className="block text-sm space-y-1">
-                            <span className="font-medium text-slate-700">Notes</span>
-                            <textarea
-                                rows={3}
-                                value={drafts[flag.key]?.notes ?? ""}
-                                onChange={(event) => setDraftValue(flag.key, "notes", event.target.value)}
-                                className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50 resize-none"
-                            />
-                        </label>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-3 items-start">
-                            <label className="block text-sm space-y-1">
-                                <span className="font-medium text-slate-700">Reason (required for audit log)</span>
-                                <input
-                                    type="text"
-                                    value={reason[flag.key] ?? ""}
-                                    onChange={(event) => setReason((prev) => ({ ...prev, [flag.key]: event.target.value }))}
-                                    className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50"
-                                />
-                            </label>
-                            <button
-                                type="button"
-                                disabled={isPending}
-                                onClick={() => handleSave(flag.key)}
-                                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white hover:bg-slate-800 transition-colors"
-                            >
-                                {isPending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                Simpan
-                            </button>
-                        </div>
-                    </div>
-                ))}
-
-                {filteredFlags.length === 0 && (
-                    <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
-                        Tidak ada feature flag yang cocok dengan filter saat ini.
-                    </div>
-                )}
-            </div>
-
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 mt-0.5" />
-                <div>
-                    Perubahan flag bersifat operasional. Gunakan alasan yang jelas dan lakukan audit lewat halaman audit log sebelum dan sesudah rollout besar.
+            {/* Grouped flags */}
+            {filtered.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-slate-500">
+                    Tidak ada feature flag yang cocok dengan filter saat ini.
                 </div>
-            </div>
+            ) : (
+                Object.entries(grouped).map(([cat, flagsInCat]) => {
+                    const catMeta = CATEGORY_META[cat] ?? { label: cat, icon: "🚩", description: "" };
+                    return (
+                        <div key={cat} className="space-y-3">
+                            <div className="flex items-baseline gap-2 px-1">
+                                <span className="text-xl">{catMeta.icon}</span>
+                                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700">
+                                    {catMeta.label}
+                                </h2>
+                                <span className="text-xs text-slate-400">({flagsInCat.length})</span>
+                            </div>
+                            {catMeta.description && (
+                                <p className="text-xs text-slate-500 px-1 -mt-1">{catMeta.description}</p>
+                            )}
+                            <div className="space-y-2">
+                                {flagsInCat.map((flag) => (
+                                    <FeatureFlagCard
+                                        key={flag.key}
+                                        flag={flag}
+                                        meta={FEATURE_FLAG_META[flag.key] ?? null}
+                                        allFlagKeys={allFlagKeys}
+                                        draft={drafts[flag.key]}
+                                        onDraftChange={(field, value) => setDraftField(flag.key, field, value)}
+                                        onToggle={() => handleToggle(flag)}
+                                        onSave={() => handleSave(flag)}
+                                        isPending={isPending}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    );
+                })
+            )}
         </div>
     );
 }
