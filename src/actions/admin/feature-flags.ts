@@ -132,7 +132,7 @@ export async function ensureInitialFeatureFlags() {
         .set({ parent_key: "pdp.buyer_rating", updated_at: new Date() })
         .where(or(eq(feature_flags.key, "dif.two_way_reputation_surface"), eq(feature_flags.key, "pdp.dispute_rating")));
 
-    await revalidateFlagSurfaces();
+    await invalidateFeatureFlagCache();
     return { seeded: true };
 }
 
