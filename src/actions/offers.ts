@@ -849,6 +849,72 @@ export async function listSellerOffers(filter?: { status?: "PENDING" | "ACCEPTED
     });
 }
 
+/**
+ * Return the buyer's latest offer thread for a given product, if any.
+ * Returns null when:
+ *   - user is not logged in
+ *   - user is the seller (not a buyer perspective)
+ *   - no offer exists for this (buyer, product) pair
+ *
+ * Used by PDP to surface "Tawaran Anda saat ini" panel without requiring
+ * the buyer to submit and hit a duplicate-active error.
+ *
+ * Returns the LATEST round (highest round number) of the active thread.
+ * Active means status in PENDING/COUNTERED/ACCEPTED. If no active thread,
+ * falls back to the most recent inactive offer (REJECTED/EXPIRED/WITHDRAWN)
+ * so user still sees their last interaction.
+ */
+export async function getMyOfferStatusForProduct(productId: string): Promise<{
+    id: string;
+    rootOfferId: string;
+    amount: string;
+    status: string;
+    round: number;
+    actorRole: string;
+    isAutoCounter: boolean;
+    createdAt: Date;
+    expiresAt: Date;
+    decidedAt: Date | null;
+    checkoutToken: string | null;
+    isActive: boolean;
+} | null> {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) return null;
+    const userId = session.user.id;
+
+    // Prefer the latest round in any ACTIVE thread first.
+    const active = await db.query.offers.findFirst({
+        where: and(
+            eq(offers.listing_id, productId),
+            eq(offers.buyer_id, userId),
+            sql`${offers.status} IN ('PENDING', 'COUNTERED', 'ACCEPTED')`
+        ),
+        orderBy: [desc(offers.round), desc(offers.created_at)],
+    });
+
+    const chosen = active ?? (await db.query.offers.findFirst({
+        where: and(eq(offers.listing_id, productId), eq(offers.buyer_id, userId)),
+        orderBy: [desc(offers.created_at)],
+    }));
+
+    if (!chosen) return null;
+
+    return {
+        id: chosen.id,
+        rootOfferId: chosen.root_offer_id,
+        amount: chosen.amount,
+        status: chosen.status,
+        round: chosen.round,
+        actorRole: chosen.actor_role,
+        isAutoCounter: chosen.is_auto_counter,
+        createdAt: chosen.created_at,
+        expiresAt: chosen.expires_at,
+        decidedAt: chosen.decided_at,
+        checkoutToken: chosen.checkout_token,
+        isActive: ["PENDING", "COUNTERED", "ACCEPTED"].includes(chosen.status),
+    };
+}
+
 export async function listBuyerOffers() {
     const user = await getCurrentUser();
     return db.query.offers.findMany({

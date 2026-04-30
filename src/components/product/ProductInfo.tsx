@@ -10,6 +10,7 @@ import { startConversation } from "@/actions/chat";
 import { createOffer, getOfferWinProbability, prepareOfferLoginDraft } from "@/actions/offers";
 import { recordProductEvent } from "@/actions/product-events";
 import { addToWishlist } from "@/actions/wishlist";
+import { MyOfferStatusPanel } from "@/components/product/MyOfferStatusPanel";
 import { VariantSelector } from "@/components/product/VariantSelector";
 import MakeOfferButton from "@/components/product/MakeOfferButton";
 import { SellerBadge } from "@/components/seller/SellerBadges";
@@ -630,6 +631,10 @@ export function ProductInfo({
                         {isChatPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <><MessageCircle className="w-5 h-5" />Tanya Penjual</>}
                     </button>
                 </div>
+
+                {!isOwnProduct && (
+                    <MyOfferStatusPanel productId={product.id} isAuthenticated={isAuthenticated} />
+                )}
 
                 {isOwnProduct ? (
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">

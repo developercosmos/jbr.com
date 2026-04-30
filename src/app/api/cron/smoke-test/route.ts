@@ -187,6 +187,11 @@ async function runChecks() {
         probeHttp("admin-fees", `${origin}/admin/fees`, [200, 307, 308]),
         probeHttp("admin-vouchers", `${origin}/admin/vouchers`, [200, 307, 308]),
         probeHttp("admin-affiliates", `${origin}/admin/affiliates`, [200, 307, 308]),
+
+        // Authenticated buyer surfaces (must redirect to login, NOT 500).
+        probeHttp("profile-offers", `${origin}/profile/offers`, [200, 307, 308]),
+        probeHttp("profile-orders", `${origin}/profile/orders`, [200, 307, 308]),
+        probeHttp("profile-wishlist", `${origin}/profile/wishlist`, [200, 307, 308]),
     ];
 
     const staticCheck = probeStaticAssets(origin);
