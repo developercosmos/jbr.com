@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "node -e \"const fs=require('fs'),path=require('path'),src1=path.join('.next','static'),dst1=path.join('.next','standalone','.next','static'),src2='public',dst2=path.join('.next','standalone','public');if(fs.existsSync(path.join('.next','standalone'))){fs.rmSync(dst1,{recursive:true,force:true});fs.rmSync(dst2,{recursive:true,force:true});fs.cpSync(src1,dst1,{recursive:true});if(fs.existsSync(src2))fs.cpSync(src2,dst2,{recursive:true});console.log('postbuild: synced .next/static + public into standalone');}\"",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
