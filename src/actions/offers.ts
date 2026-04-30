@@ -318,7 +318,12 @@ export async function createOffer(input: z.infer<typeof createOfferSchema>) {
         columns: { id: true, status: true },
     });
     if (existingActive) {
-        return { success: false as const, error: "duplicate_active" as const, message: "Anda sudah punya penawaran aktif untuk produk ini." };
+        return {
+            success: false as const,
+            error: "duplicate_active" as const,
+            message: "Anda sudah punya penawaran aktif untuk produk ini.",
+            existingOfferId: existingActive.id,
+        };
     }
 
     const expiresAt = addHours(new Date(), OFFER_TTL_HOURS);

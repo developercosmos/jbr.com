@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
-import { User, MapPin, Package2, Heart, Settings, Verified, Loader2, Trophy, Megaphone } from "lucide-react";
+import { User, MapPin, Package2, Heart, Settings, Verified, Loader2, Trophy, Megaphone, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { authClient } from "@/lib/auth-client";
 
@@ -22,6 +22,11 @@ const navItems = [
         label: "Pesanan Saya",
         href: "/profile/orders",
         icon: Package2,
+    },
+    {
+        label: "Tawaran Saya",
+        href: "/profile/offers",
+        icon: Tag,
     },
     {
         label: "Wishlist",

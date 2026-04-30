@@ -152,7 +152,12 @@ export function ProductInfo({
     const [shared, setShared] = useState(false);
     const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
     const [offerAmount, setOfferAmount] = useState<string>(() => initialOfferAmount ?? product.auto_decline_below ?? String(Math.round(parseFloat(product.price) * 0.9)));
-    const [offerMessage, setOfferMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+    const [offerMessage, setOfferMessage] = useState<{
+        type: "success" | "error";
+        text: string;
+        actionHref?: string;
+        actionLabel?: string;
+    } | null>(null);
     const [offerWinProbability, setOfferWinProbability] = useState<{ probabilityPct: number | null; sampleSize: number } | null>(null);
     const offerFocusRecorded = useRef(false);
     const badgeViewRecorded = useRef(false);
@@ -495,6 +500,8 @@ export function ProductInfo({
                     setOfferMessage({
                         type: "error",
                         text: ("message" in result && result.message) ? result.message : "Tawaran tidak dapat dikirim.",
+                        actionHref: result.error === "duplicate_active" ? "/profile/offers" : undefined,
+                        actionLabel: result.error === "duplicate_active" ? "Lihat tawaran saya" : undefined,
                     });
                     return;
                 }
@@ -646,7 +653,19 @@ export function ProductInfo({
                                 {isOfferPending ? <Loader2 className="w-4 h-4 animate-spin" /> : isAuthenticated ? "Kirim" : "Sign in"}
                             </button>
                         </div>
-                        {offerMessage && <p className={`text-xs ${offerMessage.type === "success" ? "text-emerald-700" : "text-rose-700"}`}>{offerMessage.text}</p>}
+                        {offerMessage && (
+                            <p className={`text-xs ${offerMessage.type === "success" ? "text-emerald-700" : "text-rose-700"}`}>
+                                {offerMessage.text}
+                                {offerMessage.actionHref && offerMessage.actionLabel && (
+                                    <>
+                                        {" "}
+                                        <Link href={offerMessage.actionHref} className="underline font-semibold hover:no-underline">
+                                            {offerMessage.actionLabel} →
+                                        </Link>
+                                    </>
+                                )}
+                            </p>
+                        )}
                         {guardrailInsight && (
                             <div className="space-y-1">
                                 <p className={`text-[11px] font-medium ${guardrailInsight.tone}`}>{guardrailInsight.label}</p>
