@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Loader2, CheckCircle2, XCircle, Clock, ShoppingBag, ArrowRight } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Clock, ShoppingBag, ArrowRight, AlertTriangle } from "lucide-react";
 import { acceptOffer, withdrawOffer } from "@/actions/offers";
+
+const EXPIRY_WARNING_THRESHOLD_HOURS = 6;
 
 type OfferRow = {
     id: string;
@@ -34,6 +36,30 @@ type OfferRow = {
 
 interface Props {
     threads: OfferRow[][];
+    /** Flag dif.offer_expiry_warning — gate visual highlight banner. */
+    expiryWarningEnabled: boolean;
+}
+
+function computeExpiryState(expiresAt: Date | string, now: number): {
+    minutesLeft: number;
+    isUrgent: boolean;
+    hasExpired: boolean;
+} {
+    const remainingMs = new Date(expiresAt).getTime() - now;
+    const minutesLeft = Math.max(0, Math.round(remainingMs / 60_000));
+    const hoursLeft = remainingMs / (60 * 60 * 1000);
+    return {
+        minutesLeft,
+        isUrgent: hoursLeft > 0 && hoursLeft <= EXPIRY_WARNING_THRESHOLD_HOURS,
+        hasExpired: remainingMs <= 0,
+    };
+}
+
+function formatRemaining(minutes: number): string {
+    if (minutes < 60) return `${minutes} menit`;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return mins === 0 ? `${hours} jam` : `${hours} jam ${mins} menit`;
 }
 
 const STATUS_META: Record<string, { label: string; classes: string; icon: typeof Clock }> = {
@@ -61,11 +87,19 @@ function formatDateTime(value: string | Date | null): string {
     }).format(new Date(value));
 }
 
-export function BuyerOffersClient({ threads }: Props) {
+export function BuyerOffersClient({ threads, expiryWarningEnabled }: Props) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [pendingId, setPendingId] = useState<string | null>(null);
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+    // Tick `now` every minute so the expiry banner stays accurate without
+    // forcing a server round-trip per row.
+    const [now, setNow] = useState(() => Date.now());
+    useEffect(() => {
+        if (!expiryWarningEnabled) return;
+        const id = setInterval(() => setNow(Date.now()), 60_000);
+        return () => clearInterval(id);
+    }, [expiryWarningEnabled]);
 
     function handleWithdraw(offerId: string) {
         if (!confirm("Yakin batalkan tawaran ini? Tindakan tidak dapat dibatalkan.")) return;
@@ -132,8 +166,27 @@ export function BuyerOffersClient({ threads }: Props) {
                 const canCheckout =
                     latest.status === "ACCEPTED" && !!latest.checkout_token;
 
+                const expiry =
+                    expiryWarningEnabled && ["PENDING", "COUNTERED"].includes(latest.status)
+                        ? computeExpiryState(latest.expires_at, now)
+                        : null;
+                const showExpiryWarning = !!expiry?.isUrgent && !expiry.hasExpired;
+
                 return (
                     <div key={latest.id} className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                        {showExpiryWarning && expiry && (
+                            <div className="bg-rose-50 border-b border-rose-200 px-4 py-2.5 flex items-start gap-2">
+                                <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                                <div className="text-xs text-rose-800 leading-relaxed">
+                                    <span className="font-semibold">
+                                        Kedaluwarsa dalam {formatRemaining(expiry.minutesLeft)}.
+                                    </span>{" "}
+                                    {latest.actor_role === "seller"
+                                        ? "Penjual sudah meng-counter — segera respon supaya tawaran tidak hangus."
+                                        : "Tawaran ini akan auto-expire — pertimbangkan ingatkan penjual via chat."}
+                                </div>
+                            </div>
+                        )}
                         <div className="p-4 flex flex-col sm:flex-row gap-4 border-b border-slate-100">
                             <Link
                                 href={product ? `/product/${product.slug}` : "#"}

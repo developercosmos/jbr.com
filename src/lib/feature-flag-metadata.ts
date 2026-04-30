@@ -434,6 +434,25 @@ export const FEATURE_FLAG_META: Record<string, FeatureFlagMetadata> = {
         dependencies: ["pdp.buyer_reputation"],
         affectedSurface: "Backend offers — invisible ke pembeli",
     },
+    "dif.offer_expiry_warning": {
+        friendlyName: "Peringatan Tawaran Hampir Kedaluwarsa",
+        description:
+            "Tampilkan banner kuning/merah di panel 'Tawaran Anda' (di halaman produk dan halaman Tawaran Saya) saat sisa waktu tawaran < 6 jam. Memberi pembeli kesempatan terakhir untuk mengingatkan seller atau menyiapkan rencana cadangan sebelum tawaran auto-expire.",
+        impact: {
+            positive: [
+                "Mengurangi tawaran yang hangus tanpa keputusan, terutama dari seller yang sibuk.",
+                "Pembeli punya cue visual untuk follow-up via chat.",
+                "Estimasi closing rate naik 5–10% dari thread yang sebelumnya silent-expire.",
+            ],
+            risk: [
+                "Bisa dipersepsikan sebagai 'pressure tactic' kalau warna terlalu agresif. Default copy netral, bukan urgensi palsu.",
+            ],
+        },
+        risk: "low",
+        icon: "⏳",
+        ticket: "DIF-16",
+        affectedSurface: "Halaman Produk › Panel Tawaran Anda · /profile/offers",
+    },
     "dif.match_score": {
         friendlyName: "Skor Kecocokan Produk",
         description:

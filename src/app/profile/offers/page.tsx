@@ -1,12 +1,20 @@
 import Link from "next/link";
 import { Tag } from "lucide-react";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
 import { listBuyerOffers } from "@/actions/offers";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { BuyerOffersClient } from "./BuyerOffersClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function BuyerOffersPage() {
+    const session = await auth.api.getSession({ headers: await headers() });
     const offers = await listBuyerOffers();
+    const expiryWarningEnabled = await isFeatureEnabled("dif.offer_expiry_warning", {
+        userId: session?.user?.id,
+        bucketKey: session?.user?.id,
+    });
 
     // Group offers by root_offer_id so each negotiation thread shows as one row
     // with rounds nested. Latest round first inside each thread.
@@ -47,7 +55,7 @@ export default async function BuyerOffersPage() {
                     </Link>
                 </div>
             ) : (
-                <BuyerOffersClient threads={threads} />
+                <BuyerOffersClient threads={threads} expiryWarningEnabled={expiryWarningEnabled} />
             )}
         </div>
     );

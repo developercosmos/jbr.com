@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Tag, ArrowRight, Loader2, CheckCircle2, Clock, XCircle } from "lucide-react";
+import { Tag, ArrowRight, Loader2, CheckCircle2, Clock, XCircle, AlertTriangle } from "lucide-react";
 import { getMyOfferStatusForProduct } from "@/actions/offers";
+import { useFlag } from "@/lib/use-flag";
+
+const EXPIRY_WARNING_THRESHOLD_HOURS = 6;
 
 type OfferStatus = NonNullable<Awaited<ReturnType<typeof getMyOfferStatusForProduct>>>;
 
@@ -40,8 +43,30 @@ interface Props {
  * component contains no SSR'd per-user bits.
  */
 export function MyOfferStatusPanel({ productId, isAuthenticated }: Props) {
+    const expiryWarningEnabled = useFlag("dif.offer_expiry_warning");
     const [offer, setOffer] = useState<OfferStatus | null>(null);
     const [loading, setLoading] = useState(true);
+    const [now, setNow] = useState(() => Date.now());
+
+    // Refresh "now" every minute so the countdown stays accurate without a
+    // full re-fetch. Only schedules when there's an active offer being shown.
+    useEffect(() => {
+        if (!offer?.isActive) return;
+        const id = setInterval(() => setNow(Date.now()), 60_000);
+        return () => clearInterval(id);
+    }, [offer?.isActive]);
+
+    const expiryState = useMemo(() => {
+        if (!offer?.isActive) return null;
+        if (!["PENDING", "COUNTERED"].includes(offer.status)) return null;
+        const expiresAtMs = new Date(offer.expiresAt).getTime();
+        const remainingMs = expiresAtMs - now;
+        const remainingMinutes = Math.max(0, Math.round(remainingMs / 60_000));
+        const remainingHours = remainingMs / (60 * 60 * 1000);
+        const isUrgent = remainingHours > 0 && remainingHours <= EXPIRY_WARNING_THRESHOLD_HOURS;
+        const hasExpired = remainingMs <= 0;
+        return { remainingMinutes, remainingHours, isUrgent, hasExpired };
+    }, [offer, now]);
 
     useEffect(() => {
         if (!isAuthenticated) {
@@ -83,8 +108,32 @@ export function MyOfferStatusPanel({ productId, isAuthenticated }: Props) {
         ? "rounded-xl border border-amber-200 bg-amber-50/60"
         : "rounded-xl border border-slate-200 bg-slate-50";
 
+    const showExpiryWarning =
+        expiryWarningEnabled && expiryState?.isUrgent && !expiryState.hasExpired;
+
+    function formatRemaining(minutes: number): string {
+        if (minutes < 60) return `${minutes} menit`;
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        return mins === 0 ? `${hours} jam` : `${hours} jam ${mins} menit`;
+    }
+
     return (
         <div className={`${containerClasses} p-4 space-y-3`}>
+            {showExpiryWarning && expiryState && (
+                <div className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-2.5 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-xs text-rose-800 leading-relaxed">
+                        <span className="font-semibold">
+                            Tawaran kedaluwarsa dalam {formatRemaining(expiryState.remainingMinutes)}.
+                        </span>{" "}
+                        {offer.status === "COUNTERED"
+                            ? "Penjual sudah meng-counter — segera respon supaya tidak hangus."
+                            : "Hubungi penjual via chat agar tidak terlewat sebelum auto-expire."}
+                    </div>
+                </div>
+            )}
+
             <div className="flex items-start gap-3">
                 <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center">
                     <Tag className="w-4 h-4 text-amber-700" />

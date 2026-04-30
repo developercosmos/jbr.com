@@ -48,6 +48,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         livePresenceEnabled,
         smartQuestionsEnabled,
         intentScoreEnabled,
+        offerExpiryWarningEnabled,
         offerDraft,
     ] = await Promise.all([
         isFeatureEnabled("pdp.inline_offer", flagContext),
@@ -59,6 +60,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         isFeatureEnabled("dif.live_presence", flagContext),
         isFeatureEnabled("dif.smart_questions", flagContext),
         isFeatureEnabled("dif.intent_score", flagContext),
+        isFeatureEnabled("dif.offer_expiry_warning", flagContext),
         readOfferDraftCookie(product.id),
     ]);
 
@@ -106,6 +108,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                             "dif.live_presence": livePresenceEnabled,
                             "dif.smart_questions": smartQuestionsEnabled,
                             "dif.intent_score": intentScoreEnabled,
+                            "dif.offer_expiry_warning": offerExpiryWarningEnabled,
                         }}
                     >
                         {livePresenceEnabled && (

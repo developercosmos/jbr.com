@@ -33,6 +33,7 @@ const FLAG_REGISTRY = [
     { key: "dif.intent_score", description: "PDP time-on-page intent score (DIF-13)", category: "differentiator" },
     { key: "dif.tier_floor_price", description: "Personalized tier floor price (DIF-14)", category: "differentiator" },
     { key: "dif.match_score", description: "Match score recommendation (DIF-15)", category: "differentiator" },
+    { key: "dif.offer_expiry_warning", description: "Highlight tawaran yang akan kedaluwarsa < 6 jam (DIF-16)", category: "differentiator" },
 ] as const;
 
 const audienceSchema = z.object({
