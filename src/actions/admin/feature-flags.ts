@@ -198,19 +198,15 @@ export async function getFeatureFlagAuditLog(options?: { key?: string; limit?: n
     await requireAdmin();
     const limit = Math.max(1, Math.min(options?.limit ?? 100, 200));
 
+    // NOTE: tidak gunakan `with: { changedByUser }` karena relasi tidak
+    // didefinisikan di schema (feature_flag_audit_log belum punya relations
+    // export). Drizzle akan throw "Cannot read properties of undefined
+    // (reading 'referencedTable')" saat ada row di tabel. Kalau butuh
+    // user object, lakukan lookup terpisah di caller.
     return db.query.feature_flag_audit_log.findMany({
         where: options?.key ? eq(feature_flag_audit_log.flag_key, options.key) : undefined,
         orderBy: [desc(feature_flag_audit_log.created_at)],
         limit,
-        with: {
-            changedByUser: {
-                columns: {
-                    id: true,
-                    name: true,
-                    email: true,
-                },
-            },
-        } as never,
     });
 }
 
