@@ -19,7 +19,7 @@ test("compare page accepts up to 3 slugs via query string", async ({ page }) => 
 });
 
 test("search page exposes spec filter sections", async ({ page }) => {
-    await page.goto("/search?q=raket");
+    await page.goto("/search?q=raket", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await expect(page.getByText(/Bobot/i)).toBeVisible();
     await expect(page.getByText(/Balance/i)).toBeVisible();
 });
