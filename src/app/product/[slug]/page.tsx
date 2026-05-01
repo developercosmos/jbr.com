@@ -15,6 +15,7 @@ import { getMatchScore } from "@/actions/niche";
 import { PdpRecentlyViewedRecorder } from "@/components/RecentlyViewedStrip";
 import { buildImageVariants, pickImageVariant } from "@/lib/image-variants";
 import { PdpPresenceChip } from "@/components/product/PdpPresenceChip";
+import { formatSellerJoinRelativeDate } from "@/lib/format/relativeDate";
 
 // CACHE-01: ISR — PDP is anonymous-safe (session-aware bits are all client-side
 // useEffect inside PdpRecentlyViewedRecorder). 5 min revalidate; product
@@ -67,6 +68,15 @@ export default async function ProductPage({ params }: ProductPageProps) {
     const sellerReputation = product.seller
         ? await getSellerReputationSummary(product.seller.id)
         : null;
+    const sellerJoinedAt = (() => {
+        const seller = product.seller;
+        if (!seller) return null;
+        if (!("seller_has_published_listing" in seller) || !seller.seller_has_published_listing) {
+            return null;
+        }
+        return ("seller_join_at" in seller ? seller.seller_join_at : null) ?? null;
+    })();
+    const sellerJoinedLabel = formatSellerJoinRelativeDate(sellerJoinedAt);
     const matchScore = session?.user?.id && matchScoreEnabled
         ? await getMatchScore(product.id, session.user.id)
         : null;
@@ -138,7 +148,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
                             isAuthenticated={Boolean(session?.user)}
                             currentUserId={session?.user?.id ?? null}
                             initialOfferAmount={offerDraft?.amount ?? null}
-                            sellerJoinedAt={product.seller?.store_reviewed_at ?? product.seller?.created_at ?? null}
+                            sellerJoinedAt={sellerJoinedAt}
+                            sellerJoinedLabel={sellerJoinedLabel}
                             sellerVerified={Boolean(product.seller?.email_verified && product.seller?.store_status === "ACTIVE")}
                             matchScore={matchScore?.score ?? null}
                         />

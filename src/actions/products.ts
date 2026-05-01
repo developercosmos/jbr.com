@@ -329,7 +329,35 @@ export async function getProductBySlug(slug: string) {
         },
     });
 
-    return product;
+    if (!product?.seller) {
+        return product;
+    }
+
+    const firstPublishedListing = await db.query.products.findFirst({
+        where: and(
+            eq(products.seller_id, product.seller.id),
+            eq(products.status, "PUBLISHED")
+        ),
+        columns: {
+            created_at: true,
+        },
+        orderBy: [asc(products.created_at)],
+    });
+
+    const sellerHasPublishedListing = Boolean(firstPublishedListing);
+    const sellerJoinAt = sellerHasPublishedListing
+        ? (product.seller.store_reviewed_at ?? firstPublishedListing?.created_at ?? null)
+        : null;
+
+    return {
+        ...product,
+        seller: {
+            ...product.seller,
+            first_published_product_at: firstPublishedListing?.created_at ?? null,
+            seller_has_published_listing: sellerHasPublishedListing,
+            seller_join_at: sellerJoinAt,
+        },
+    };
 }
 
 export async function publishProduct(productId: string) {

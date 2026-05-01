@@ -77,6 +77,7 @@ interface ProductInfoProps {
     currentUserId?: string | null;
     initialOfferAmount?: string | null;
     sellerJoinedAt?: string | Date | null;
+    sellerJoinedLabel?: string | null;
     sellerVerified?: boolean;
     matchScore?: number | null;
 }
@@ -110,20 +111,6 @@ function getReliabilityBand(score: number): { label: string; className: string }
     return { label: "Perlu Validasi", className: "bg-rose-100 text-rose-700" };
 }
 
-function formatRelativeJoinedAt(value: string | Date | null | undefined): string | null {
-    if (!value) return null;
-    const date = new Date(value);
-    const diffMs = Date.now() - date.getTime();
-    if (diffMs < 0) return null;
-
-    const days = Math.max(1, Math.floor(diffMs / (24 * 60 * 60 * 1000)));
-    if (days < 30) return `Bergabung ${days} hari lalu`;
-
-    const months = Math.floor(days / 30);
-    if (months < 12) return `Bergabung ${months} bulan lalu`;
-    return `Bergabung ${Math.floor(months / 12)} tahun lalu`;
-}
-
 export function ProductInfo({
     product,
     sellerReputation,
@@ -131,6 +118,7 @@ export function ProductInfo({
     currentUserId,
     initialOfferAmount,
     sellerJoinedAt,
+    sellerJoinedLabel,
     sellerVerified,
     matchScore,
 }: ProductInfoProps) {
@@ -226,7 +214,7 @@ export function ProductInfo({
         completionRate: sellerReputation?.completionRate ?? 0,
         sellerJoinedAt,
     });
-    const joinedAtLabel = sellerJoinDateEnabled ? formatRelativeJoinedAt(sellerJoinedAt) : null;
+    const joinedAtLabel = sellerJoinDateEnabled ? (sellerJoinedLabel ?? null) : null;
     const reliabilityScore = sellerReputation?.reliabilityScore ?? (sellerReputation
         ? computeSellerReliabilityScore({
             avgRating: sellerReputation.avgRating,
