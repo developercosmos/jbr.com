@@ -121,12 +121,17 @@ export async function sendPasswordResetEmail(
     resetToken: string,
     userName?: string
 ): Promise<boolean> {
-    const resetUrl = `${APP_URL}/auth/reset-password?token=${resetToken}`;
+    // Get dynamic config from database
+    const config = await getSiteConfig();
+    const appUrl = config.app_url;
+    const appName = config.app_name;
+
+    const resetUrl = `${appUrl}/auth/reset-password?token=${resetToken}`;
 
     const content = `
         <h2>Reset Password</h2>
         <p>Halo${userName ? ` ${userName}` : ""},</p>
-        <p>Kami menerima permintaan untuk mereset password akun Anda di ${APP_NAME}.</p>
+        <p>Kami menerima permintaan untuk mereset password akun Anda di ${appName}.</p>
         <p>Klik tombol di bawah untuk membuat password baru:</p>
         <p style="text-align: center;">
             <a href="${resetUrl}" class="button">Reset Password</a>
@@ -141,8 +146,8 @@ export async function sendPasswordResetEmail(
 
     return sendEmail({
         to: email,
-        subject: `Reset Password - ${APP_NAME}`,
-        html: getBaseTemplate(content),
+        subject: `Reset Password - ${appName}`,
+        html: getBaseTemplate(content, appName, appUrl),
     });
 }
 
@@ -154,10 +159,15 @@ export async function sendWelcomeEmail(
     email: string,
     userName: string
 ): Promise<boolean> {
+    // Get dynamic config from database
+    const config = await getSiteConfig();
+    const appUrl = config.app_url;
+    const appName = config.app_name;
+
     const content = `
-        <h2>Selamat Datang di ${APP_NAME}! 🎉</h2>
+        <h2>Selamat Datang di ${appName}! 🎉</h2>
         <p>Halo ${userName},</p>
-        <p>Terima kasih telah mendaftar di ${APP_NAME} - marketplace raket badminton terpercaya di Indonesia!</p>
+        <p>Terima kasih telah mendaftar di ${appName} - marketplace raket badminton terpercaya di Indonesia!</p>
         <div class="highlight">
             <p style="margin: 0;"><strong>Apa yang bisa Anda lakukan sekarang?</strong></p>
             <ul style="margin: 10px 0 0 0; padding-left: 20px;">
@@ -167,7 +177,7 @@ export async function sendWelcomeEmail(
             </ul>
         </div>
         <p style="text-align: center;">
-            <a href="${APP_URL}" class="button">Mulai Belanja</a>
+            <a href="${appUrl}" class="button">Mulai Belanja</a>
         </p>
         <p>Jika ada pertanyaan, jangan ragu untuk menghubungi kami.</p>
         <p>Selamat berbelanja! 🏸</p>
@@ -175,8 +185,8 @@ export async function sendWelcomeEmail(
 
     return sendEmail({
         to: email,
-        subject: `Selamat Datang di ${APP_NAME}! 🏸`,
-        html: getBaseTemplate(content),
+        subject: `Selamat Datang di ${appName}! 🏸`,
+        html: getBaseTemplate(content, appName, appUrl),
     });
 }
 

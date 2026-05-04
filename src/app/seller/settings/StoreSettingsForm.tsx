@@ -157,6 +157,8 @@ export default function StoreSettingsForm({
             });
             if (res.success) {
                 showToast({ type: "success", message: "Perubahan tersimpan" });
+                // Refresh server components to show updated data
+                router.refresh();
             } else {
                 setFieldErrors(res.fieldErrors ?? {});
                 showToast({ type: "error", message: res.error });

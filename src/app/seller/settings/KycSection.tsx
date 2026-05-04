@@ -61,6 +61,15 @@ export default function KycSection({ profile, currentTier }: KycSectionProps) {
         if (!file) return;
         setError(null);
         setSuccess(null);
+
+        // Client-side max file size validation (8 MB = 8 * 1024 * 1024 bytes)
+        const maxSizeBytes = 8 * 1024 * 1024;
+        if (file.size > maxSizeBytes) {
+            setError(`Ukuran file terlalu besar. Maksimal ${maxSizeBytes / 1024 / 1024} MB. File Anda: ${(file.size / 1024 / 1024).toFixed(1)} MB`);
+            event.target.value = "";
+            return;
+        }
+
         setUploadingSlot(slot);
         try {
             const formData = new FormData();
@@ -193,28 +202,31 @@ export default function KycSection({ profile, currentTier }: KycSectionProps) {
                                     <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{meta.help}</div>
                                 </div>
                                 <label
-                                    className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-dashed text-sm cursor-pointer transition ${
+                                    className={`flex flex-col items-center justify-center gap-2 px-3 py-2 rounded-lg border border-dashed text-sm cursor-pointer transition ${
                                         stored
                                             ? "border-emerald-300 bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-900/10 text-emerald-700 dark:text-emerald-300"
                                             : "border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-primary/50"
                                     } ${isLocked ? "opacity-60 cursor-not-allowed" : ""}`}
                                 >
-                                    {uploadingSlot === slot ? (
-                                        <>
-                                            <Loader2 className="w-4 h-4 animate-spin" /> Mengunggah...
-                                        </>
-                                    ) : stored ? (
-                                        <>
-                                            <FileCheck2 className="w-4 h-4" />
-                                            {profile && profile[`${slot === "business" ? "business_doc" : slot}_file_id` as keyof KycProfile] === stored
-                                                ? "Sudah tersimpan"
-                                                : "Berkas siap dikirim"}
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Upload className="w-4 h-4" /> Pilih berkas (JPG/PNG/PDF)
-                                        </>
-                                    )}
+                                    <div className="flex items-center justify-center gap-2">
+                                        {uploadingSlot === slot ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin" /> Mengunggah...
+                                            </>
+                                        ) : stored ? (
+                                            <>
+                                                <FileCheck2 className="w-4 h-4" />
+                                                {profile && profile[`${slot === "business" ? "business_doc" : slot}_file_id` as keyof KycProfile] === stored
+                                                    ? "Sudah tersimpan"
+                                                    : "Berkas siap dikirim"}
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Upload className="w-4 h-4" /> Pilih berkas (JPG/PNG/PDF)
+                                            </>
+                                        )}
+                                    </div>
+                                    <div className="text-xs text-slate-400">Maks 8 MB</div>
                                     <input
                                         type="file"
                                         accept="image/jpeg,image/png,image/webp,application/pdf"

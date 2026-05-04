@@ -128,7 +128,13 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
     };
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setPrice(e.target.value.replace(/\D/g, ""));
+        // Extract only digits to avoid formatting issues
+        const cleaned = e.target.value.replace(/\D/g, "");
+        // Prevent price from exceeding a reasonable maximum (e.g., 999,999,999)
+        if (cleaned.length > 9) {
+            return; // Silently ignore if too many digits
+        }
+        setPrice(cleaned);
     };
 
     const toggleConditionChecklist = (item: string) => {
