@@ -2,7 +2,7 @@
 
 import { Loader2, LocateFixed, Search, X } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface CoordinatesPayload {
     latitude: string;
@@ -157,6 +157,13 @@ export function MapLocationDialog({
         );
     }, [setPickedCoordinates]);
 
+    // Stable refs so the open-init effect does not re-run when the callback
+    // functions are recreated (e.g. when the user types in the address input).
+    const resolveFromAddressRef = useRef(resolveFromAddress);
+    useEffect(() => { resolveFromAddressRef.current = resolveFromAddress; });
+    const resolveFromBrowserLocationRef = useRef(resolveFromBrowserLocation);
+    useEffect(() => { resolveFromBrowserLocationRef.current = resolveFromBrowserLocation; });
+
     useEffect(() => {
         if (!open) {
             return;
@@ -178,13 +185,13 @@ export function MapLocationDialog({
         setLon(DEFAULT_CENTER.lon);
 
         if (addressText?.trim()) {
-            void resolveFromAddress();
+            void resolveFromAddressRef.current(addressText.trim());
             return;
         }
 
         // Trigger browser GPS request so users get permission popup immediately.
-        void resolveFromBrowserLocation();
-    }, [addressText, initialLatitude, initialLongitude, open, resolveFromAddress, resolveFromBrowserLocation]);
+        void resolveFromBrowserLocationRef.current();
+    }, [addressText, initialLatitude, initialLongitude, open]);
 
     if (!open) {
         return null;

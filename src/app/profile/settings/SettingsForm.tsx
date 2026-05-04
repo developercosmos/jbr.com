@@ -3,6 +3,7 @@
 import { Save, User, Lock, Bell, Upload, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { updateProfile } from "@/actions/profile";
 
 interface UserData {
@@ -29,6 +30,8 @@ interface FormState {
 
 export function SettingsForm({ user }: { user: UserData }) {
     const avatarInputRef = useRef<HTMLInputElement>(null);
+    const messageRef = useRef<HTMLDivElement>(null);
+    const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -120,6 +123,15 @@ export function SettingsForm({ user }: { user: UserData }) {
                         ? "Perubahan berhasil disimpan. Password Anda juga berhasil diperbarui."
                         : "Profil berhasil diperbarui",
                 });
+                // Scroll to the feedback banner so users can see it even when
+                // they submit from the Security section at the bottom of the page.
+                setTimeout(() => messageRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+                // Re-fetch server component data so phone/locale show updated values.
+                router.refresh();
+                // If locale changed, reload the page so the new language takes effect.
+                if (nextSavedProfile.locale !== savedProfile.locale) {
+                    window.location.reload();
+                }
             } catch (err) {
                 setFormData((current) => ({
                     ...current,
@@ -189,10 +201,13 @@ export function SettingsForm({ user }: { user: UserData }) {
     return (
         <form onSubmit={handleSave} className="space-y-8 max-w-3xl">
             {message && (
-                <div className={`p-4 rounded-lg ${message.type === "success"
-                    ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400"
-                    : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400"
-                    }`}>
+                <div
+                    ref={messageRef}
+                    className={`p-4 rounded-lg ${message.type === "success"
+                        ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400"
+                        : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400"
+                    }`}
+                >
                     {message.text}
                 </div>
             )}
