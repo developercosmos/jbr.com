@@ -47,6 +47,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
     "ORDER_SHIPPED",
     "ORDER_DELIVERED",
     "ORDER_COMPLETED",
+    "ORDER_REFUNDED",
     "REVIEW_RECEIVED",
     "NEW_MESSAGE",
     "NEW_REVIEW",
@@ -358,7 +359,7 @@ export const categories = pgTable("categories", {
     slug: text("slug").notNull().unique(),
     icon: text("icon"), // Icon name (e.g., "Racket", "Shoe", "Bag")
     image: text("image"),
-    parent_id: uuid("parent_id"),
+    parent_id: uuid("parent_id").references((): AnyPgColumn => categories.id, { onDelete: "set null" }),
     created_at: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -639,7 +640,8 @@ export const orders = pgTable(
         shipping_address_id: uuid("shipping_address_id").references(() => addresses.id),
         status: orderStatusEnum("status").default("PENDING_PAYMENT").notNull(),
         subtotal: decimal("subtotal", { precision: 12, scale: 2 }).notNull(),
-        shipping_cost: decimal("shipping_cost", { precision: 12, scale: 2 }).default("0"),
+        shipping_cost: decimal("shipping_cost", { precision: 12, scale: 2 }).default("0").notNull(),
+        discount_amount: decimal("discount_amount", { precision: 12, scale: 2 }).default("0").notNull(),
         total: decimal("total", { precision: 12, scale: 2 }).notNull(),
         notes: text("notes"),
         // Shipping tracking fields
@@ -678,14 +680,19 @@ export const order_items = pgTable("order_items", {
     resolved_fee_value: decimal("resolved_fee_value", { precision: 12, scale: 2 }).default("0").notNull(),
     resolved_fee_currency: text("resolved_fee_currency").default("IDR").notNull(),
     created_at: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+    // Hot join/filter paths: order detail pages and analytics aggregate by order
+    // and by product. Without these every read was a sequential scan.
+    order_id_idx: index("idx_order_items_order_id").on(table.order_id),
+    product_id_idx: index("idx_order_items_product_id").on(table.product_id),
+}));
 
 // ============================================
 // NICHE-04: STRING SERVICE ORDERS
 // ============================================
 export const string_service_orders = pgTable("string_service_orders", {
     id: uuid("id").defaultRandom().primaryKey(),
-    order_item_id: uuid("order_item_id").notNull(),
+    order_item_id: uuid("order_item_id").notNull().references(() => order_items.id, { onDelete: "cascade" }),
     string_brand: text("string_brand").notNull(),
     string_gauge: text("string_gauge"),
     tension_lbs: integer("tension_lbs").notNull(),
@@ -778,6 +785,10 @@ export const affiliate_attributions = pgTable(
         created_at: timestamp("created_at").defaultNow().notNull(),
         decided_at: timestamp("decided_at"),
         memo: text("memo"),
+        // AFF payout idempotency: stamped when a CLEARED commission is actually
+        // paid out in a batch, so a re-run never pays the same commission twice.
+        paid_at: timestamp("paid_at"),
+        payout_batch_id: text("payout_batch_id"),
     },
     (table) => ({
         affiliate_idx: index("idx_affiliate_attributions_affiliate").on(table.affiliate_user_id),
@@ -896,7 +907,7 @@ export const feeValueModeEnum = pgEnum("fee_value_mode", ["PERCENT", "FIXED"]);
 export const platform_fee_rules = pgTable("platform_fee_rules", {
     id: uuid("id").defaultRandom().primaryKey(),
     name: text("name").notNull(),
-    scope_category_id: uuid("scope_category_id"),
+    scope_category_id: uuid("scope_category_id").references(() => categories.id, { onDelete: "set null" }),
     scope_seller_tier: text("scope_seller_tier"),
     valid_from: timestamp("valid_from").defaultNow().notNull(),
     valid_to: timestamp("valid_to"),
@@ -1007,7 +1018,15 @@ export const voucher_redemptions = pgTable("voucher_redemptions", {
     order_id: uuid("order_id").references(() => orders.id, { onDelete: "set null" }),
     applied_amount: decimal("applied_amount", { precision: 12, scale: 2 }).notNull(),
     redeemed_at: timestamp("redeemed_at").defaultNow().notNull(),
-});
+}, (table) => ({
+    // One redemption per (voucher, user, order) — makes redeemVoucher idempotent
+    // and blocks duplicate-claim races on the same order.
+    uniq_voucher_user_order: uniqueIndex("uniq_voucher_user_order").on(
+        table.voucher_id,
+        table.user_id,
+        table.order_id
+    ),
+}));
 
 export const vouchersRelations = relations(vouchers, ({ many }) => ({
     redemptions: many(voucher_redemptions),

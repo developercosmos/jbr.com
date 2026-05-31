@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { files } from "@/db/schema";
+import { files, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getFileUrl, isS3Configured, storageConfig } from "@/lib/storage";
 import { auth } from "@/lib/auth";
@@ -8,7 +8,37 @@ import { headers } from "next/headers";
 import fs from "fs/promises";
 import path from "path";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
+
+/**
+ * Authorize access to a (possibly private) file.
+ * Returns `null` when access is allowed, or a NextResponse error to return.
+ * Public files: always allowed. Private files: require an authenticated caller
+ * who is either the uploader OR an admin (admins/reviewers need this for KYC
+ * review and the admin file manager; owners need it to view their own docs).
+ * Role is re-read from the DB rather than trusting the session-cached value.
+ */
+async function authorizePrivateFile(file: {
+    is_public: boolean;
+    uploaded_by: string | null;
+}): Promise<{ status: number; error: string } | null> {
+    if (file.is_public) return null;
+
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) {
+        return { status: 401, error: "Unauthorized" };
+    }
+    if (file.uploaded_by && file.uploaded_by === session.user.id) {
+        return null;
+    }
+    const u = await db.query.users.findFirst({
+        where: eq(users.id, session.user.id),
+        columns: { role: true },
+    });
+    if (u?.role === "ADMIN") return null;
+
+    return { status: 403, error: "Forbidden" };
+}
 
 export async function GET(
     request: NextRequest,
@@ -17,35 +47,22 @@ export async function GET(
     try {
         const { id } = await params;
 
-        // Get file info from database
         const file = await db.query.files.findFirst({
             where: eq(files.id, id),
         });
 
         if (!file) {
-            return NextResponse.json(
-                { error: "File not found" },
-                { status: 404 }
-            );
+            return NextResponse.json({ error: "File not found" }, { status: 404 });
         }
 
-        // Check access for private files
-        if (!file.is_public) {
-            const session = await auth.api.getSession({
-                headers: await headers(),
-            });
-
-            if (!session?.user) {
-                return NextResponse.json(
-                    { error: "Unauthorized" },
-                    { status: 401 }
-                );
-            }
+        const denied = await authorizePrivateFile(file);
+        if (denied) {
+            return NextResponse.json({ error: denied.error }, { status: denied.status });
         }
 
         // Get file content
         if (isS3Configured()) {
-            // For S3, redirect to presigned URL
+            // For S3, redirect to a short-lived presigned URL
             const url = await getFileUrl(file.storage_key, 3600); // 1 hour expiry
             return NextResponse.redirect(url);
         } else {
@@ -59,11 +76,14 @@ export async function GET(
             try {
                 const fileBuffer = await fs.readFile(filePath);
 
-                return new NextResponse(fileBuffer, {
+                return new NextResponse(new Uint8Array(fileBuffer), {
                     headers: {
                         "Content-Type": file.mime_type,
                         "Content-Disposition": `inline; filename="${file.original_name}"`,
-                        "Cache-Control": "public, max-age=31536000, immutable",
+                        // Private cache only — these bytes may be access-controlled.
+                        "Cache-Control": file.is_public
+                            ? "public, max-age=31536000, immutable"
+                            : "private, no-store",
                     },
                 });
             } catch {
@@ -82,7 +102,7 @@ export async function GET(
     }
 }
 
-// Download endpoint
+// Metadata endpoint — same authorization as GET so private metadata isn't leaked.
 export async function HEAD(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -96,6 +116,11 @@ export async function HEAD(
 
         if (!file) {
             return new NextResponse(null, { status: 404 });
+        }
+
+        const denied = await authorizePrivateFile(file);
+        if (denied) {
+            return new NextResponse(null, { status: denied.status });
         }
 
         return new NextResponse(null, {

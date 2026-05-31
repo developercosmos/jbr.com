@@ -1,6 +1,18 @@
 import nodemailer from "nodemailer";
 import { getSiteConfig } from "@/actions/settings";
 
+// XSS prevention: escape user-influenced values before interpolating into email
+// HTML (product titles, buyer/seller names, tracking numbers, etc.). Static
+// template markup and our own config strings are not passed through this.
+function esc(v: unknown): string {
+    return String(v ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
 // Determine transport type - use sendmail on Linux, SMTP on Windows
 const isLinux = process.platform === "linux";
 
@@ -130,7 +142,7 @@ export async function sendPasswordResetEmail(
 
     const content = `
         <h2>Reset Password</h2>
-        <p>Halo${userName ? ` ${userName}` : ""},</p>
+        <p>Halo${userName ? ` ${esc(userName)}` : ""},</p>
         <p>Kami menerima permintaan untuk mereset password akun Anda di ${appName}.</p>
         <p>Klik tombol di bawah untuk membuat password baru:</p>
         <p style="text-align: center;">
@@ -166,7 +178,7 @@ export async function sendWelcomeEmail(
 
     const content = `
         <h2>Selamat Datang di ${appName}! 🎉</h2>
-        <p>Halo ${userName},</p>
+        <p>Halo ${esc(userName)},</p>
         <p>Terima kasih telah mendaftar di ${appName} - marketplace raket badminton terpercaya di Indonesia!</p>
         <div class="highlight">
             <p style="margin: 0;"><strong>Apa yang bisa Anda lakukan sekarang?</strong></p>
@@ -208,7 +220,7 @@ export async function sendVerificationEmail(
 
     const content = `
         <h2>Verifikasi Email Anda</h2>
-        <p>Halo${userName ? ` ${userName}` : ""},</p>
+        <p>Halo${userName ? ` ${esc(userName)}` : ""},</p>
         <p>Terima kasih telah mendaftar di ${appName}!</p>
         <p>Silakan verifikasi email Anda dengan mengklik tombol di bawah:</p>
         <p style="text-align: center;">
@@ -258,7 +270,7 @@ function renderOrderItems(items: OrderItem[]): string {
     return items.map(item => `
         <div style="display: flex; padding: 15px 0; border-bottom: 1px solid #e2e8f0;">
             <div style="flex: 1;">
-                <p style="margin: 0; font-weight: 600;">${item.name}</p>
+                <p style="margin: 0; font-weight: 600;">${esc(item.name)}</p>
                 <p style="margin: 5px 0 0 0; font-size: 14px; color: #64748b;">Qty: ${item.quantity}</p>
             </div>
             <div style="text-align: right;">
@@ -283,7 +295,7 @@ export async function sendOrderConfirmationEmail(params: OrderConfirmationParams
     const itemsHtml = params.items.map(item => `
         <div style="display: flex; padding: 15px 0; border-bottom: 1px solid #e2e8f0;">
             <div style="flex: 1;">
-                <p style="margin: 0; font-weight: 600;">${item.title}</p>
+                <p style="margin: 0; font-weight: 600;">${esc(item.title)}</p>
                 <p style="margin: 5px 0 0 0; font-size: 14px; color: #64748b;">Qty: ${item.quantity}</p>
             </div>
             <div style="text-align: right;">
@@ -294,7 +306,7 @@ export async function sendOrderConfirmationEmail(params: OrderConfirmationParams
 
     const content = `
         <h2>Pesanan Dikonfirmasi! ✅</h2>
-        <p>Halo ${params.buyerName || "Pelanggan"},</p>
+        <p>Halo ${esc(params.buyerName || "Pelanggan")},</p>
         <p>Terima kasih atas pesanan Anda! Berikut detail pesanan:</p>
         
         <div class="highlight">
@@ -342,13 +354,13 @@ export async function sendOrderShippedEmail(
 ): Promise<boolean> {
     const content = `
         <h2>Pesanan Dikirim! 🚚</h2>
-        <p>Halo ${userName},</p>
+        <p>Halo ${esc(userName)},</p>
         <p>Kabar baik! Pesanan Anda sudah dalam perjalanan.</p>
         
         <div class="highlight">
             <p style="margin: 0 0 10px 0;"><strong>Order ID:</strong> #${orderId}</p>
-            <p style="margin: 0 0 10px 0;"><strong>Kurir:</strong> ${courierName}</p>
-            <p style="margin: 0;"><strong>No. Resi:</strong> ${trackingNumber}</p>
+            <p style="margin: 0 0 10px 0;"><strong>Kurir:</strong> ${esc(courierName)}</p>
+            <p style="margin: 0;"><strong>No. Resi:</strong> ${esc(trackingNumber)}</p>
         </div>
         
         <p style="text-align: center; margin-top: 30px;">
@@ -374,7 +386,7 @@ export async function sendOrderDeliveredEmail(
 ): Promise<boolean> {
     const content = `
         <h2>Pesanan Sampai! 🎉</h2>
-        <p>Halo ${userName},</p>
+        <p>Halo ${esc(userName)},</p>
         <p>Pesanan Anda #${orderId} sudah sampai di tujuan!</p>
         
         <p>Kami harap Anda puas dengan pembelian Anda. Jangan lupa untuk memberikan ulasan 
@@ -410,8 +422,8 @@ export async function sendNewOrderNotificationToSeller(
 ): Promise<boolean> {
     const content = `
         <h2>Pesanan Baru! 🛎️</h2>
-        <p>Halo ${sellerName},</p>
-        <p>Anda menerima pesanan baru dari <strong>${buyerName}</strong>!</p>
+        <p>Halo ${esc(sellerName)},</p>
+        <p>Anda menerima pesanan baru dari <strong>${esc(buyerName)}</strong>!</p>
         
         <div class="highlight">
             <p style="margin: 0;"><strong>Order ID:</strong> #${orderId}</p>
@@ -451,8 +463,8 @@ export async function sendSellerActivationApprovedEmail(
 ): Promise<boolean> {
     const content = `
         <h2>Aktivasi Seller Disetujui</h2>
-        <p>Halo ${sellerName},</p>
-        <p>Pengajuan aktivasi seller untuk toko <strong>${storeName}</strong> telah disetujui.</p>
+        <p>Halo ${esc(sellerName)},</p>
+        <p>Pengajuan aktivasi seller untuk toko <strong>${esc(storeName)}</strong> telah disetujui.</p>
 
         <div class="highlight">
             <p style="margin: 0;"><strong>Status:</strong> Toko Anda sudah aktif dan siap menerima pesanan.</p>
@@ -478,12 +490,12 @@ export async function sendSellerActivationRejectedEmail(
 ): Promise<boolean> {
     const content = `
         <h2>Aktivasi Seller Perlu Revisi</h2>
-        <p>Halo ${sellerName},</p>
-        <p>Pengajuan aktivasi seller untuk toko <strong>${storeName}</strong> belum dapat disetujui.</p>
+        <p>Halo ${esc(sellerName)},</p>
+        <p>Pengajuan aktivasi seller untuk toko <strong>${esc(storeName)}</strong> belum dapat disetujui.</p>
 
         <div class="highlight">
             <p style="margin: 0 0 8px 0;"><strong>Alasan review:</strong></p>
-            <p style="margin: 0;">${reason}</p>
+            <p style="margin: 0;">${esc(reason)}</p>
         </div>
 
         <p>Silakan perbarui data toko Anda lalu ajukan review ulang.</p>
@@ -507,7 +519,7 @@ export async function sendSellerKycApprovedEmail(
 ): Promise<boolean> {
     const content = `
         <h2>KYC Seller Disetujui</h2>
-        <p>Halo ${sellerName},</p>
+        <p>Halo ${esc(sellerName)},</p>
         <p>Pengajuan KYC seller Anda telah disetujui.</p>
 
         <div class="highlight">
@@ -533,12 +545,12 @@ export async function sendSellerKycRejectedEmail(
 ): Promise<boolean> {
     const content = `
         <h2>KYC Seller Perlu Revisi</h2>
-        <p>Halo ${sellerName},</p>
+        <p>Halo ${esc(sellerName)},</p>
         <p>Pengajuan KYC seller Anda belum dapat disetujui.</p>
 
         <div class="highlight">
             <p style="margin: 0 0 8px 0;"><strong>Catatan reviewer:</strong></p>
-            <p style="margin: 0;">${reason}</p>
+            <p style="margin: 0;">${esc(reason)}</p>
         </div>
 
         <p>Silakan lengkapi atau perbaiki dokumen yang diminta lalu kirim ulang pengajuan Anda.</p>
@@ -562,7 +574,7 @@ export async function sendAffiliateApprovedEmail(
 ): Promise<boolean> {
     const content = `
         <h2>Pengajuan Affiliate Disetujui</h2>
-        <p>Halo ${affiliateName},</p>
+        <p>Halo ${esc(affiliateName)},</p>
         <p>Pengajuan program affiliate Anda telah disetujui.</p>
 
         <div class="highlight">
@@ -588,12 +600,12 @@ export async function sendAffiliateRejectedEmail(
 ): Promise<boolean> {
     const content = `
         <h2>Pengajuan Affiliate Perlu Revisi</h2>
-        <p>Halo ${affiliateName},</p>
+        <p>Halo ${esc(affiliateName)},</p>
         <p>Pengajuan affiliate Anda belum dapat disetujui.</p>
 
         <div class="highlight">
             <p style="margin: 0 0 8px 0;"><strong>Alasan review:</strong></p>
-            <p style="margin: 0;">${reason}</p>
+            <p style="margin: 0;">${esc(reason)}</p>
         </div>
 
         <p>Silakan lengkapi atau perbaiki data yang diminta lalu ajukan ulang melalui dashboard affiliate.</p>
@@ -618,11 +630,11 @@ export async function sendProductApprovedEmail(
 ): Promise<boolean> {
     const content = `
         <h2>Produk Disetujui! ✅</h2>
-        <p>Halo ${sellerName},</p>
+        <p>Halo ${esc(sellerName)},</p>
         <p>Selamat! Produk Anda telah disetujui dan sekarang sudah live di marketplace.</p>
         
         <div class="highlight">
-            <p style="margin: 0;"><strong>Produk:</strong> ${productName}</p>
+            <p style="margin: 0;"><strong>Produk:</strong> ${esc(productName)}</p>
         </div>
         
         <p style="text-align: center;">
@@ -636,7 +648,7 @@ export async function sendProductApprovedEmail(
 
     return sendEmail({
         to: email,
-        subject: `Produk "${productName}" Disetujui - ${APP_NAME}`,
+        subject: `Produk "${esc(productName)}" Disetujui - ${APP_NAME}`,
         html: getBaseTemplate(content),
     });
 }
@@ -649,12 +661,12 @@ export async function sendProductRejectedEmail(
 ): Promise<boolean> {
     const content = `
         <h2>Produk Perlu Perbaikan</h2>
-        <p>Halo ${sellerName},</p>
+        <p>Halo ${esc(sellerName)},</p>
         <p>Mohon maaf, produk Anda belum dapat ditampilkan di marketplace.</p>
         
         <div class="highlight">
-            <p style="margin: 0 0 10px 0;"><strong>Produk:</strong> ${productName}</p>
-            <p style="margin: 0;"><strong>Alasan:</strong> ${reason}</p>
+            <p style="margin: 0 0 10px 0;"><strong>Produk:</strong> ${esc(productName)}</p>
+            <p style="margin: 0;"><strong>Alasan:</strong> ${esc(reason)}</p>
         </div>
         
         <p>Silakan perbaiki dan ajukan kembali produk Anda.</p>
@@ -666,7 +678,7 @@ export async function sendProductRejectedEmail(
 
     return sendEmail({
         to: email,
-        subject: `Produk "${productName}" Perlu Perbaikan - ${APP_NAME}`,
+        subject: `Produk "${esc(productName)}" Perlu Perbaikan - ${APP_NAME}`,
         html: getBaseTemplate(content),
     });
 }
@@ -687,7 +699,7 @@ interface PaymentSuccessParams {
 export async function sendPaymentSuccessEmail(params: PaymentSuccessParams): Promise<boolean> {
     const content = `
         <h2>Pembayaran Berhasil! 💳</h2>
-        <p>Halo ${params.buyerName || "Pelanggan"},</p>
+        <p>Halo ${esc(params.buyerName || "Pelanggan")},</p>
         <p>Terima kasih! Pembayaran Anda telah berhasil diproses.</p>
         
         <div class="highlight">
@@ -725,7 +737,7 @@ export async function sendPaymentReminderEmail(
 
     const content = `
         <h2>Jangan Lupa Bayar! ⏰</h2>
-        <p>Halo ${userName},</p>
+        <p>Halo ${esc(userName)},</p>
         <p>Pesanan Anda belum dibayar. Segera selesaikan pembayaran agar tidak kedaluwarsa.</p>
         
         <div class="highlight">
@@ -762,13 +774,13 @@ interface ShippingNotificationParams {
 export async function sendShippingNotificationEmail(params: ShippingNotificationParams): Promise<boolean> {
     const content = `
         <h2>Pesanan Dikirim! 🚚</h2>
-        <p>Halo ${params.buyerName || "Pelanggan"},</p>
+        <p>Halo ${esc(params.buyerName || "Pelanggan")},</p>
         <p>Kabar baik! Pesanan Anda sudah dalam perjalanan.</p>
         
         <div class="highlight">
             <p style="margin: 0 0 10px 0;"><strong>Order:</strong> #${params.orderNumber}</p>
-            <p style="margin: 0 0 10px 0;"><strong>Kurir:</strong> ${params.shippingProvider}</p>
-            <p style="margin: 0;"><strong>No. Resi:</strong> ${params.trackingNumber}</p>
+            <p style="margin: 0 0 10px 0;"><strong>Kurir:</strong> ${esc(params.shippingProvider)}</p>
+            <p style="margin: 0;"><strong>No. Resi:</strong> ${esc(params.trackingNumber)}</p>
         </div>
         
         <p style="text-align: center; margin-top: 30px;">

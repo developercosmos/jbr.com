@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const securityHeaders = [
   {
@@ -29,10 +30,12 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  // TEMP: repository currently has widespread Drizzle relation typing regressions
-  // (object|array unions) outside this feature scope; keep build unblocked.
+  // Type errors fail the build. The prior Drizzle relation typing regressions were
+  // resolved (`tsc --noEmit` is clean and `next build` passes the type+route-validator
+  // step). Keep this false so type safety is a real launch gate — do not re-enable to
+  // paper over errors.
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   // Server Actions default to a 1MB body cap which is too small for KYC
   // document uploads (KTP/selfie/business doc — up to 8MB each).
@@ -84,4 +87,13 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
 };
 
-export default nextConfig;
+// Wrap with Sentry. Source-map upload only happens when SENTRY_AUTH_TOKEN/org/project
+// are set (CI/prod); otherwise this gracefully degrades to a no-op so local builds
+// and builds without Sentry credentials are unaffected. Runtime error capture is
+// driven by instrumentation.ts / instrumentation-client.ts regardless.
+export default withSentryConfig(nextConfig, {
+    silent: !process.env.CI,
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+    disableLogger: true,
+});

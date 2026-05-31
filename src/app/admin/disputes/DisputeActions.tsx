@@ -16,6 +16,7 @@ export function DisputeActions({ disputeId, status }: DisputeActionsProps) {
     const [showResolveModal, setShowResolveModal] = useState(false);
     const [resolution, setResolution] = useState("");
     const [actionType, setActionType] = useState<string | null>(null);
+    const [refund, setRefund] = useState(false);
 
     const handleStatusChange = (newStatus: string) => {
         if (newStatus === "RESOLVED" || newStatus === "CLOSED") {
@@ -32,9 +33,10 @@ export function DisputeActions({ disputeId, status }: DisputeActionsProps) {
 
     const handleResolve = () => {
         startTransition(async () => {
-            await updateDisputeStatus(disputeId, actionType!, resolution);
+            await updateDisputeStatus(disputeId, actionType!, resolution, { refund });
             setShowResolveModal(false);
             setResolution("");
+            setRefund(false);
             router.refresh();
         });
     };
@@ -110,6 +112,18 @@ export function DisputeActions({ disputeId, status }: DisputeActionsProps) {
                             className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg text-sm mb-4 bg-white dark:bg-slate-800"
                             rows={4}
                         />
+                        <label className="flex items-start gap-2 mb-4 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={refund}
+                                onChange={(e) => setRefund(e.target.checked)}
+                                className="mt-0.5"
+                            />
+                            <span>
+                                Kembalikan dana ke pembeli (refund). Stok dikembalikan, escrow & jurnal
+                                dibalik, dan komisi afiliasi dibatalkan. Lakukan transfer dana manual/Xendit terpisah.
+                            </span>
+                        </label>
                         <div className="flex gap-2">
                             <button
                                 onClick={() => {

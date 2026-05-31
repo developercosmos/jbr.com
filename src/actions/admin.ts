@@ -8,6 +8,7 @@ import { eq, desc, count, sql, and, gte, ilike, or, exists, inArray } from "driz
 import { revalidatePath } from "next/cache";
 import { categories } from "@/db/schema";
 import { sendSellerActivationApprovedEmail, sendSellerActivationRejectedEmail } from "@/lib/email";
+import { refundOrder } from "@/actions/refunds";
 
 // Get current admin user
 async function getCurrentAdmin() {
@@ -796,13 +797,14 @@ export async function getDisputes(filters?: {
 export async function updateDisputeStatus(
     disputeId: string,
     status: string,
-    resolution?: string
+    resolution?: string,
+    options?: { refund?: boolean }
 ) {
     const admin = await getCurrentAdmin();
 
     const existing = await db.query.disputes.findFirst({
         where: eq(disputes.id, disputeId),
-        columns: { id: true, response_due_at: true, resolution_due_at: true },
+        columns: { id: true, order_id: true, response_due_at: true, resolution_due_at: true },
     });
 
     if (!existing) {
@@ -846,8 +848,17 @@ export async function updateDisputeStatus(
         .set(updateData)
         .where(eq(disputes.id, disputeId));
 
+    // Trust-and-safety: when an admin resolves an order dispute in the buyer's
+    // favour, optionally return the funds. refundOrder is idempotent + admin-gated,
+    // so a double-click or a re-resolve is safe.
+    let refunded = false;
+    if (options?.refund && (status === "RESOLVED" || status === "CLOSED") && existing.order_id) {
+        const result = await refundOrder({ orderId: existing.order_id, reason: resolution });
+        refunded = result.success;
+    }
+
     revalidatePath("/admin/disputes");
-    return { success: true };
+    return { success: true, refunded };
 }
 
 // ============================================

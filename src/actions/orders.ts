@@ -1,10 +1,11 @@
 "use server";
 
 import { db } from "@/db";
-import { orders, order_items, carts, products, product_variants, reviews, addresses, users, seller_ratings } from "@/db/schema";
+import { orders, order_items, carts, products, product_variants, reviews, addresses, users, seller_ratings, voucher_redemptions } from "@/db/schema";
+import { applyVoucher } from "@/actions/vouchers";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, gte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getCheckoutShippingQuoteForUser } from "@/actions/shipping";
@@ -64,6 +65,7 @@ const createOrderSchema = z.object({
     shipping_address_id: z.string().uuid().optional(),
     shipping_courier: z.enum(["jne", "pos", "tiki"]),
     notes: z.string().optional(),
+    voucher_code: z.string().trim().min(3).max(40).optional(),
 });
 
 export async function createOrderFromCart(input: z.infer<typeof createOrderSchema>) {
@@ -144,6 +146,13 @@ export async function createOrderFromCart(input: z.infer<typeof createOrderSchem
 
     const createdOrders = [];
 
+    // MON-04: vouchers are restricted to single-seller checkouts so the discount
+    // can't be ambiguously split across sellers. Reject early with a clear message.
+    const voucherCode = validated.voucher_code?.trim().toUpperCase() || null;
+    if (voucherCode && Object.keys(itemsBySeller).length > 1) {
+        throw new Error("Voucher hanya dapat digunakan untuk checkout dari satu penjual.");
+    }
+
     // Create an order for each seller
     for (const sellerId of Object.keys(itemsBySeller)) {
         const items = itemsBySeller[sellerId];
@@ -158,7 +167,26 @@ export async function createOrderFromCart(input: z.infer<typeof createOrderSchem
         }
 
         const buyerProtectionAmount = await resolveSellerBuyerProtectionAmount(sellerId, subtotal);
-        const orderTotal = subtotal + sellerShippingQuote.cost + buyerProtectionAmount;
+
+        // MON-04: server-side voucher application. The discount is RECOMPUTED here
+        // from the voucher row (never trusted from the client) and clamped so it can
+        // never exceed the payable amount.
+        let discountAmount = 0;
+        let appliedVoucherId: string | null = null;
+        if (voucherCode) {
+            const quote = await applyVoucher({
+                code: voucherCode,
+                subtotal,
+                shippingCost: sellerShippingQuote.cost,
+            });
+            appliedVoucherId = quote.voucherId;
+            discountAmount = Math.min(quote.discountAmount, subtotal + sellerShippingQuote.cost);
+        }
+
+        const orderTotal = Math.max(
+            0,
+            subtotal + sellerShippingQuote.cost + buyerProtectionAmount - discountAmount
+        );
 
         // Enforce per-seller monthly GMV cap based on KYC tier (TRUST-01).
         await ensureSellerWithinMonthlyGmvCap(sellerId, orderTotal);
@@ -175,79 +203,128 @@ export async function createOrderFromCart(input: z.infer<typeof createOrderSchem
             }
         }
 
-        const [order] = await db
-            .insert(orders)
-            .values({
-                order_number: generateOrderNumber(),
-                buyer_id: user.id,
-                seller_id: sellerId,
-                shipping_address_id: shippingAddress.id,
-                status: "PENDING_PAYMENT",
-                subtotal: subtotal.toString(),
-                shipping_cost: sellerShippingQuote.cost.toString(),
-                shipping_provider: sellerShippingQuote.shippingProvider,
-                shipping_quote_at: new Date(),
-                total: orderTotal.toString(),
-                notes: [validated.notes, buyerProtectionAmount > 0 ? `Bayar Aman+ ${buyerProtectionAmount}` : null]
-                    .filter(Boolean)
-                    .join(" | "),
-            })
-            .returning();
+        // Atomically create the order + its items + decrement stock. Wrapping the
+        // whole per-seller write in one transaction means a mid-loop failure (e.g.
+        // an item that just sold out) rolls back EVERYTHING — no orphan order rows
+        // and no stock leak. The decrement is floor-guarded (`stock >= qty`) so
+        // concurrent checkouts can never oversell a unique preloved item (stock = 1).
+        const order = await db.transaction(async (tx) => {
+            const [ord] = await tx
+                .insert(orders)
+                .values({
+                    order_number: generateOrderNumber(),
+                    buyer_id: user.id,
+                    seller_id: sellerId,
+                    shipping_address_id: shippingAddress.id,
+                    status: "PENDING_PAYMENT",
+                    subtotal: subtotal.toString(),
+                    shipping_cost: sellerShippingQuote.cost.toString(),
+                    shipping_provider: sellerShippingQuote.shippingProvider,
+                    shipping_quote_at: new Date(),
+                    discount_amount: discountAmount.toString(),
+                    total: orderTotal.toString(),
+                    notes: [validated.notes, buyerProtectionAmount > 0 ? `Bayar Aman+ ${buyerProtectionAmount}` : null]
+                        .filter(Boolean)
+                        .join(" | "),
+                })
+                .returning();
 
-        // Create order items
-        for (const item of items) {
-            const linePrice = item.variant?.price ?? item.product.price;
+            for (const item of items) {
+                const linePrice = item.variant?.price ?? item.product.price;
 
-            // MON-01: snapshot platform fee per item using the calculator.
-            const unitPrice = parseFloat(linePrice);
-            const sellerTier = (item.product.seller?.tier ?? "T0") as "T0" | "T1" | "T2";
-            const feeResolution = await calculatePlatformFee({
-                price: unitPrice,
-                categoryId: item.product.category_id ?? null,
-                sellerTier,
-            });
-            const lineFee = feeResolution.fee * item.quantity;
+                // MON-01: snapshot platform fee per item using the calculator.
+                const unitPrice = parseFloat(linePrice);
+                const sellerTier = (item.product.seller?.tier ?? "T0") as "T0" | "T1" | "T2";
+                const feeResolution = await calculatePlatformFee({
+                    price: unitPrice,
+                    categoryId: item.product.category_id ?? null,
+                    sellerTier,
+                });
+                const lineFee = feeResolution.fee * item.quantity;
 
-            await db.insert(order_items).values({
-                order_id: order.id,
-                product_id: item.product.id,
-                variant_id: item.variant?.id,
-                quantity: item.quantity,
-                price: linePrice,
-                fee_rule_id: feeResolution.breakdown?.ruleId ?? null,
-                resolved_fee_value: String(lineFee),
-                resolved_fee_currency: feeResolution.currency,
-            });
+                await tx.insert(order_items).values({
+                    order_id: ord.id,
+                    product_id: item.product.id,
+                    variant_id: item.variant?.id,
+                    quantity: item.quantity,
+                    price: linePrice,
+                    fee_rule_id: feeResolution.breakdown?.ruleId ?? null,
+                    resolved_fee_value: String(lineFee),
+                    resolved_fee_currency: feeResolution.currency,
+                });
 
-            if (item.variant) {
-                await db
-                    .update(product_variants)
-                    .set({
-                        stock: item.variant.stock - item.quantity,
-                        updated_at: new Date(),
-                    })
-                    .where(eq(product_variants.id, item.variant.id));
-            } else {
-                await db
-                    .update(products)
-                    .set({
-                        stock: item.product.stock - item.quantity,
-                    })
-                    .where(eq(products.id, item.product.id));
+                if (item.variant) {
+                    const decV = await tx
+                        .update(product_variants)
+                        .set({
+                            stock: sql`${product_variants.stock} - ${item.quantity}`,
+                            updated_at: new Date(),
+                        })
+                        .where(
+                            and(
+                                eq(product_variants.id, item.variant.id),
+                                gte(product_variants.stock, item.quantity)
+                            )
+                        )
+                        .returning({ id: product_variants.id });
+                    if (decV.length === 0) {
+                        throw new Error(`Stok varian "${item.product.title}" tidak mencukupi`);
+                    }
+                } else {
+                    const decP = await tx
+                        .update(products)
+                        .set({
+                            stock: sql`${products.stock} - ${item.quantity}`,
+                        })
+                        .where(
+                            and(
+                                eq(products.id, item.product.id),
+                                gte(products.stock, item.quantity)
+                            )
+                        )
+                        .returning({ id: products.id });
+                    if (decP.length === 0) {
+                        throw new Error(`Stok "${item.product.title}" tidak mencukupi`);
+                    }
+                }
             }
 
-            // ANLY-01: record PURCHASE event for funnel + top-products analytics.
-            try {
-                const { recordProductEvent } = await import("@/actions/product-events");
+            // MON-04: redeem the voucher inside the same transaction. The unique
+            // (voucher,user,order) index makes this idempotent on retry.
+            if (appliedVoucherId) {
+                await tx
+                    .insert(voucher_redemptions)
+                    .values({
+                        voucher_id: appliedVoucherId,
+                        user_id: user.id,
+                        order_id: ord.id,
+                        applied_amount: discountAmount.toString(),
+                    })
+                    .onConflictDoNothing({
+                        target: [
+                            voucher_redemptions.voucher_id,
+                            voucher_redemptions.user_id,
+                            voucher_redemptions.order_id,
+                        ],
+                    });
+            }
+
+            return ord;
+        });
+
+        // ANLY-01: record PURCHASE events post-commit (non-critical analytics).
+        try {
+            const { recordProductEvent } = await import("@/actions/product-events");
+            for (const item of items) {
                 await recordProductEvent({
                     productId: item.product.id,
                     eventType: "PURCHASE",
                     source: "checkout",
                     meta: { order_id: order.id, quantity: item.quantity },
                 });
-            } catch {
-                // analytics non-critical
             }
+        } catch {
+            // analytics non-critical
         }
 
         createdOrders.push(order);
@@ -386,32 +463,55 @@ export async function createOrderFromOffer(input: z.infer<typeof createOrderFrom
         sellerTier: (sellerUser.tier ?? "T0") as "T0" | "T1" | "T2",
     });
 
-    const [order] = await db
-        .insert(orders)
-        .values({
-            order_number: generateOrderNumber(),
-            buyer_id: user.id,
-            seller_id: productRow.seller_id,
-            shipping_address_id: shippingAddress.id,
-            status: "PENDING_PAYMENT",
-            subtotal: subtotal.toString(),
-            shipping_cost: sellerQuote.cost.toString(),
-            shipping_provider: sellerQuote.shippingProvider,
-            shipping_quote_at: new Date(),
-            total: orderTotal.toString(),
-            notes: validated.notes,
-        })
-        .returning();
+    const order = await db.transaction(async (tx) => {
+        const [ord] = await tx
+            .insert(orders)
+            .values({
+                order_number: generateOrderNumber(),
+                buyer_id: user.id,
+                seller_id: productRow.seller_id,
+                shipping_address_id: shippingAddress.id,
+                status: "PENDING_PAYMENT",
+                subtotal: subtotal.toString(),
+                shipping_cost: sellerQuote.cost.toString(),
+                shipping_provider: sellerQuote.shippingProvider,
+                shipping_quote_at: new Date(),
+                total: orderTotal.toString(),
+                notes: validated.notes,
+            })
+            .returning();
 
-    await db.insert(order_items).values({
-        order_id: order.id,
-        product_id: productRow.id,
-        variant_id: resolved.variant?.id ?? null,
-        quantity: 1,
-        price: subtotal.toString(),
-        fee_rule_id: feeResolution.breakdown?.ruleId ?? null,
-        resolved_fee_value: String(feeResolution.fee),
-        resolved_fee_currency: feeResolution.currency,
+        await tx.insert(order_items).values({
+            order_id: ord.id,
+            product_id: productRow.id,
+            variant_id: resolved.variant?.id ?? null,
+            quantity: 1,
+            price: subtotal.toString(),
+            fee_rule_id: feeResolution.breakdown?.ruleId ?? null,
+            resolved_fee_value: String(feeResolution.fee),
+            resolved_fee_currency: feeResolution.currency,
+        });
+
+        // Atomically reserve stock for the negotiated unit (qty 1, floor-guarded)
+        // so an accepted offer can't oversell a unique item against a parallel
+        // cart checkout. Rolls back the order+item if stock is gone.
+        if (resolved.variant?.id) {
+            const decV = await tx
+                .update(product_variants)
+                .set({ stock: sql`${product_variants.stock} - 1`, updated_at: new Date() })
+                .where(and(eq(product_variants.id, resolved.variant.id), gte(product_variants.stock, 1)))
+                .returning({ id: product_variants.id });
+            if (decV.length === 0) throw new Error("Stok produk sudah habis.");
+        } else {
+            const decP = await tx
+                .update(products)
+                .set({ stock: sql`${products.stock} - 1` })
+                .where(and(eq(products.id, productRow.id), gte(products.stock, 1)))
+                .returning({ id: products.id });
+            if (decP.length === 0) throw new Error("Stok produk sudah habis.");
+        }
+
+        return ord;
     });
 
     // Stamp the offer as consumed and stop further token reuse.
@@ -516,6 +616,16 @@ export async function getSellerOrders() {
     return sellerOrders;
 }
 
+// Seller-driven forward transitions ONLY. DELIVERED is set by the buyer
+// (confirmDelivery) or courier tracking, and COMPLETED/REFUNDED/CANCELLED are
+// driven by the escrow / refund flows — a seller must never self-advance to those.
+// Allowing a seller to mark DELIVERED/COMPLETED would arm auto-release (or directly
+// release) escrowed funds without the buyer ever receiving the goods.
+const SELLER_ALLOWED_TRANSITIONS: Record<string, ReadonlyArray<string>> = {
+    PAID: ["PROCESSING"],
+    PROCESSING: ["SHIPPED"],
+};
+
 export async function updateOrderStatus(
     orderId: string,
     status: "PROCESSING" | "SHIPPED" | "DELIVERED" | "COMPLETED" | "CANCELLED"
@@ -531,13 +641,22 @@ export async function updateOrderStatus(
         throw new Error("Order not found or unauthorized");
     }
 
+    // Enforce a forward-only seller transition table (prevents fund-release abuse).
+    const allowed = SELLER_ALLOWED_TRANSITIONS[order.status] ?? [];
+    if (!allowed.includes(status)) {
+        throw new Error(
+            `Transisi status pesanan ${order.status} → ${status} tidak diizinkan`
+        );
+    }
+
+    // Optimistic-concurrency guard: only transition if the status is still what we read.
     const [updated] = await db
         .update(orders)
         .set({
             status,
             updated_at: new Date(),
         })
-        .where(eq(orders.id, orderId))
+        .where(and(eq(orders.id, orderId), eq(orders.status, order.status)))
         .returning();
 
     revalidatePath("/seller/orders");

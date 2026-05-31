@@ -31,7 +31,8 @@ export function getS3Client(): S3Client {
 export async function uploadToS3(
     key: string,
     body: Buffer | Uint8Array,
-    contentType: string
+    contentType: string,
+    isPublic: boolean = true
 ): Promise<string> {
     const client = getS3Client();
     const bucket = storageConfig.s3.bucket;
@@ -42,11 +43,17 @@ export async function uploadToS3(
             Key: key,
             Body: body,
             ContentType: contentType,
-            ACL: "public-read", // Make publicly accessible
+            // SECURITY: only public assets get a public-read ACL. Private files
+            // (KYC KTP/selfie, dispute evidence) upload private and are fetched only
+            // via short-lived presigned URLs through /api/files/[id], which enforces
+            // owner/admin authorization. The bucket should ALSO enable "Block Public
+            // Access" so a public ACL can't be applied even by mistake.
+            ...(isPublic ? { ACL: "public-read" as const } : {}),
         })
     );
 
-    // Return the public URL
+    // Return the object URL (only resolvable for public objects; private objects
+    // are served via presigned URLs).
     return `https://${bucket}.s3.${storageConfig.s3.region}.amazonaws.com/${key}`;
 }
 

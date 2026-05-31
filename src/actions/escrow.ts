@@ -72,14 +72,21 @@ async function completeOrder(orderId: string, autoReleased: boolean) {
         return null;
     }
 
-    await db
+    // Atomic DELIVERED→COMPLETED transition. confirmReceipt (buyer) and the
+    // auto-release cron can fire concurrently for the same order; only the call
+    // that actually flips the row proceeds to release escrow. The loser gets 0
+    // rows back and returns null — so funds are released exactly once.
+    const won = await db
         .update(orders)
         .set({
             status: "COMPLETED",
             release_due_at: null,
             updated_at: new Date(),
         })
-        .where(eq(orders.id, orderId));
+        .where(and(eq(orders.id, orderId), eq(orders.status, "DELIVERED")))
+        .returning({ id: orders.id });
+
+    if (won.length === 0) return null;
 
     await notify({
         event: "ORDER_COMPLETED",

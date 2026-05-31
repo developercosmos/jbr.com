@@ -146,13 +146,14 @@ export async function uploadAdminFile(formData: FormData) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Upload to storage
+    // Upload to storage (respect the caller's public/private intent for the S3 ACL)
     const result = await uploadToStorage(
         folder,
         file.name,
         buffer,
         file.type,
-        admin.id
+        admin.id,
+        isPublic
     );
 
     // Parse tags

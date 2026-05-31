@@ -85,6 +85,14 @@ type NotifyInput =
         idempotencyKey?: string;
     }
     | {
+        event: "ORDER_REFUNDED";
+        audience: "buyer";
+        recipientUserId: string;
+        orderId: string;
+        orderNumber: string;
+        idempotencyKey?: string;
+    }
+    | {
         event: "REVIEW_RECEIVED";
         recipientUserId: string;
         actorName: string;
@@ -200,6 +208,8 @@ function getIdempotencyKey(input: NotifyInput) {
             return `${input.event}:${input.orderId}:${input.audience}`;
         case "ORDER_COMPLETED":
             return `${input.event}:${input.orderId}:${input.audience}`;
+        case "ORDER_REFUNDED":
+            return `${input.event}:${input.orderId}`;
         case "REVIEW_RECEIVED":
             return `${input.event}:${input.reviewId}:${input.recipientUserId}`;
         case "REVIEW_REPLY":
@@ -330,6 +340,12 @@ export async function notify(input: NotifyInput) {
                 order_number: input.orderNumber,
                 auto_released: input.autoReleased,
             };
+            break;
+        case "ORDER_REFUNDED":
+            type = "ORDER_REFUNDED";
+            title = "Dana Dikembalikan";
+            message = `Pesanan ${input.orderNumber} telah di-refund. Dana akan dikembalikan ke metode pembayaran Anda.`;
+            data = { order_id: input.orderId, order_number: input.orderNumber };
             break;
         case "REVIEW_RECEIVED":
             type = "REVIEW_RECEIVED";

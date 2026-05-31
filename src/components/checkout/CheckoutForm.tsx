@@ -19,6 +19,7 @@ export function CheckoutForm({ selectedAddressId, paymentMethod, shippingCourier
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState("");
+    const [voucherCode, setVoucherCode] = useState("");
     const [step, setStep] = useState<"creating" | "redirecting">("creating");
 
     const handleCheckout = () => {
@@ -34,14 +35,15 @@ export function CheckoutForm({ selectedAddressId, paymentMethod, shippingCourier
             return;
         }
 
+        setStep("creating");
         startTransition(async () => {
             try {
-                setStep("creating");
 
                 // Step 1: Create order
                 const orderResult = await createOrderFromCart({
                     shipping_address_id: selectedAddressId,
                     shipping_courier: shippingCourier,
+                    voucher_code: voucherCode.trim() || undefined,
                 });
 
                 if (!orderResult.success || !orderResult.orders?.length) {
@@ -66,7 +68,8 @@ export function CheckoutForm({ selectedAddressId, paymentMethod, shippingCourier
                 window.location.href = paymentResult.invoiceUrl;
             } catch (err) {
                 console.error("Checkout error:", err);
-                setError("Terjadi kesalahan. Silakan coba lagi.");
+                const msg = err instanceof Error && err.message ? err.message : "Terjadi kesalahan. Silakan coba lagi.";
+                setError(msg);
             }
         });
     };
@@ -78,6 +81,21 @@ export function CheckoutForm({ selectedAddressId, paymentMethod, shippingCourier
                     {error}
                 </div>
             )}
+            <div className="flex flex-col gap-1">
+                <label htmlFor="voucher-code" className="text-xs font-medium text-slate-500">
+                    Kode Voucher (opsional)
+                </label>
+                <input
+                    id="voucher-code"
+                    type="text"
+                    value={voucherCode}
+                    onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                    placeholder="Masukkan kode voucher"
+                    autoCapitalize="characters"
+                    className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm uppercase"
+                />
+                <p className="text-[11px] text-slate-400">Berlaku untuk checkout dari satu penjual.</p>
+            </div>
             <button
                 onClick={handleCheckout}
                 disabled={isPending || !canCheckout}

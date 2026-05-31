@@ -23,7 +23,8 @@ export async function uploadFile(
     filename: string,
     body: Buffer | Uint8Array,
     contentType: string,
-    userId?: string
+    userId?: string,
+    isPublic: boolean = true
 ): Promise<UploadResult> {
     // Validate file type
     if (!storageConfig.allowedMimeTypes.includes(contentType)) {
@@ -40,7 +41,7 @@ export async function uploadFile(
     if (isS3Configured()) {
         // Use S3
         const key = generateS3Key(folder, filename, userId);
-        const url = await uploadToS3(key, body, contentType);
+        const url = await uploadToS3(key, body, contentType, isPublic);
         return { url, key, storageType: "s3" };
     } else {
         // Use local storage

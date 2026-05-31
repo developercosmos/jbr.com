@@ -189,3 +189,31 @@ export async function enqueue<T>(name: JobName, payload: T): Promise<void> {
 export function registerJob<T>(name: JobName, handler: (payload: T) => Promise<void>): void {
     getQueue().register(name, handler);
 }
+
+/**
+ * Best-effort Redis liveness probe for the /api/health endpoint. Uses a fresh,
+ * short-lived connection with a tight timeout so a Redis outage can never hang the
+ * health check. Returns "not_configured" when REDIS_URL is unset (the app falls
+ * back to the in-process queue, so Redis is not strictly required to serve).
+ */
+export async function pingRedis(): Promise<"connected" | "disconnected" | "not_configured"> {
+    const redisUrl = process.env.REDIS_URL;
+    if (!redisUrl) return "not_configured";
+    try {
+        const { default: Redis } = await import("ioredis");
+        const client = new Redis(redisUrl, {
+            maxRetriesPerRequest: 1,
+            connectTimeout: 2000,
+            lazyConnect: true,
+        });
+        try {
+            await client.connect();
+            const pong = await client.ping();
+            return pong === "PONG" ? "connected" : "disconnected";
+        } finally {
+            client.disconnect();
+        }
+    } catch {
+        return "disconnected";
+    }
+}

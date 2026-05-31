@@ -238,6 +238,12 @@ export async function sendMessage(conversationId: string, content: string, attac
         throw new Error("Message content or attachment is required");
     }
 
+    // Cap message length to prevent abuse / oversized rows (DoS, storage bloat).
+    const MAX_MESSAGE_LENGTH = 2000;
+    if (content && content.trim().length > MAX_MESSAGE_LENGTH) {
+        throw new Error(`Pesan terlalu panjang (maksimal ${MAX_MESSAGE_LENGTH} karakter)`);
+    }
+
     // Verify user is part of this conversation
     const conversation = await db.query.conversations.findFirst({
         where: and(

@@ -12,7 +12,8 @@ import {
 } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers, cookies } from "next/headers";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
@@ -604,31 +605,32 @@ export async function suspendAffiliate(affiliateUserId: string) {
 export async function processAffiliatePayoutBatch() {
     await requireAdmin();
 
+    const batchId = randomUUID();
+    const stamp = new Date();
+
+    // Idempotent claim: atomically stamp every still-unpaid CLEARED row with THIS
+    // batch id and return only the rows we actually claimed. A concurrent/retried
+    // run claims nothing (paid_at already set), so no commission is ever paid twice.
     const cleared = await db
-        .select({
+        .update(affiliate_attributions)
+        .set({ paid_at: stamp, payout_batch_id: batchId })
+        .where(and(eq(affiliate_attributions.status, "CLEARED"), isNull(affiliate_attributions.paid_at)))
+        .returning({
             id: affiliate_attributions.id,
             affiliateUserId: affiliate_attributions.affiliate_user_id,
             commission: affiliate_attributions.computed_commission,
             orderId: affiliate_attributions.order_id,
-        })
-        .from(affiliate_attributions)
-        .where(eq(affiliate_attributions.status, "CLEARED"));
+        });
 
     if (cleared.length === 0) {
         return { processed: 0, totalAmount: 0, lines: [] };
     }
 
-    // Aggregate per affiliate for the batch summary; mark each row paid via memo.
+    // Aggregate per affiliate for the batch payout summary.
     const totals = new Map<string, number>();
     for (const row of cleared) {
         totals.set(row.affiliateUserId, (totals.get(row.affiliateUserId) ?? 0) + Number(row.commission));
     }
-
-    const stamp = new Date().toISOString();
-    await db
-        .update(affiliate_attributions)
-        .set({ memo: sql`coalesce(${affiliate_attributions.memo}, '') || ' [paid:' || ${stamp} || ']'` })
-        .where(eq(affiliate_attributions.status, "CLEARED"));
 
     const lines = Array.from(totals.entries()).map(([affiliateUserId, amount]) => ({
         affiliateUserId,
@@ -643,7 +645,7 @@ export async function processAffiliatePayoutBatch() {
             if (line.amount <= 0) continue;
             try {
                 await postAffiliatePayment({
-                    payoutId: `${stamp}:${line.affiliateUserId}`,
+                    payoutId: `${batchId}:${line.affiliateUserId}`,
                     affiliateUserId: line.affiliateUserId,
                     grossCommission: line.amount,
                 });

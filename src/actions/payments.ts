@@ -1,10 +1,10 @@
 "use server";
 
 import { db } from "@/db";
-import { payments, orders } from "@/db/schema";
+import { payments, orders, order_items, products, product_variants } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { notify } from "@/lib/notify";
 import { formatCurrency } from "@/lib/format";
@@ -261,15 +261,25 @@ export async function handleXenditWebhook(data: {
         })
         .where(eq(payments.id, payment.id));
 
-    // If paid, update order status
+    // If paid, update order status — idempotently.
     if (data.status === "PAID") {
-        await db
+        // Atomic transition: only the FIRST callback to flip the order out of
+        // PENDING_PAYMENT runs the money side-effects (ledger + GL + emails).
+        // Xendit retries callbacks until it gets a 2xx, and the client-side poller
+        // can also fire, so every duplicate MUST be a no-op here.
+        const transitioned = await db
             .update(orders)
             .set({
                 status: "PAID",
                 updated_at: new Date(),
             })
-            .where(eq(orders.id, orderId));
+            .where(and(eq(orders.id, orderId), eq(orders.status, "PENDING_PAYMENT")))
+            .returning({ id: orders.id });
+
+        if (transitioned.length === 0) {
+            // Already processed (or not in a payable state) — idempotent no-op.
+            return { success: true };
+        }
 
         // Get order with buyer info for email
         const order = await db.query.orders.findFirst({
@@ -345,12 +355,94 @@ export async function handleXenditWebhook(data: {
                 total: parseFloat(order.total),
             });
         }
+    } else if (data.status === "EXPIRED" || data.status === "FAILED") {
+        // Release the stock reserved at order creation — exactly once — by
+        // atomically cancelling the still-unpaid order.
+        const cancelled = await db
+            .update(orders)
+            .set({ status: "CANCELLED", updated_at: new Date() })
+            .where(and(eq(orders.id, orderId), eq(orders.status, "PENDING_PAYMENT")))
+            .returning({ id: orders.id });
+        if (cancelled.length > 0) {
+            await restockOrder(orderId);
+        }
     }
 
     revalidatePath("/profile/orders");
     revalidatePath("/seller/orders");
 
     return { success: true };
+}
+
+// Restore product/variant stock for every line item of an order. Used when an
+// unpaid order is cancelled/expired/failed. Mirrors the decrement in
+// createOrderFromCart (products always; variant additionally when present).
+async function restockOrder(orderId: string) {
+    const items = await db
+        .select({
+            product_id: order_items.product_id,
+            variant_id: order_items.variant_id,
+            quantity: order_items.quantity,
+        })
+        .from(order_items)
+        .where(eq(order_items.order_id, orderId));
+
+    for (const item of items) {
+        if (item.variant_id) {
+            await db
+                .update(product_variants)
+                .set({ stock: sql`${product_variants.stock} + ${item.quantity}` })
+                .where(eq(product_variants.id, item.variant_id));
+        } else if (item.product_id) {
+            await db
+                .update(products)
+                .set({ stock: sql`${products.stock} + ${item.quantity}` })
+                .where(eq(products.id, item.product_id));
+        }
+    }
+}
+
+// ============================================
+// SERVER-SIDE RECONCILIATION (cron)
+// ============================================
+// Polls Xendit for every still-PENDING, non-expired payment and reconciles its
+// status. This guarantees order confirmation even if the webhook is missed/rejected
+// AND the buyer never reopens the payment page. handleXenditWebhook is idempotent,
+// so re-confirming an already-PAID order is a safe no-op.
+export async function reconcilePendingPayments(limit = 100): Promise<{
+    inspected: number;
+    confirmed: number;
+    errors: number;
+}> {
+    const now = new Date();
+    const pending = await db
+        .select({ id: payments.id, expires_at: payments.expires_at })
+        .from(payments)
+        .where(eq(payments.status, "PENDING"))
+        .orderBy(desc(payments.created_at))
+        .limit(limit);
+
+    let confirmed = 0;
+    let errors = 0;
+    let inspected = 0;
+
+    for (const p of pending) {
+        // Skip invoices that have clearly expired (Xendit will report EXPIRED;
+        // we still reconcile those occasionally, but prioritize live ones).
+        if (p.expires_at && p.expires_at < new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000)) {
+            continue;
+        }
+        inspected++;
+        try {
+            const result = await checkInvoiceStatus(p.id);
+            if (result.status === "PAID") confirmed++;
+        } catch (e) {
+            errors++;
+            logger.error("payments:reconcile_failed", { paymentId: p.id, error: String(e) });
+        }
+    }
+
+    return { inspected, confirmed, errors };
 }
 
 // ============================================

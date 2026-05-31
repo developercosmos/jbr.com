@@ -323,7 +323,8 @@ export async function uploadKycDocument(formData: FormData) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const folder = `kyc/${sessionUser.id}/${slot}`;
     const safeName = buildSafeKycFilename(typedSlot, file.type);
-    const stored = await uploadToStorage(folder, safeName, buffer, file.type, sessionUser.id);
+    // KYC documents are private — never public-read on S3 (served via /api/files/[id]).
+    const stored = await uploadToStorage(folder, safeName, buffer, file.type, sessionUser.id, false);
 
     const [savedFile] = await db
         .insert(files)

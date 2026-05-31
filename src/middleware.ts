@@ -25,7 +25,15 @@ const BLOCKED_USER_AGENTS = [
     /acunetix/i,
 ];
 
-// Rate limiting state (in-memory, resets on server restart).
+// Rate limiting state (in-memory, per-instance).
+//
+// NOTE ON ARCHITECTURE: this is intentionally an in-memory, best-effort SECOND
+// layer. The authoritative distributed rate limiting lives in nginx (`limit_req`
+// zones — see deploy.md) which sees all traffic before it reaches any app
+// instance. We do NOT use Redis here because Next.js middleware runs in the Edge
+// runtime, where a TCP client like ioredis is unavailable. Per-instance counters
+// are acceptable for this defense-in-depth layer; nginx provides the global cap.
+//
 // Each bucket key is `${ip}|${tier}` where tier is one of the configured tiers
 // below or "global" for the catch-all browsing budget.
 const ipRequestCounts = new Map<string, { count: number; resetTime: number }>();
@@ -70,12 +78,14 @@ const ENDPOINT_RATE_TIERS: Array<{
     ];
 
 function getClientIp(request: NextRequest): string | null {
-    const forwardedFor = request.headers.get("x-forwarded-for");
-    if (forwardedFor) {
-        const firstIp = forwardedFor.split(",")[0]?.trim();
-        if (firstIp) {
-            return firstIp;
-        }
+    // Prefer headers set by our trusted edge (Cloudflare → nginx). A client CANNOT
+    // forge these because nginx/Cloudflare overwrite them on ingress. The raw
+    // `x-forwarded-for` FIRST hop is attacker-controlled (anyone can send
+    // `X-Forwarded-For: 1.2.3.4`) so it must NOT be trusted for rate-limit keys —
+    // it would let an attacker rotate the key on every request and bypass limits.
+    const cloudflareIp = request.headers.get("cf-connecting-ip")?.trim();
+    if (cloudflareIp) {
+        return cloudflareIp;
     }
 
     const realIp = request.headers.get("x-real-ip")?.trim();
@@ -83,9 +93,15 @@ function getClientIp(request: NextRequest): string | null {
         return realIp;
     }
 
-    const cloudflareIp = request.headers.get("cf-connecting-ip")?.trim();
-    if (cloudflareIp) {
-        return cloudflareIp;
+    // Last resort (e.g. local dev with no proxy): take the LEFTMOST XFF entry.
+    // In production CF/nginx headers above always win, so this path isn't reachable
+    // for untrusted traffic.
+    const forwardedFor = request.headers.get("x-forwarded-for");
+    if (forwardedFor) {
+        const firstIp = forwardedFor.split(",")[0]?.trim();
+        if (firstIp) {
+            return firstIp;
+        }
     }
 
     return null;

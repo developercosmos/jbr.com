@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { products } from "@/db/schema";
-import { inArray, eq } from "drizzle-orm";
+import { inArray, eq, and } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
@@ -21,7 +21,9 @@ export async function GET(request: NextRequest) {
                 images: products.images,
             })
             .from(products)
-            .where(inArray(products.id, ids));
+            // Only expose published listings — never DRAFT / MODERATED / ARCHIVED
+            // (those would leak unlisted products by guessing an id).
+            .where(and(inArray(products.id, ids), eq(products.status, "PUBLISHED")));
 
         // Sort by the order of IDs requested
         const sortedProducts = ids

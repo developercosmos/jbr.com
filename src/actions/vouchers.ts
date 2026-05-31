@@ -176,11 +176,22 @@ export async function redeemVoucher(opts: {
     appliedAmount: number;
 }) {
     const user = await getCurrentUser();
-    await db.insert(voucher_redemptions).values({
-        voucher_id: opts.voucherId,
-        user_id: user.id,
-        order_id: opts.orderId,
-        applied_amount: String(opts.appliedAmount),
-    });
+    // Idempotent: the unique (voucher,user,order) index makes a duplicate redeem a
+    // no-op instead of double-counting usage toward max_uses / max_uses_per_user.
+    await db
+        .insert(voucher_redemptions)
+        .values({
+            voucher_id: opts.voucherId,
+            user_id: user.id,
+            order_id: opts.orderId,
+            applied_amount: String(opts.appliedAmount),
+        })
+        .onConflictDoNothing({
+            target: [
+                voucher_redemptions.voucher_id,
+                voucher_redemptions.user_id,
+                voucher_redemptions.order_id,
+            ],
+        });
     return { success: true };
 }

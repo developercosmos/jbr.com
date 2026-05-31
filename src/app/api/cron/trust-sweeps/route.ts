@@ -13,6 +13,7 @@ import { runSearchTermRollup } from "@/actions/search-terms";
 import { runSellerWeeklyDigestSweep } from "@/actions/seller-digest";
 import { runSearchIndexReconcile } from "@/actions/search-index-sync";
 import { runGlReconciliation } from "@/actions/accounting/reconciliation";
+import { reconcilePendingPayments } from "@/actions/payments";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,7 @@ export async function POST(request: NextRequest) {
             flagScheduled,
             flagCleanup,
             presencePrune,
+            paymentsReconcile,
         ] = await Promise.all([
             runEscrowAutoRelease(),
             runDisputeSlaSweep(),
@@ -69,6 +71,7 @@ export async function POST(request: NextRequest) {
             runFeatureFlagScheduledToggle(),
             runFeatureFlagCleanupNotices(),
             runPresencePruneSweep(),
+            reconcilePendingPayments(),
         ]);
 
         return NextResponse.json({
@@ -90,6 +93,7 @@ export async function POST(request: NextRequest) {
             flagScheduled,
             flagCleanup,
             presencePrune,
+            paymentsReconcile,
             ranAt: new Date().toISOString(),
         });
     } catch (error) {
