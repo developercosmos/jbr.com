@@ -43,3 +43,10 @@ next-env.d.ts
 # uploads (local storage)
 /public/uploads/*
 !/public/uploads/.gitkeep
+
+# infra secrets — never commit private keys or real env into the tracked infra/ copy
+infra/**/dkim-key.txt
+infra/**/*.key
+infra/**/*.pem
+infra/**/.env*
+infra/**/ssl/

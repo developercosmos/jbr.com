@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: jbr-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jbr_user
+      POSTGRES_PASSWORD: jbr_dev_password
+      POSTGRES_DB: jualbeliraket
+    ports:
+      - "5555:5432"
+    volumes:
+      - jbr_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jbr_user -d jualbeliraket"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  jbr_postgres_data:
+    driver: local
