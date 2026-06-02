@@ -108,7 +108,9 @@ export async function createPaymentInvoice(orderId: string, preferredMethod?: "B
 
     const invoiceData = {
         external_id: `order-${order.id}`,
-        amount: parseFloat(order.total),
+        // IDR is a zero-decimal currency — Xendit expects whole-rupiah integers.
+        // order.total is a decimal(12,2) string; round to avoid sending fractions.
+        amount: Math.round(parseFloat(order.total)),
         payer_email: order.buyer?.email,
         description: `Pembayaran untuk Order ${order.order_number}${preferredMethod ? ` (${preferredMethod})` : ""}`,
         invoice_duration: 86400, // 24 hours in seconds
@@ -118,7 +120,7 @@ export async function createPaymentInvoice(orderId: string, preferredMethod?: "B
         items: order.items.map((item: typeof order.items[number]) => ({
             name: item.product?.title || "Produk",
             quantity: item.quantity,
-            price: parseFloat(item.price),
+            price: Math.round(parseFloat(item.price)),
         })),
     };
 
@@ -246,10 +248,12 @@ export async function handleXenditWebhook(data: {
         return { success: false, error: "Payment not found" };
     }
 
-    // Update payment status
-    const newStatus = data.status === "PAID" ? "PAID" :
-        data.status === "EXPIRED" ? "EXPIRED" :
-            data.status === "FAILED" ? "FAILED" : "PENDING";
+    // Map Xendit's InvoiceStatus (PENDING | PAID | SETTLED | EXPIRED) to our
+    // payment_status enum. SETTLED means funds settled after PAID — also a success.
+    // (There is no FAILED status for invoices in the Xendit API.)
+    const isPaid = data.status === "PAID" || data.status === "SETTLED";
+    const newStatus = isPaid ? "PAID" :
+        data.status === "EXPIRED" ? "EXPIRED" : "PENDING";
 
     await db
         .update(payments)
@@ -262,7 +266,7 @@ export async function handleXenditWebhook(data: {
         .where(eq(payments.id, payment.id));
 
     // If paid, update order status — idempotently.
-    if (data.status === "PAID") {
+    if (isPaid) {
         // Atomic transition: only the FIRST callback to flip the order out of
         // PENDING_PAYMENT runs the money side-effects (ledger + GL + emails).
         // Xendit retries callbacks until it gets a 2xx, and the client-side poller
@@ -355,7 +359,7 @@ export async function handleXenditWebhook(data: {
                 total: parseFloat(order.total),
             });
         }
-    } else if (data.status === "EXPIRED" || data.status === "FAILED") {
+    } else if (data.status === "EXPIRED") {
         // Release the stock reserved at order creation — exactly once — by
         // atomically cancelling the still-unpaid order.
         const cancelled = await db
@@ -476,8 +480,10 @@ export async function checkInvoiceStatus(paymentId: string) {
 
     const invoice = await response.json();
 
-    // Update local status if changed
-    if (invoice.status === "PAID" && payment.status !== "PAID") {
+    // Update local status if changed. Treat SETTLED like PAID (post-payment
+    // settlement), matching handleXenditWebhook's mapping.
+    const invoicePaid = invoice.status === "PAID" || invoice.status === "SETTLED";
+    if (invoicePaid && payment.status !== "PAID") {
         await handleXenditWebhook({
             id: invoice.id,
             external_id: invoice.external_id,
