@@ -34,6 +34,12 @@ interface ProductData {
     category_id: string | null;
     images: string[];
     status: "DRAFT" | "PUBLISHED" | "ARCHIVED" | "MODERATED";
+    weight_class: string | null;
+    balance: string | null;
+    shaft_flex: string | null;
+    grip_size: string | null;
+    max_string_tension_lbs: number | null;
+    variants: { name: string; price: string; stock: string }[];
 }
 
 interface EditProductFormProps {
@@ -75,6 +81,13 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
     const [tierFloorPlatinum, setTierFloorPlatinum] = useState(product.tiered_floor_price?.platinum_buyer ? String(Math.round(product.tiered_floor_price.platinum_buyer)) : "");
     const [images, setImages] = useState<string[]>(product.images ?? []);
     const [uploading, setUploading] = useState(false);
+    // Racket specs + variants (parity with AddProductForm).
+    const [weightClass, setWeightClass] = useState(product.weight_class ?? "");
+    const [balance, setBalance] = useState(product.balance ?? "");
+    const [shaftFlex, setShaftFlex] = useState(product.shaft_flex ?? "");
+    const [gripSize, setGripSize] = useState(product.grip_size ?? "");
+    const [stringTension, setStringTension] = useState(product.max_string_tension_lbs?.toString() ?? "");
+    const [variants, setVariants] = useState<{ name: string; price: string; stock: string }[]>(product.variants ?? []);
 
     const getErrorMessage = (err: unknown, fallback: string) => {
         if (err instanceof Error && err.message.trim()) return err.message;
@@ -170,6 +183,19 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
                 condition_rating: condition === "PRELOVED" ? conditionRating : undefined,
                 condition_checklist: condition === "PRELOVED" ? conditionChecklist : [],
                 weight_grams: weight ? parseInt(weight) : undefined,
+                weight_class: (weightClass || undefined) as never,
+                balance: (balance || undefined) as never,
+                shaft_flex: (shaftFlex || undefined) as never,
+                grip_size: (gripSize || undefined) as never,
+                max_string_tension_lbs: stringTension ? parseInt(stringTension) : undefined,
+                variants: variants
+                    .filter((v) => v.name.trim())
+                    .map((v) => ({
+                        name: v.name.trim(),
+                        variant_type: "varian",
+                        price: v.price ? parseFloat(v.price) : undefined,
+                        stock: v.stock ? parseInt(v.stock) : 1,
+                    })),
                 images,
                 stock: parseInt(stock) || 1,
                 category_id: categoryId || undefined,
@@ -489,6 +515,75 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
                                 </div>
                             </div>
                         )}
+                    </section>
+
+                    {/* Spesifikasi Raket */}
+                    <section className="bg-white dark:bg-surface-dark rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">
+                        <h3 className="text-lg font-bold mb-1 text-slate-900 dark:text-white">Spesifikasi Raket</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Opsional — membantu pembeli menemukan & membandingkan raket Anda.</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm font-medium mb-2 text-slate-500 dark:text-slate-400">Bobot (Weight)</label>
+                                <select className="w-full appearance-none rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary py-3 px-4" value={weightClass} onChange={(e) => setWeightClass(e.target.value)}>
+                                    <option value="">Pilih bobot</option>
+                                    <option value="2U">2U (~90g)</option>
+                                    <option value="3U">3U (85-89g)</option>
+                                    <option value="4U">4U (80-84g)</option>
+                                    <option value="5U">5U (75-79g)</option>
+                                    <option value="6U">6U (&lt;75g)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2 text-slate-500 dark:text-slate-400">Balance</label>
+                                <select className="w-full appearance-none rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary py-3 px-4" value={balance} onChange={(e) => setBalance(e.target.value)}>
+                                    <option value="">Pilih balance</option>
+                                    <option value="HEAD_HEAVY">Head Heavy</option>
+                                    <option value="EVEN">Even</option>
+                                    <option value="HEAD_LIGHT">Head Light</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2 text-slate-500 dark:text-slate-400">Shaft Flex</label>
+                                <select className="w-full appearance-none rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary py-3 px-4" value={shaftFlex} onChange={(e) => setShaftFlex(e.target.value)}>
+                                    <option value="">Pilih flex</option>
+                                    <option value="STIFF">Stiff</option>
+                                    <option value="MEDIUM">Medium</option>
+                                    <option value="FLEXIBLE">Flexible</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2 text-slate-500 dark:text-slate-400">Grip Size</label>
+                                <select className="w-full appearance-none rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary py-3 px-4" value={gripSize} onChange={(e) => setGripSize(e.target.value)}>
+                                    <option value="">Pilih grip</option>
+                                    <option value="G2">G2</option>
+                                    <option value="G3">G3</option>
+                                    <option value="G4">G4</option>
+                                    <option value="G5">G5</option>
+                                    <option value="G6">G6</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-2 text-slate-500 dark:text-slate-400">Tegangan Senar Maks (lbs)</label>
+                                <input className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary py-3 px-4" placeholder="mis. 30" type="number" min={15} max={40} value={stringTension} onChange={(e) => setStringTension(e.target.value)} />
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* Varian */}
+                    <section className="bg-white dark:bg-surface-dark rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">
+                        <h3 className="text-lg font-bold mb-1 text-slate-900 dark:text-white">Varian (Opsional)</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Atur varian (mis. grip G4/G5, warna) dengan stok & harga per varian. Mengosongkan semua varian akan menghapusnya.</p>
+                        <div className="space-y-3">
+                            {variants.map((v, i) => (
+                                <div key={i} className="flex flex-col sm:flex-row gap-2 items-stretch">
+                                    <input className="flex-1 rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white py-2.5 px-3 text-sm" placeholder="Nama varian (mis. Grip G5)" value={v.name} onChange={(e) => setVariants((prev) => prev.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} />
+                                    <input className="w-full sm:w-36 rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white py-2.5 px-3 text-sm" placeholder="Harga (opsional)" type="number" value={v.price} onChange={(e) => setVariants((prev) => prev.map((x, j) => j === i ? { ...x, price: e.target.value } : x))} />
+                                    <input className="w-full sm:w-24 rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white py-2.5 px-3 text-sm" placeholder="Stok" type="number" min={0} value={v.stock} onChange={(e) => setVariants((prev) => prev.map((x, j) => j === i ? { ...x, stock: e.target.value } : x))} />
+                                    <button type="button" onClick={() => setVariants((prev) => prev.filter((_, j) => j !== i))} className="px-3 py-2.5 rounded-lg border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-sm font-medium hover:bg-rose-50 dark:hover:bg-rose-900/20">Hapus</button>
+                                </div>
+                            ))}
+                            <button type="button" onClick={() => setVariants((prev) => [...prev, { name: "", price: "", stock: "1" }])} className="text-sm font-bold text-brand-primary hover:underline">+ Tambah Varian</button>
+                        </div>
                     </section>
 
                     {/* Pengiriman */}

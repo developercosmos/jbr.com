@@ -55,6 +55,19 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
                 category_id: product.category_id,
                 images: (product.images ?? []) as string[],
                 status: product.status as "DRAFT" | "PUBLISHED" | "ARCHIVED" | "MODERATED",
+                weight_class: product.weight_class,
+                balance: product.balance,
+                shaft_flex: product.shaft_flex,
+                grip_size: product.grip_size,
+                max_string_tension_lbs: product.max_string_tension_lbs,
+                variants: (product.variants ?? [])
+                    .slice()
+                    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+                    .map((v) => ({
+                        name: v.name,
+                        price: v.price != null ? String(Math.round(parseFloat(v.price))) : "",
+                        stock: String(v.stock),
+                    })),
             }}
             categories={categories}
             brands={brands}

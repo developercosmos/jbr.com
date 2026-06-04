@@ -332,6 +332,7 @@ export async function getSellerProductById(productId: string) {
         where: and(eq(products.id, productId), eq(products.seller_id, user.id)),
         with: {
             category: true,
+            variants: true,
         },
     });
 

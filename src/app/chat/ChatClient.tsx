@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Search, Edit, MoreVertical, Paperclip, Smile, Send, Check, CheckCheck, MessageSquare, User, Star } from "lucide-react";
+import { Search, Edit, MoreVertical, Paperclip, Smile, Send, Check, CheckCheck, MessageSquare, User, Star, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getMessages, sendMessage, getConversations } from "@/actions/chat";
 import { submitBuyerInteractionRating } from "@/actions/reputation";
@@ -150,6 +150,8 @@ export function ChatClient({
     const [chatRatingError, setChatRatingError] = useState<string | null>(null);
     const [chatRatingInfo, setChatRatingInfo] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isUploading, setIsUploading] = useState(false);
 
     // Load messages when active conversation changes
     useEffect(() => {
@@ -324,6 +326,53 @@ export function ChatClient({
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             handleSendMessage();
+        }
+    };
+
+    // Upload a chat attachment via /api/upload then send it as a message.
+    const handleAttachmentChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        e.target.value = ""; // allow re-selecting the same file
+        if (!file || !activeConversationId || isUploading || isSending) return;
+
+        if (file.size > 8 * 1024 * 1024) {
+            console.error("Attachment too large (max 8MB)");
+            return;
+        }
+
+        setIsUploading(true);
+        try {
+            const fd = new FormData();
+            fd.append("file", file);
+            fd.append("folder", "chat");
+            const res = await fetch("/api/upload", { method: "POST", body: fd });
+            const data = await res.json();
+            if (!res.ok || !data.url) {
+                throw new Error(data.error || "Upload gagal");
+            }
+
+            const newMessage = await sendMessage(activeConversationId, "", data.url);
+            if (conversationData) {
+                setConversationData({
+                    ...conversationData,
+                    messages: [
+                        ...conversationData.messages,
+                        {
+                            id: newMessage.id,
+                            content: newMessage.content,
+                            attachmentUrl: newMessage.attachmentUrl,
+                            isFromMe: true,
+                            sender: { id: conversationData.currentUserId, name: "You", image: null },
+                            isRead: false,
+                            createdAt: newMessage.createdAt,
+                        },
+                    ],
+                });
+            }
+        } catch (error) {
+            console.error("Failed to send attachment:", error);
+        } finally {
+            setIsUploading(false);
         }
     };
 
@@ -662,8 +711,21 @@ export function ChatClient({
                         {/* Input Area */}
                         <div className="flex-none p-4 bg-white border-t border-slate-200 z-20">
                             <div className="flex items-end gap-2 max-w-4xl mx-auto">
-                                <button className="p-2.5 text-slate-400 hover:text-brand-primary hover:bg-slate-50 rounded-xl transition-colors shrink-0">
-                                    <Paperclip className="w-5 h-5" />
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    accept="image/*,application/pdf"
+                                    className="hidden"
+                                    onChange={handleAttachmentChange}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={isUploading || isSending}
+                                    title="Lampirkan gambar/dokumen"
+                                    className="p-2.5 text-slate-400 hover:text-brand-primary hover:bg-slate-50 rounded-xl transition-colors shrink-0 disabled:opacity-50"
+                                >
+                                    {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
                                 </button>
                                 <div className="flex-1 bg-slate-50 rounded-2xl border border-slate-200 focus-within:border-brand-primary focus-within:ring-1 focus-within:ring-brand-primary transition-all flex items-center min-h-[44px] px-4 py-2">
                                     <textarea
