@@ -10,7 +10,7 @@ function resolveUploadBaseDir(): string {
     return path.join(process.cwd(), configured);
 }
 
-function resolveStoredFilePath(filePathOrUrl: string): string {
+export function resolveStoredFilePath(filePathOrUrl: string): string {
     const baseDir = resolveUploadBaseDir();
     const configuredPublicPath = storageConfig.local.publicPath || "/uploads";
     const normalizedPublicPath = configuredPublicPath.endsWith("/")

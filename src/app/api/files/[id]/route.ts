@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { files, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { getFileUrl, isS3Configured, storageConfig } from "@/lib/storage";
+import { getFileUrl, isS3Configured, resolveStoredFilePath } from "@/lib/storage";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import fs from "fs/promises";
-import path from "path";
 
 export const dynamic = "force-dynamic";
 
@@ -66,12 +65,12 @@ export async function GET(
             const url = await getFileUrl(file.storage_key, 3600); // 1 hour expiry
             return NextResponse.redirect(url);
         } else {
-            // For local storage, stream the file
-            const filePath = path.join(
-                process.cwd(),
-                storageConfig.local.uploadDir,
-                file.storage_key.replace(/^\/uploads\//, "")
-            );
+            // For local storage, stream the file. Use the shared resolver so the
+            // path is computed identically to upload/delete (handles both absolute
+            // and relative uploadDir + the /uploads/ public prefix). The previous
+            // path.join(cwd, uploadDir, …) double-prefixed when uploadDir was an
+            // absolute path in production, 404-ing every private file.
+            const filePath = resolveStoredFilePath(file.storage_key);
 
             try {
                 const fileBuffer = await fs.readFile(filePath);

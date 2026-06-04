@@ -5,9 +5,9 @@
 
 import { isS3Configured, getStorageType, storageConfig } from "./config";
 import { uploadToS3, deleteFromS3, generateS3Key, getPresignedUrl } from "./s3";
-import { uploadToLocal, deleteFromLocal, localFileExists } from "./local";
+import { uploadToLocal, deleteFromLocal, localFileExists, resolveStoredFilePath } from "./local";
 
-export { storageConfig, isS3Configured, getStorageType };
+export { storageConfig, isS3Configured, getStorageType, resolveStoredFilePath };
 
 export type UploadResult = {
     url: string;
