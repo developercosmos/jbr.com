@@ -11,6 +11,7 @@ interface SystemSettingsProps {
         EMAIL_FROM: string;
         SMTP_HOST: string;
         SMTP_PORT: string;
+        RESEND_API_KEY: string;
     };
 }
 
@@ -51,19 +52,26 @@ export function SystemSettings({ initialSettings }: SystemSettingsProps) {
             key: "EMAIL_FROM" as const,
             label: "Email Pengirim",
             placeholder: "noreply@jualbeliraket.com",
-            description: "Alamat email pengirim untuk notifikasi sistem",
+            description: "Alamat email pengirim untuk notifikasi sistem. Untuk Resend, domain-nya harus sudah diverifikasi.",
+        },
+        {
+            key: "RESEND_API_KEY" as const,
+            label: "Resend API Key",
+            placeholder: "re_••••••••",
+            description: "API key Resend untuk pengiriman email (utama). Jika diisi, email dikirim via Resend. Kosongkan untuk pakai SMTP/Postfix.",
+            type: "password",
         },
         {
             key: "SMTP_HOST" as const,
             label: "SMTP Host",
             placeholder: "localhost",
-            description: "Server SMTP untuk pengiriman email",
+            description: "Server SMTP (fallback bila Resend API key kosong)",
         },
         {
             key: "SMTP_PORT" as const,
             label: "SMTP Port",
             placeholder: "25",
-            description: "Port server SMTP",
+            description: "Port server SMTP (fallback)",
         },
     ];
 
@@ -96,10 +104,11 @@ export function SystemSettings({ initialSettings }: SystemSettingsProps) {
                             {field.label}
                         </label>
                         <input
-                            type="text"
+                            type={"type" in field && field.type ? field.type : "text"}
                             value={settings[field.key]}
                             onChange={(e) => handleChange(field.key, e.target.value)}
                             placeholder={field.placeholder}
+                            autoComplete="off"
                             className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary transition-all"
                         />
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">

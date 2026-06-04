@@ -1,5 +1,12 @@
 import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import { getSiteConfig } from "@/actions/settings";
+
+// Resend (transactional email provider) — preferred when RESEND_API_KEY is set.
+// Falls back to the nodemailer transport below when it isn't, so local/dev and
+// the existing Postfix path keep working unchanged.
+const resendApiKey = process.env.RESEND_API_KEY?.trim();
+const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
 // XSS prevention: escape user-influenced values before interpolating into email
 // HTML (product titles, buyer/seller names, tracking numbers, etc.). Static
@@ -109,9 +116,33 @@ export interface SendEmailOptions {
 }
 
 async function sendEmail(options: SendEmailOptions): Promise<boolean> {
+    const from = `"${APP_NAME}" <${FROM_EMAIL}>`;
+
+    // Preferred path: Resend API (best deliverability; no SMTP port needed).
+    if (resend) {
+        try {
+            const { error } = await resend.emails.send({
+                from,
+                to: options.to,
+                subject: options.subject,
+                html: options.html,
+            });
+            if (error) {
+                console.error("Resend send failed:", error);
+                return false;
+            }
+            console.log(`Email sent via Resend to ${options.to}`);
+            return true;
+        } catch (error) {
+            console.error("Resend send threw:", error);
+            return false;
+        }
+    }
+
+    // Fallback: nodemailer (sendmail on Linux / SMTP elsewhere).
     try {
         await transporter.sendMail({
-            from: `"${APP_NAME}" <${FROM_EMAIL}>`,
+            from,
             to: options.to,
             subject: options.subject,
             html: options.html,

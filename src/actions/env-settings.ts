@@ -36,9 +36,14 @@ const ALLOWED_ENV_KEYS = [
     "EMAIL_FROM",
     "SMTP_HOST",
     "SMTP_PORT",
+    "RESEND_API_KEY",
 ] as const;
 
 type AllowedEnvKey = typeof ALLOWED_ENV_KEYS[number];
+
+// Secret keys: never echo the raw value back to the browser. GET returns a masked
+// placeholder when set, so the admin can see "configured" without exposing it.
+const SECRET_ENV_KEYS: ReadonlySet<string> = new Set(["RESEND_API_KEY"]);
 
 // Path to .env.local file (safer than modifying .env)
 const ENV_FILE_PATH = path.join(process.cwd(), ".env.local");
@@ -53,7 +58,9 @@ export async function getEnvSettings(): Promise<Record<AllowedEnvKey, string>> {
     const settings: Record<string, string> = {};
 
     for (const key of ALLOWED_ENV_KEYS) {
-        settings[key] = process.env[key] || "";
+        const raw = process.env[key] || "";
+        // Mask secrets: show a fixed placeholder when set, empty when not.
+        settings[key] = SECRET_ENV_KEYS.has(key) && raw ? "••••••••(configured)" : raw;
     }
 
     return settings as Record<AllowedEnvKey, string>;
@@ -132,6 +139,9 @@ export async function updateEnvSettings(
         for (const [key, value] of Object.entries(updates)) {
             if (ALLOWED_ENV_KEYS.includes(key as AllowedEnvKey)) {
                 if (value && value.trim()) {
+                    // Ignore the masked placeholder echoed back from GET — never
+                    // overwrite a real secret with the mask string.
+                    if (SECRET_ENV_KEYS.has(key) && value.includes("••")) continue;
                     envMap.set(key, value.trim());
                 }
             }
