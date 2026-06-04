@@ -343,19 +343,11 @@ export function CartContent({ initialItems }: CartContentProps) {
                 <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 flex flex-col gap-5">
                     <h3 className="text-slate-900 text-lg font-bold">Ringkasan Belanja</h3>
 
-                    {/* Coupon Input */}
-                    <div className="flex gap-2">
-                        <div className="flex items-center gap-2 flex-1 border border-slate-300 rounded-lg px-3 py-2 bg-white">
-                            <Tag className="w-5 h-5 text-brand-primary" />
-                            <input
-                                className="bg-transparent border-none p-0 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-0 w-full outline-none"
-                                placeholder="Kode Promo"
-                                type="text"
-                            />
-                        </div>
-                        <button className="text-sm font-semibold text-brand-primary hover:text-blue-600 px-2">
-                            Gunakan
-                        </button>
+                    {/* Promo codes are applied at checkout (where the discount is computed
+                        and validated server-side), not on the cart. */}
+                    <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
+                        <Tag className="w-4 h-4 text-brand-primary" />
+                        Punya kode promo? Masukkan saat checkout.
                     </div>
 
                     <hr className="border-slate-200" />

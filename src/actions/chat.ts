@@ -267,6 +267,9 @@ export async function sendMessage(conversationId: string, content: string, attac
             sender_id: user.id,
             content: content?.trim() || null,
             attachment_url: attachmentUrl || null,
+            // Stamp the conversation's product so the dispute/order audit-replay
+            // timeline (which keys on product_reference_id) can surface this chat.
+            product_reference_id: conversation.product_id ?? null,
             is_read: false,
         })
         .returning();

@@ -92,9 +92,13 @@ export default async function StorePage({ params }: Props) {
                                 <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white">
                                     {seller.store_name}
                                 </h1>
-                                <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-semibold rounded-full">
-                                    Verified
-                                </span>
+                                {/* Verified badge = KYC-approved seller (tier T1/T2). Was
+                                    previously shown unconditionally for every store. */}
+                                {(seller.tier === "T1" || seller.tier === "T2") && (
+                                    <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-semibold rounded-full">
+                                        Verified
+                                    </span>
+                                )}
                             </div>
 
                             {seller.store_description && (

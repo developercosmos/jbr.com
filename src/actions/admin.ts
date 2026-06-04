@@ -7,7 +7,7 @@ import { headers } from "next/headers";
 import { eq, desc, count, sql, and, gte, ilike, or, exists, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { categories } from "@/db/schema";
-import { sendSellerActivationApprovedEmail, sendSellerActivationRejectedEmail } from "@/lib/email";
+import { sendSellerActivationApprovedEmail, sendSellerActivationRejectedEmail, sendProductApprovedEmail, sendProductRejectedEmail } from "@/lib/email";
 import { refundOrder } from "@/actions/refunds";
 
 // Get current admin user
@@ -129,25 +129,77 @@ export async function getModerationQueue() {
     return pendingProducts;
 }
 
+// Fetch product + seller contact for moderation notifications.
+async function getProductWithSeller(productId: string) {
+    const row = await db.query.products.findFirst({
+        where: eq(products.id, productId),
+        columns: { id: true, title: true, slug: true, seller_id: true },
+        with: { seller: { columns: { id: true, name: true, store_name: true, email: true } } },
+    });
+    return row;
+}
+
 export async function approveProduct(productId: string) {
     await getCurrentAdmin();
+    const product = await getProductWithSeller(productId);
 
     await db
         .update(products)
         .set({ status: "PUBLISHED", updated_at: new Date() })
         .where(eq(products.id, productId));
 
+    // Notify the seller (best-effort: email if available, plus in-app).
+    if (product?.seller) {
+        const sellerName = product.seller.store_name || product.seller.name || "Penjual";
+        if (product.seller.email) {
+            sendProductApprovedEmail(product.seller.email, sellerName, product.title, product.slug)
+                .catch((e) => console.error("approveProduct email failed:", e));
+        }
+        try {
+            await db.insert(notifications).values({
+                user_id: product.seller_id,
+                type: "SYSTEM",
+                title: "Produk Disetujui",
+                message: `Produk "${product.title}" telah disetujui dan kini tayang di marketplace.`,
+                data: { product_id: product.id, product_slug: product.slug },
+            });
+        } catch { /* non-critical */ }
+    }
+
+    revalidatePath("/admin/products");
+    revalidatePath("/seller/products");
     return { success: true };
 }
 
-export async function rejectProduct(productId: string) {
+export async function rejectProduct(productId: string, reason?: string) {
     await getCurrentAdmin();
+    const product = await getProductWithSeller(productId);
 
     await db
         .update(products)
         .set({ status: "MODERATED", updated_at: new Date() })
         .where(eq(products.id, productId));
 
+    if (product?.seller) {
+        const sellerName = product.seller.store_name || product.seller.name || "Penjual";
+        const rejectionReason = reason?.trim() || "Produk belum memenuhi standar marketplace. Silakan periksa kembali deskripsi, foto, dan kelengkapan data.";
+        if (product.seller.email) {
+            sendProductRejectedEmail(product.seller.email, sellerName, product.title, rejectionReason)
+                .catch((e) => console.error("rejectProduct email failed:", e));
+        }
+        try {
+            await db.insert(notifications).values({
+                user_id: product.seller_id,
+                type: "SYSTEM",
+                title: "Produk Perlu Perbaikan",
+                message: `Produk "${product.title}" belum dapat ditampilkan. ${rejectionReason}`,
+                data: { product_id: product.id },
+            });
+        } catch { /* non-critical */ }
+    }
+
+    revalidatePath("/admin/products");
+    revalidatePath("/seller/products");
     return { success: true };
 }
 
