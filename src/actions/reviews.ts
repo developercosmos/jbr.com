@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { reviews, order_items } from "@/db/schema";
+import { reviews, order_items, orders } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { eq, desc, avg, count, and, gte } from "drizzle-orm";
@@ -320,6 +320,25 @@ export async function getSellerRatingStats(sellerId: string) {
         average: stats[0]?.average ? parseFloat(stats[0].average) : 0,
         total: stats[0]?.total || 0,
     };
+}
+
+// ============================================
+// REVIEWED ITEM IDS FOR AN ORDER (drives the "Beri Ulasan" buttons)
+// ============================================
+// Returns the set of order_item ids in this order that the current buyer has
+// ALREADY reviewed. The order detail page uses this to show a "Beri Ulasan"
+// button only on delivered/completed items that are not yet reviewed.
+export async function getReviewedItemIdsForOrder(orderId: string): Promise<string[]> {
+    const user = await getCurrentUser();
+
+    const rows = await db
+        .select({ orderItemId: reviews.order_item_id })
+        .from(reviews)
+        .innerJoin(order_items, eq(reviews.order_item_id, order_items.id))
+        .innerJoin(orders, eq(order_items.order_id, orders.id))
+        .where(and(eq(orders.id, orderId), eq(orders.buyer_id, user.id)));
+
+    return rows.map((r) => r.orderItemId);
 }
 
 // ============================================

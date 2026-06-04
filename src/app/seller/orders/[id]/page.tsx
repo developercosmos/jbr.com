@@ -40,7 +40,11 @@ const NEXT_STATUSES: Record<string, { value: string; label: string; className: s
         { value: "SHIPPED", label: "Tandai Sudah Dikirim", className: "bg-purple-600 hover:bg-purple-700 text-white" },
         { value: "CANCELLED", label: "Batalkan", className: "bg-red-600 hover:bg-red-700 text-white" },
     ],
-    SHIPPED: [{ value: "DELIVERED", label: "Tandai Diterima", className: "bg-teal-600 hover:bg-teal-700 text-white" }],
+    // After SHIPPED the seller has no further status action: the BUYER confirms
+    // receipt (sets DELIVERED + arms escrow), then funds auto-release. Letting the
+    // seller self-mark DELIVERED would release escrow without the buyer receiving
+    // the goods, so it is intentionally not offered here.
+    SHIPPED: [],
 };
 
 export default async function SellerOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -159,6 +163,12 @@ export default async function SellerOrderDetailPage({ params }: { params: Promis
                                         </form>
                                     ))}
                                 </div>
+                            </div>
+                        )}
+                        {order.status === "SHIPPED" && (
+                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 text-sm text-blue-800 dark:text-blue-300">
+                                Pesanan sudah dikirim. Menunggu pembeli mengonfirmasi penerimaan. Dana akan
+                                dirilis otomatis ke saldo Anda setelah masa konfirmasi berakhir.
                             </div>
                         )}
                     </div>

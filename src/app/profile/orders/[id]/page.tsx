@@ -4,9 +4,12 @@ import { ArrowLeft, Package, Truck, CheckCircle, Clock, XCircle, CreditCard, Map
 import { getOrderById } from "@/actions/orders";
 import { notFound } from "next/navigation";
 import ConfirmReceiptButton from "./ConfirmReceiptButton";
+import ConfirmDeliveryButton from "./ConfirmDeliveryButton";
 import CounterpartyRating from "./CounterpartyRating";
 import StringingAddOnButton from "./StringingAddOnButton";
+import OrderItemReviewButton from "./OrderItemReviewButton";
 import { getOrderRatingPair } from "@/actions/reputation";
+import { getReviewedItemIdsForOrder } from "@/actions/reviews";
 
 const statusConfig: Record<string, { label: string; icon: React.ReactNode; bg: string; text: string; border: string }> = {
     PENDING_PAYMENT: {
@@ -111,6 +114,12 @@ export default async function OrderDetailPage({ params }: PageProps) {
     const buyerToSeller = ratingPair?.buyerToSeller ?? null;
     const sellerToBuyer = ratingPair?.sellerToBuyer ?? null;
 
+    // Product reviews can be written once an order is delivered/completed.
+    const canReviewItems = order.status === "DELIVERED" || order.status === "COMPLETED";
+    const reviewedItemIds = canReviewItems
+        ? new Set(await getReviewedItemIdsForOrder(order.id).catch(() => []))
+        : new Set<string>();
+
     return (
         <div className="flex-1">
             {/* Header */}
@@ -184,6 +193,16 @@ export default async function OrderDetailPage({ params }: PageProps) {
                                                 <StringingAddOnButton
                                                     orderItemId={item.id}
                                                     productTitle={item.product?.title || "raket"}
+                                                />
+                                            </div>
+                                        )}
+                                        {canReviewItems && (
+                                            <div className="mt-2">
+                                                <OrderItemReviewButton
+                                                    orderItemId={item.id}
+                                                    productName={item.product?.title || "Produk"}
+                                                    productImage={item.product?.images?.[0]}
+                                                    alreadyReviewed={reviewedItemIds.has(item.id)}
                                                 />
                                             </div>
                                         )}
@@ -303,6 +322,9 @@ export default async function OrderDetailPage({ params }: PageProps) {
                                     <CreditCard className="w-5 h-5" />
                                     Bayar Sekarang
                                 </Link>
+                            )}
+                            {order.status === "SHIPPED" && (
+                                <ConfirmDeliveryButton orderId={order.id} />
                             )}
                             {order.status === "DELIVERED" && (
                                 <ConfirmReceiptButton
