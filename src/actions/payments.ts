@@ -73,6 +73,51 @@ export async function createPaymentInvoice(orderId: string, preferredMethod?: "B
         if (!eligibility.eligible) {
             throw new Error(eligibility.reason || "Akun Anda belum memenuhi syarat untuk COD.");
         }
+
+        // True cash-on-delivery: NO online Xendit invoice. Record a pending COD
+        // payment and move the order straight to PROCESSING so the seller fulfils;
+        // the buyer pays the courier on delivery. Idempotent on a real transition.
+        const transitioned = await db
+            .update(orders)
+            .set({ status: "PROCESSING", updated_at: new Date() })
+            .where(and(eq(orders.id, orderId), eq(orders.status, "PENDING_PAYMENT")))
+            .returning({ id: orders.id });
+
+        if (transitioned.length > 0) {
+            await db.insert(payments).values({
+                order_id: orderId,
+                amount: order.total,
+                status: "PENDING", // settles as cash on delivery; reconciled at receipt
+                payment_method: "COD",
+            });
+            if (order.buyer) {
+                await notify({
+                    event: "ORDER_CREATED",
+                    audience: "buyer",
+                    recipientUserId: order.buyer_id,
+                    recipientEmail: order.buyer.email,
+                    recipientName: order.buyer.name,
+                    orderId: order.id,
+                    orderNumber: order.order_number,
+                    items: order.items.map((item: typeof order.items[number]) => ({
+                        title: item.product.title,
+                        quantity: item.quantity,
+                        price: formatCurrency(parseFloat(item.price) * item.quantity),
+                    })),
+                    subtotal: formatCurrency(parseFloat(order.subtotal)),
+                    shippingCost: formatCurrency(parseFloat(order.shipping_cost || "0")),
+                    total: formatCurrency(parseFloat(order.total)),
+                });
+            }
+        }
+
+        revalidatePath("/profile/orders");
+        revalidatePath("/seller/orders");
+        return {
+            success: true,
+            cod: true,
+            redirectUrl: `/profile/orders/${orderId}`,
+        };
     }
 
     // Check if payment already exists

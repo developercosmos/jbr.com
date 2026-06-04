@@ -732,6 +732,14 @@ export async function runOfferExpirySweep(): Promise<OfferExpirySweepResult> {
 }
 
 export async function runOfferSlaFollowupSweep(): Promise<OfferSlaFollowupSweepResult> {
+    // DIF-03: SLA reminders (T24/T48) + T72 auto-expire are gated by dif.offer_sla.
+    // When the flag is off the sweep is a no-op (previously it ran unconditionally
+    // regardless of the flag, making the admin toggle decorative).
+    const slaEnabled = await isFeatureEnabled("dif.offer_sla");
+    if (!slaEnabled) {
+        return { inspected: 0, reminded: 0, remindedIds: [], expiredBySla: 0 };
+    }
+
     const now = new Date();
     const cutoff24 = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 

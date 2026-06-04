@@ -11,6 +11,7 @@ import { z } from "zod";
 import { getCheckoutShippingQuoteForUser } from "@/actions/shipping";
 import { ensureSellerWithinMonthlyGmvCap } from "@/actions/kyc";
 import { calculatePlatformFee } from "@/actions/fees";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { tryAttributeOrderFromCookie } from "@/actions/affiliate";
 import { notify } from "@/lib/notify";
 import { formatCurrency } from "@/lib/format";
@@ -30,6 +31,12 @@ function getBuyerProtectionRate(reliabilityScore: number): number {
 }
 
 async function resolveSellerBuyerProtectionAmount(sellerId: string, subtotal: number): Promise<number> {
+    // DIF-10: the "Bayar Aman+" buyer-protection fee is gated by dif.trust_insurance.
+    // When the flag is off, no protection fee is charged (previously the flag was
+    // decorative — the fee always applied regardless of its state).
+    const insuranceEnabled = await isFeatureEnabled("dif.trust_insurance");
+    if (!insuranceEnabled) return 0;
+
     const rating = await db.query.seller_ratings.findFirst({
         where: eq(seller_ratings.user_id, sellerId),
         columns: { reliability_score: true },

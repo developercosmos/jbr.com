@@ -59,6 +59,12 @@ export function CheckoutForm({ selectedAddressId, paymentMethod, shippingCourier
                 // Step 2: Create Xendit payment invoice
                 const paymentResult = await createPaymentInvoice(order.id, paymentMethod);
 
+                // COD: no online invoice — go straight to the order page.
+                if (paymentResult.success && "redirectUrl" in paymentResult && paymentResult.redirectUrl) {
+                    window.location.href = paymentResult.redirectUrl;
+                    return;
+                }
+
                 if (!paymentResult.success || !paymentResult.invoiceUrl) {
                     setError(paymentResult.error || "Gagal membuat invoice pembayaran. Silakan coba lagi.");
                     return;
