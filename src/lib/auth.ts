@@ -1,5 +1,4 @@
 import { betterAuth } from "better-auth";
-import { genericOAuth } from "better-auth/plugins";
 import { Pool } from "pg";
 import bcrypt from "bcryptjs";
 import { sendVerificationEmail } from "./email";
@@ -9,42 +8,40 @@ const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
 });
 
+const googleClientId = process.env.GOOGLE_CLIENT_ID || "";
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
+
 const tiktokClientKey = process.env.TIKTOK_CLIENT_KEY || process.env.TIKTOK_CLIENT_ID || "";
 const tiktokClientSecret = process.env.TIKTOK_CLIENT_SECRET || "";
+
+// Build social providers conditionally — only register a provider when its
+// credentials are present, so the sign-in buttons can be feature-gated to match.
+const socialProviders: NonNullable<Parameters<typeof betterAuth>[0]["socialProviders"]> = {};
+if (googleClientId && googleClientSecret) {
+    socialProviders.google = {
+        clientId: googleClientId,
+        clientSecret: googleClientSecret,
+        // Let returning users link a Google login to an existing email/password
+        // account with the same verified email instead of erroring out.
+        mapProfileToUser: (profile) => ({
+            name: profile.name,
+            email: profile.email,
+            image: profile.picture,
+            emailVerified: profile.email_verified ?? false,
+        }),
+    };
+}
+if (tiktokClientKey && tiktokClientSecret) {
+    socialProviders.tiktok = {
+        clientKey: tiktokClientKey,
+        clientSecret: tiktokClientSecret,
+    };
+}
 
 export const auth = betterAuth({
     secret: process.env.BETTER_AUTH_SECRET,
     database: pool,
-    plugins: [
-        genericOAuth({
-            config: [
-                {
-                    providerId: "instagram",
-                    authorizationUrl: "https://api.instagram.com/oauth/authorize",
-                    tokenUrl: "https://api.instagram.com/oauth/access_token",
-                    userInfoUrl: "https://graph.instagram.com/me?fields=id,username",
-                    clientId: process.env.INSTAGRAM_CLIENT_ID || "",
-                    clientSecret: process.env.INSTAGRAM_CLIENT_SECRET || "",
-                    scopes: ["user_profile"],
-                    mapProfileToUser: (profile) => ({
-                        id: String(profile.id),
-                        name: String(profile.username || "Instagram User"),
-                        email: `${String(profile.id)}@instagram.local`,
-                        emailVerified: false,
-                        image: null,
-                    }),
-                },
-            ],
-        }),
-    ],
-    socialProviders: tiktokClientKey && tiktokClientSecret
-        ? {
-            tiktok: {
-                clientKey: tiktokClientKey,
-                clientSecret: tiktokClientSecret,
-            },
-        }
-        : undefined,
+    socialProviders: Object.keys(socialProviders).length > 0 ? socialProviders : undefined,
     emailAndPassword: {
         enabled: true,
         minPasswordLength: 6,
