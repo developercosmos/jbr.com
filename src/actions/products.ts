@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { categories, products } from "@/db/schema";
+import { categories, products, product_variants } from "@/db/schema";
 import { ensureCurrentUserCanSell } from "@/actions/seller";
 import { auth } from "@/lib/auth";
 import { logger } from "@/lib/logger";
@@ -45,6 +45,14 @@ const createProductSchema = z.object({
     condition_notes: z.string().optional(),
     condition_checklist: z.array(z.string().max(80)).max(12).optional(),
     weight_grams: z.number().positive().optional(),
+    // Racket spec fields (NICHE). Values match the search filter + /compare option
+    // sets so seller input is filterable and comparable. Empty string -> null.
+    weight_class: z.enum(["2U", "3U", "4U", "5U", "6U"]).optional().nullable(),
+    balance: z.enum(["HEAD_HEAVY", "EVEN", "HEAD_LIGHT"]).optional().nullable(),
+    shaft_flex: z.enum(["STIFF", "MEDIUM", "FLEXIBLE"]).optional().nullable(),
+    grip_size: z.enum(["G2", "G3", "G4", "G5", "G6"]).optional().nullable(),
+    max_string_tension_lbs: z.number().int().min(15).max(40).optional().nullable(),
+    stiffness_rating: z.number().int().min(1).max(10).optional().nullable(),
     stock: z.number().int().positive().default(1),
     category_id: z.string().uuid().optional(),
     images: z.array(productImageSchema).default([]),
@@ -56,6 +64,20 @@ const createProductSchema = z.object({
             high_trust: z.number().positive().optional(),
             platinum_buyer: z.number().positive().optional(),
         })
+        .optional(),
+    // Optional product variants (e.g. grip size / color). When present, the sum of
+    // variant stock is the real sellable inventory; cart/checkout enforce variant
+    // selection. Empty/omitted => simple single-SKU product.
+    variants: z
+        .array(
+            z.object({
+                name: z.string().trim().min(1).max(60),
+                variant_type: z.string().trim().min(1).max(30).default("varian"),
+                price: z.number().positive().optional().nullable(),
+                stock: z.number().int().min(0).default(1),
+            })
+        )
+        .max(30)
         .optional(),
 });
 
@@ -156,10 +178,11 @@ export async function createProduct(input: z.infer<typeof createProductSchema>) 
         });
         const nextStatus = checklistPolicy.requiresModeration ? "MODERATED" : "DRAFT";
 
+        const { variants: variantInputs, ...productValues } = validated;
         const [product] = await db
             .insert(products)
             .values({
-                ...validated,
+                ...productValues,
                 condition_checklist: checklistPolicy.checklist,
                 seller_id: user.id,
                 slug: generateSlug(validated.title),
@@ -169,6 +192,21 @@ export async function createProduct(input: z.infer<typeof createProductSchema>) 
                 status: nextStatus,
             })
             .returning();
+
+        // Insert variants (if any). product.stock stays as the aggregate the seller
+        // entered; per-variant stock is the authoritative inventory at checkout.
+        if (variantInputs && variantInputs.length > 0) {
+            await db.insert(product_variants).values(
+                variantInputs.map((v, i) => ({
+                    product_id: product.id,
+                    name: v.name,
+                    variant_type: v.variant_type || "varian",
+                    price: v.price != null ? v.price.toString() : null,
+                    stock: v.stock,
+                    sort_order: i,
+                }))
+            );
+        }
 
         if (validated.tiered_floor_price && Object.keys(validated.tiered_floor_price).length > 0) {
             logger.info("product:tier_floor_configured", {
@@ -190,7 +228,7 @@ export async function updateProduct(input: z.infer<typeof updateProductSchema>) 
     const user = await getCurrentUser();
     const validated = updateProductSchema.parse(input);
 
-    const { id, ...updateData } = validated;
+    const { id, variants: variantInputs, ...updateData } = validated;
     // Verify ownership
     const existing = await db.query.products.findFirst({
         where: and(eq(products.id, id), eq(products.seller_id, user.id)),
@@ -221,6 +259,24 @@ export async function updateProduct(input: z.infer<typeof updateProductSchema>) 
         })
         .where(eq(products.id, id))
         .returning();
+
+    // Replace variant set when the editor submits one. Undefined => leave variants
+    // untouched (edit of a non-variant field); [] => explicitly clear all variants.
+    if (variantInputs !== undefined) {
+        await db.delete(product_variants).where(eq(product_variants.product_id, id));
+        if (variantInputs.length > 0) {
+            await db.insert(product_variants).values(
+                variantInputs.map((v, i) => ({
+                    product_id: id,
+                    name: v.name,
+                    variant_type: v.variant_type || "varian",
+                    price: v.price != null ? v.price.toString() : null,
+                    stock: v.stock,
+                    sort_order: i,
+                }))
+            );
+        }
+    }
 
     if (updateData.tiered_floor_price && Object.keys(updateData.tiered_floor_price).length > 0) {
         logger.info("product:tier_floor_updated", {
