@@ -8,8 +8,10 @@ import ConfirmDeliveryButton from "./ConfirmDeliveryButton";
 import CounterpartyRating from "./CounterpartyRating";
 import StringingAddOnButton from "./StringingAddOnButton";
 import OrderItemReviewButton from "./OrderItemReviewButton";
+import ReportProblemButton from "./ReportProblemButton";
 import { getOrderRatingPair } from "@/actions/reputation";
 import { getReviewedItemIdsForOrder } from "@/actions/reviews";
+import { getOrderDisputeForBuyer } from "@/actions/disputes";
 
 const statusConfig: Record<string, { label: string; icon: React.ReactNode; bg: string; text: string; border: string }> = {
     PENDING_PAYMENT: {
@@ -119,6 +121,10 @@ export default async function OrderDetailPage({ params }: PageProps) {
     const reviewedItemIds = canReviewItems
         ? new Set(await getReviewedItemIdsForOrder(order.id).catch(() => []))
         : new Set<string>();
+
+    // Buyer can open an order dispute while funds are in escrow (PAID..DELIVERED).
+    const canDispute = ["PAID", "PROCESSING", "SHIPPED", "DELIVERED"].includes(order.status);
+    const existingDispute = canDispute ? await getOrderDisputeForBuyer(order.id).catch(() => null) : null;
 
     return (
         <div className="flex-1">
@@ -330,6 +336,16 @@ export default async function OrderDetailPage({ params }: PageProps) {
                                 <ConfirmReceiptButton
                                     orderId={order.id}
                                     releaseDueAt={order.release_due_at ? new Date(order.release_due_at).toISOString() : null}
+                                />
+                            )}
+                            {canDispute && (
+                                <ReportProblemButton
+                                    orderId={order.id}
+                                    existing={existingDispute ? {
+                                        dispute_number: existingDispute.dispute_number,
+                                        status: existingDispute.status,
+                                        type: existingDispute.type,
+                                    } : null}
                                 />
                             )}
                         </div>
