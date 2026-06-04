@@ -160,6 +160,24 @@ export const FEATURE_FLAG_META: Record<string, FeatureFlagMetadata> = {
         dependencies: ["pdp.buyer_rating"],
         affectedSurface: "Inbox seller, halaman chat, panel offer",
     },
+    "pdp.buyer_reputation_chat": {
+        friendlyName: "Reputasi Pembeli di Chat",
+        description:
+            "Tampilkan band reputasi pembeli (Low/Medium/High Risk) ke seller di header percakapan chat. Di-fetch sekali saat percakapan dibuka (bukan tiap polling) untuk menghormati rate-limit + audit log akses reputasi. Flag terpisah agar surface chat bisa di-rollout/kill independen dari inbox offer.",
+        impact: {
+            positive: [
+                "Seller melihat sinyal kualitas pembeli langsung saat chat, sebelum menyetujui tawaran.",
+            ],
+            risk: [
+                "Chat lebih sering dibuka daripada inbox offer; tiap pembukaan percakapan = 1 akses reputasi (audit log + kuota rate-limit). Mitigasi: fetch sekali per buka, bukan per-poll.",
+            ],
+        },
+        risk: "high",
+        icon: "💬",
+        ticket: "PDP-09",
+        dependencies: ["pdp.buyer_reputation"],
+        affectedSurface: "Halaman chat — header percakapan (khusus seller)",
+    },
     "pdp.dispute_rating": {
         friendlyName: "Sengketa Rating Pembeli",
         description:

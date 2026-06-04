@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Search, Edit, MoreVertical, Paperclip, Smile, Send, Check, CheckCheck, MessageSquare, User, Star, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getMessages, sendMessage, getConversations } from "@/actions/chat";
+import { getMessages, sendMessage, getConversations, getChatBuyerReputation } from "@/actions/chat";
 import { submitBuyerInteractionRating } from "@/actions/reputation";
 import { ChatSuggestionChips } from "@/components/chat/ChatSuggestionChips";
 import { getChatSuggestions } from "@/lib/chat-suggestions";
@@ -152,6 +152,11 @@ export function ChatClient({
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isUploading, setIsUploading] = useState(false);
+    // PDP-09 (chat): buyer reputation band, flag-gated. Fetched ONCE per
+    // conversation open (not in the poll loop) to respect the reputation
+    // rate-limit + audit log. Server returns null unless caller is the seller.
+    const buyerReputationChatEnabled = useFlag("pdp.buyer_reputation_chat");
+    const [buyerBand, setBuyerBand] = useState<"LOW" | "MEDIUM" | "HIGH" | null>(null);
 
     // Load messages when active conversation changes
     useEffect(() => {
@@ -166,6 +171,26 @@ export function ChatClient({
             });
         }
     }, [activeConversationId]);
+
+    // Fetch the buyer reputation band once when a conversation is opened.
+    useEffect(() => {
+        if (!buyerReputationChatEnabled || !activeConversationId) {
+            setBuyerBand(null);
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            try {
+                const rep = await getChatBuyerReputation(activeConversationId);
+                if (!cancelled) setBuyerBand(rep?.band ?? null);
+            } catch {
+                if (!cancelled) setBuyerBand(null);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [activeConversationId, buyerReputationChatEnabled]);
 
     // Smart polling for real-time updates
     useEffect(() => {
@@ -524,9 +549,24 @@ export function ChatClient({
                                     )}
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-slate-900 text-sm">
-                                        {activeConversation.otherParty.name}
-                                    </h3>
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="font-bold text-slate-900 text-sm">
+                                            {activeConversation.otherParty.name}
+                                        </h3>
+                                        {buyerBand && (
+                                            <span
+                                                title="Reputasi pembeli berdasarkan riwayat transaksi & rating"
+                                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${buyerBand === "HIGH"
+                                                    ? "bg-emerald-100 text-emerald-700"
+                                                    : buyerBand === "LOW"
+                                                        ? "bg-rose-100 text-rose-700"
+                                                        : "bg-slate-100 text-slate-600"
+                                                    }`}
+                                            >
+                                                {buyerBand === "HIGH" ? "Risiko Rendah" : buyerBand === "LOW" ? "Risiko Tinggi" : "Risiko Sedang"}
+                                            </span>
+                                        )}
+                                    </div>
                                     {chatRatingInfo && <p className="text-[11px] text-emerald-600 mt-0.5">{chatRatingInfo}</p>}
                                     {chatRatingError && <p className="text-[11px] text-rose-600 mt-0.5">{chatRatingError}</p>}
                                 </div>

@@ -444,3 +444,42 @@ export async function getUnreadCount(): Promise<number> {
     }
 }
 
+
+// ============================================
+// PDP-09 (chat surface): buyer reputation band for the SELLER viewing a chat.
+// ============================================
+// Returns the buyer's reputation band for a conversation, but ONLY when the
+// caller is that conversation's SELLER. Delegates to getBuyerReputationSummary,
+// which enforces the rate-limit (60/min), interaction-required check, audit log,
+// and visibility resolution. Returns null when not applicable (caller is the
+// buyer, no access, or no reputation data) so the UI simply shows no chip.
+//
+// IMPORTANT: call this ONCE when a conversation is opened, not on every chat
+// poll — each call consumes the reputation rate-limit budget and writes an
+// access-log row.
+export async function getChatBuyerReputation(
+    conversationId: string
+): Promise<{ band: "LOW" | "MEDIUM" | "HIGH" } | null> {
+    const user = await getCurrentUser();
+
+    const conversation = await db.query.conversations.findFirst({
+        where: eq(conversations.id, conversationId),
+        columns: { id: true, buyer_id: true, seller_id: true },
+    });
+    if (!conversation) return null;
+
+    // Only the seller may see the buyer's reputation band.
+    if (conversation.seller_id !== user.id) return null;
+
+    try {
+        const { getBuyerReputationSummary } = await import("@/actions/reputation");
+        const rep = await getBuyerReputationSummary(conversation.buyer_id);
+        if (rep && rep.visibility !== "none" && rep.band) {
+            return { band: rep.band };
+        }
+        return null;
+    } catch {
+        // rate-limited / no interaction / error — no chip
+        return null;
+    }
+}

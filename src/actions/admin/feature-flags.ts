@@ -17,6 +17,7 @@ const FLAG_REGISTRY = [
     { key: "pdp.review_thumbnail", description: "Review product thumbnail via CACHE-03 (PDP-05)", category: "pdp" },
     { key: "pdp.buyer_rating", description: "Seller rates buyer flow (PDP-08)", category: "trust" },
     { key: "pdp.buyer_reputation", description: "Buyer reputation aggregation (PDP-09)", category: "trust" },
+    { key: "pdp.buyer_reputation_chat", description: "Buyer reputation band di header chat untuk seller (PDP-09)", category: "trust" },
     { key: "pdp.dispute_rating", description: "Dispute buyer rating workflow (PDP-10)", category: "trust" },
     { key: "dif.smart_offer_guardrail", description: "Smart offer guardrail + win probability (DIF-01)", category: "differentiator" },
     { key: "dif.seller_reliability_score", description: "Seller reliability composite score (DIF-02)", category: "differentiator" },
@@ -161,7 +162,7 @@ export async function ensureInitialFeatureFlags() {
     await db
         .update(feature_flags)
         .set({ parent_key: "pdp.buyer_reputation", updated_at: new Date() })
-        .where(eq(feature_flags.key, "dif.tier_floor_price"));
+        .where(or(eq(feature_flags.key, "dif.tier_floor_price"), eq(feature_flags.key, "pdp.buyer_reputation_chat")));
     await db
         .update(feature_flags)
         .set({ parent_key: "pdp.buyer_rating", updated_at: new Date() })
