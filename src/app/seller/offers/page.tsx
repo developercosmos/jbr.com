@@ -2,6 +2,7 @@ import { listSellerOffers } from "@/actions/offers";
 import { getSellerProfileByUserId } from "@/actions/seller";
 import { getBuyerReputationSummary } from "@/actions/reputation";
 import { canAccessSellerCenter } from "@/lib/seller";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -22,18 +23,32 @@ export default async function SellerOffersPage() {
     const firstRelation = <T,>(value: T | T[] | null | undefined): T | null =>
         Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
 
-    // DIF-07/PDP-09: fetch buyer reputation band per unique buyer (best-effort —
-    // the access-controlled summary can throw on rate limit / no-interaction).
-    const uniqueBuyerIds = Array.from(
-        new Set(offers.map((o) => firstRelation(o.buyer)?.id).filter((x): x is string => Boolean(x)))
-    );
+    // PDP-09: surface the buyer reputation Risk band to the seller — gated behind
+    // pdp.buyer_reputation (the flag was previously never enforced). When the flag
+    // is off we skip the fetch entirely (no access-log writes, no extra queries).
+    const reputationEnabled = await isFeatureEnabled("pdp.buyer_reputation", {
+        userId: session.user.id,
+        role: (session.user as { role?: string }).role,
+    });
+
+    // Fetch the band per unique buyer (best-effort — the access-controlled summary
+    // can throw on rate limit / no-interaction). Only record a band when the
+    // summary is actually visible to this seller (visibility !== "none"); a "none"
+    // result means there is no reputation data yet, so we show no chip.
     const bandByBuyer = new Map<string, "LOW" | "MEDIUM" | "HIGH">();
-    for (const bid of uniqueBuyerIds) {
-        try {
-            const rep = await getBuyerReputationSummary(bid);
-            if (rep?.band) bandByBuyer.set(bid, rep.band);
-        } catch {
-            // access denied / rate limited — skip band for this buyer
+    if (reputationEnabled) {
+        const uniqueBuyerIds = Array.from(
+            new Set(offers.map((o) => firstRelation(o.buyer)?.id).filter((x): x is string => Boolean(x)))
+        );
+        for (const bid of uniqueBuyerIds) {
+            try {
+                const rep = await getBuyerReputationSummary(bid);
+                if (rep && rep.visibility !== "none" && rep.band) {
+                    bandByBuyer.set(bid, rep.band);
+                }
+            } catch {
+                // access denied / rate limited — skip band for this buyer
+            }
         }
     }
 
