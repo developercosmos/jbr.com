@@ -58,3 +58,7 @@ DO $$ BEGIN
             FOREIGN KEY ("scope_category_id") REFERENCES "categories"("id") ON DELETE SET NULL NOT VALID;
     END IF;
 END $$;
+--> statement-breakpoint
+
+-- 8. Notification preferences: promo/marketing email opt-in (opt-out model).
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "email_promo_opt_in" boolean DEFAULT true NOT NULL;

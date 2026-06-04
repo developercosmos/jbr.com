@@ -115,6 +115,40 @@ export interface SendEmailOptions {
     html: string;
 }
 
+/**
+ * Generic re-engagement / marketing email (price-drop, cart abandonment, weekly
+ * digest, etc.). Reuses the in-app notification's title + message so copy stays
+ * consistent. Caller is responsible for honoring the recipient's opt-in.
+ */
+export async function sendReEngagementEmail(params: {
+    to: string;
+    name?: string | null;
+    title: string;
+    message: string;
+    ctaLabel?: string;
+    ctaUrl?: string;
+}): Promise<boolean> {
+    const greeting = params.name ? `Halo ${esc(params.name)},` : "Halo,";
+    const cta = params.ctaUrl
+        ? `<p style="text-align:center;"><a href="${params.ctaUrl}" class="button">${esc(params.ctaLabel || "Lihat")}</a></p>`
+        : "";
+    const content = `
+        <h2>${esc(params.title)}</h2>
+        <p>${greeting}</p>
+        <p>${esc(params.message)}</p>
+        ${cta}
+        <p style="font-size:12px;color:#94a3b8;margin-top:24px;">
+            Anda menerima email ini karena mengaktifkan notifikasi promo. Anda bisa
+            menonaktifkannya kapan saja di Pengaturan Akun.
+        </p>
+    `;
+    return sendEmail({
+        to: params.to,
+        subject: params.title,
+        html: getBaseTemplate(content),
+    });
+}
+
 async function sendEmail(options: SendEmailOptions): Promise<boolean> {
     const from = `"${APP_NAME}" <${FROM_EMAIL}>`;
 

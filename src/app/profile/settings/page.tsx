@@ -26,6 +26,7 @@ export default async function ProfileSettingsPage() {
                 image: true,
                 phone: true,
                 locale: true,
+                email_promo_opt_in: true,
             },
         }),
         db.query.addresses.findFirst({
@@ -77,6 +78,7 @@ export default async function ProfileSettingsPage() {
                 user={{
                     ...user,
                     phone: resolvedPhone,
+                    emailPromoOptIn: user.email_promo_opt_in,
                 }}
             />
         </div>

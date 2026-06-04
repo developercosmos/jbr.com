@@ -1,17 +1,26 @@
 "use server";
 
 import { db } from "@/db";
-import { notifications } from "@/db/schema";
+import { notifications, users } from "@/db/schema";
 import {
     sendNewOrderNotificationToSeller,
     sendOrderConfirmationEmail,
     sendOrderDeliveredEmail,
     sendPaymentSuccessEmail,
     sendShippingNotificationEmail,
+    sendReEngagementEmail,
 } from "@/lib/email";
 import { enqueue } from "@/lib/queue";
 import { logger } from "@/lib/logger";
 import { eq } from "drizzle-orm";
+
+// Promo/marketing-style events: emailed only to users who opted in
+// (email_promo_opt_in). Transactional events are emailed unconditionally above.
+const PROMO_EVENTS = new Set([
+    "WISHLIST_PRICE_DROP",
+    "CART_ABANDONMENT_REMINDER",
+    "SELLER_WEEKLY_DIGEST",
+]);
 
 type NotifyInput =
     | {
@@ -510,6 +519,27 @@ export async function notify(input: NotifyInput) {
             await emailPromise;
         } catch (error) {
             logger.error("notify:email_failed", { event: input.event, error: String(error) });
+        }
+    }
+
+    // Re-engagement email for promo-category events — opt-in gated. These events
+    // only carry recipientUserId, so look up the address + preference here.
+    if (PROMO_EVENTS.has(input.event)) {
+        try {
+            const recipient = await db.query.users.findFirst({
+                where: eq(users.id, input.recipientUserId),
+                columns: { email: true, name: true, email_promo_opt_in: true },
+            });
+            if (recipient?.email && recipient.email_promo_opt_in) {
+                await sendReEngagementEmail({
+                    to: recipient.email,
+                    name: recipient.name,
+                    title,
+                    message,
+                });
+            }
+        } catch (error) {
+            logger.error("notify:promo_email_failed", { event: input.event, error: String(error) });
         }
     }
 

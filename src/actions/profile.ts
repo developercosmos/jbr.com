@@ -28,6 +28,7 @@ const updateProfileSchema = z.object({
         .transform((value) => value || "")
         .refine((value) => value === "" || isAllowedAvatarUrl(value), "Avatar harus berasal dari domain aplikasi atau bucket S3 yang dikonfigurasi"),
     locale: z.enum(["id-ID", "en-US"]),
+    emailPromoOptIn: z.boolean().optional(),
     currentPassword: z
         .string()
         .optional()
@@ -150,6 +151,7 @@ export async function updateProfile(input: z.input<typeof updateProfileSchema>) 
             phone: encryptPdpField(validated.phone),
             image: validated.avatarUrl || null,
             locale: validated.locale,
+            ...(validated.emailPromoOptIn !== undefined ? { email_promo_opt_in: validated.emailPromoOptIn } : {}),
             updated_at: new Date(),
         })
         .where(eq(users.id, sessionUser.id))

@@ -95,6 +95,10 @@ export const users = pgTable(
         store_reviewer_id: text("store_reviewer_id").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
         buyer_score: decimal("buyer_score", { precision: 3, scale: 2 }).default("0").notNull(),
         buyer_score_count: integer("buyer_score_count").default(0).notNull(),
+        // Notification preferences. Transactional emails are always sent; only
+        // promo/marketing-style emails (digest, price-drop, abandonment) honor this.
+        // Opt-out model: default true.
+        email_promo_opt_in: boolean("email_promo_opt_in").default(true).notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
         updated_at: timestamp("updated_at").defaultNow().notNull(),
     },

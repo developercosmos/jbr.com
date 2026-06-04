@@ -21,6 +21,8 @@ interface SerializedOffer {
     listing: { id: string; title: string; slug: string; price: string } | null;
     buyerId: string | null;
     buyerName: string | null;
+    intentScore: number | null;
+    buyerBand: "LOW" | "MEDIUM" | "HIGH" | null;
 }
 
 interface Props {
@@ -192,6 +194,27 @@ export default function OffersInboxClient({ offers }: Props) {
                                     <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800">
                                         Ronde {offer.round}
                                     </span>
+                                    {offer.intentScore != null && offer.intentScore < 35 && (
+                                        <span
+                                            title={`Skor niat pembeli ${offer.intentScore}/100 — tawaran cepat, kemungkinan kurang serius`}
+                                            className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
+                                        >
+                                            ⚡ Quick offer
+                                        </span>
+                                    )}
+                                    {offer.buyerBand && (
+                                        <span
+                                            title="Reputasi pembeli berdasarkan riwayat transaksi & rating"
+                                            className={`text-xs font-semibold px-2 py-0.5 rounded-full ${offer.buyerBand === "HIGH"
+                                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                                                : offer.buyerBand === "LOW"
+                                                    ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
+                                                    : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                                                }`}
+                                        >
+                                            {offer.buyerBand === "HIGH" ? "Risiko Rendah" : offer.buyerBand === "LOW" ? "Risiko Tinggi" : "Risiko Sedang"}
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="text-xs text-slate-500">
                                     Buyer: {offer.buyerName ?? "—"} · Tawar: <strong>Rp {offer.amount.toLocaleString("id-ID")}</strong>

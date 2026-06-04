@@ -13,6 +13,7 @@ interface UserData {
     image?: string | null;
     phone?: string | null;
     locale?: string | null;
+    emailPromoOptIn?: boolean;
 }
 
 interface FormState {
@@ -52,7 +53,7 @@ export function SettingsForm({ user }: { user: UserData }) {
         newPassword: "",
         confirmPassword: "",
         emailTransactions: true,
-        emailPromo: false,
+        emailPromo: user.emailPromoOptIn ?? true,
     });
 
     const handleSave = (e: React.FormEvent) => {
@@ -82,6 +83,7 @@ export function SettingsForm({ user }: { user: UserData }) {
                     phone: formData.phone,
                     avatarUrl: formData.avatarUrl,
                     locale: formData.locale,
+                    emailPromoOptIn: formData.emailPromo,
                     currentPassword: formData.currentPassword,
                     newPassword: formData.newPassword,
                 });
