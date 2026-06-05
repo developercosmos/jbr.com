@@ -19,6 +19,7 @@ import { db } from "@/db";
 import { sales_register } from "@/db/schema";
 import { postJournal, type PostJournalResult, type JournalLineInput } from "./journals";
 import { getSetting } from "./settings";
+import { resolveAccount } from "./account-map";
 import { r2, deriveFeeTax } from "./posting-internal";
 
 // ---------------------------------------------------------------------------
@@ -70,6 +71,11 @@ export async function postOrderPayment(
     const gross = r2(input.grossAmount);
     if (gross <= 0) throw new Error("postOrderPayment: grossAmount must be > 0");
 
+    const [pgCash, escrow] = await Promise.all([
+        resolveAccount("payment_gateway_cash", input.paidAt),
+        resolveAccount("escrow", input.paidAt),
+    ]);
+
     return postJournal({
         source: "AUTO_PAYMENT",
         description: `Buyer payment received — order ${input.orderId}`,
@@ -79,12 +85,12 @@ export async function postOrderPayment(
         postedAt: input.paidAt,
         lines: [
             {
-                accountCode: "11300",
+                accountCode: pgCash,
                 debit: gross,
                 memo: `Kas PG (${input.paymentMethod ?? "Xendit"})`,
             },
             {
-                accountCode: "23000",
+                accountCode: escrow,
                 credit: gross,
                 memo: "Escrow buyer (deferred revenue)",
                 partnerUserId: null,
@@ -146,6 +152,12 @@ export async function postOrderRelease(
     if (!input.items?.length) throw new Error("postOrderRelease: items required");
 
     const tax = await loadTaxContext(input.completedAt);
+    const [acEscrow, acSellerWallet, acOrderRevenue, acPpnOut] = await Promise.all([
+        resolveAccount("escrow", input.completedAt),
+        resolveAccount("seller_wallet_payable", input.completedAt),
+        resolveAccount("order_revenue", input.completedAt),
+        resolveAccount("ppn_out", input.completedAt),
+    ]);
 
     let totalFeeGross = 0;
     let totalFeeDpp = 0;
@@ -175,12 +187,12 @@ export async function postOrderRelease(
 
     const lines: JournalLineInput[] = [
         {
-            accountCode: "23000",
+            accountCode: acEscrow,
             debit: grossPaid,
             memo: `Release escrow order ${input.orderId}`,
         },
         {
-            accountCode: "22000",
+            accountCode: acSellerWallet,
             credit: sellerNetTotal,
             memo: `Net to seller wallet`,
             partnerUserId: input.sellerId,
@@ -189,14 +201,14 @@ export async function postOrderRelease(
     ];
     if (totalFeeDpp > 0) {
         lines.push({
-            accountCode: "41000",
+            accountCode: acOrderRevenue,
             credit: totalFeeDpp,
             memo: "Komisi marketplace (DPP)",
         });
     }
     if (totalFeePpn > 0) {
         lines.push({
-            accountCode: "24100",
+            accountCode: acPpnOut,
             credit: totalFeePpn,
             memo: "PPN Keluaran atas komisi",
         });
@@ -308,6 +320,10 @@ export async function postOrderRefund(
 ): Promise<PostJournalResult> {
     const amount = r2(input.amount);
     if (amount <= 0) throw new Error("postOrderRefund: amount must be > 0");
+    const [acEscrow, acRefundPayable] = await Promise.all([
+        resolveAccount("escrow", input.refundedAt),
+        resolveAccount("refund_payable", input.refundedAt),
+    ]);
     return postJournal({
         source: "AUTO_REFUND",
         description: `Refund obligation — order ${input.orderId}`,
@@ -316,8 +332,8 @@ export async function postOrderRefund(
         idempotencyKey: `ORDER_REFUND:${input.refundId}`,
         postedAt: input.refundedAt,
         lines: [
-            { accountCode: "23000", debit: amount, memo: "Release escrow → refund" },
-            { accountCode: "22100", credit: amount, memo: "Utang refund ke buyer" },
+            { accountCode: acEscrow, debit: amount, memo: "Release escrow → refund" },
+            { accountCode: acRefundPayable, credit: amount, memo: "Utang refund ke buyer" },
         ],
     });
 }
@@ -329,6 +345,10 @@ export async function postOrderRefundDisbursement(input: {
 }): Promise<PostJournalResult> {
     const amount = r2(input.amount);
     if (amount <= 0) throw new Error("postOrderRefundDisbursement: amount must be > 0");
+    const [acRefundPayable, acOperatingCash] = await Promise.all([
+        resolveAccount("refund_payable", input.disbursedAt),
+        resolveAccount("operating_cash", input.disbursedAt),
+    ]);
     return postJournal({
         source: "AUTO_REFUND",
         description: `Refund disbursed — ${input.refundId}`,
@@ -337,8 +357,8 @@ export async function postOrderRefundDisbursement(input: {
         idempotencyKey: `ORDER_REFUND_PAID:${input.refundId}`,
         postedAt: input.disbursedAt,
         lines: [
-            { accountCode: "22100", debit: amount, memo: "Settle refund obligation" },
-            { accountCode: "11100", credit: amount, memo: "Cash out from operating bank" },
+            { accountCode: acRefundPayable, debit: amount, memo: "Settle refund obligation" },
+            { accountCode: acOperatingCash, credit: amount, memo: "Cash out from operating bank" },
         ],
     });
 }
@@ -365,9 +385,15 @@ export async function postPayout(input: PostPayoutInput): Promise<PostJournalRes
     const bankFee = r2(input.bankFee || 0);
     const totalCash = r2(amount + bankFee);
 
+    const [acSellerWallet, acBankFee, acOperatingCash] = await Promise.all([
+        resolveAccount("seller_wallet_payable", input.paidAt),
+        resolveAccount("bank_fee_expense", input.paidAt),
+        resolveAccount("operating_cash", input.paidAt),
+    ]);
+
     const lines: JournalLineInput[] = [
         {
-            accountCode: "22000",
+            accountCode: acSellerWallet,
             debit: amount,
             memo: `Payout to seller`,
             partnerUserId: input.sellerId,
@@ -376,13 +402,13 @@ export async function postPayout(input: PostPayoutInput): Promise<PostJournalRes
     ];
     if (bankFee > 0) {
         lines.push({
-            accountCode: "65100",
+            accountCode: acBankFee,
             debit: bankFee,
             memo: "Bank transfer fee",
         });
     }
     lines.push({
-        accountCode: "11100",
+        accountCode: acOperatingCash,
         credit: totalCash,
         memo: "Cash out from operating bank",
     });
@@ -407,11 +433,12 @@ export async function postPayout(input: PostPayoutInput): Promise<PostJournalRes
 //   CR 24100 PPN Keluaran                         (PPN, jika PKP)
 // ===========================================================================
 export type FeeKind = "LISTING" | "PROMOTED" | "SUBSCRIPTION" | "CONVENIENCE";
-const FEE_REVENUE_ACCOUNT: Record<FeeKind, string> = {
-    LISTING: "41100",
-    PROMOTED: "41200",
-    SUBSCRIPTION: "41300",
-    CONVENIENCE: "41500",
+// Maps a fee kind to its account *slot* (resolved at post time, override-aware).
+const FEE_REVENUE_SLOT: Record<FeeKind, string> = {
+    LISTING: "fee_revenue_listing",
+    PROMOTED: "fee_revenue_promoted",
+    SUBSCRIPTION: "fee_revenue_subscription",
+    CONVENIENCE: "fee_revenue_convenience",
 };
 
 export interface PostFeeInput {
@@ -428,7 +455,11 @@ export async function postFee(input: PostFeeInput): Promise<PostJournalResult> {
     if (gross <= 0) throw new Error("postFee: amount must be > 0");
     const tax = await loadTaxContext(input.chargedAt);
     const { dpp, ppn } = deriveFeeTax(gross, tax.ppnRate, tax.ppnMethod, tax.isPkp);
-    const debitAccount = input.paid === false ? "12100" : "11100";
+    const [debitAccount, revenueAccount, acPpnOut] = await Promise.all([
+        resolveAccount(input.paid === false ? "receivable" : "operating_cash", input.chargedAt),
+        resolveAccount(FEE_REVENUE_SLOT[input.kind], input.chargedAt),
+        resolveAccount("ppn_out", input.chargedAt),
+    ]);
 
     const lines: JournalLineInput[] = [
         {
@@ -439,14 +470,14 @@ export async function postFee(input: PostFeeInput): Promise<PostJournalResult> {
             partnerRole: input.sellerId ? "SELLER" : null,
         },
         {
-            accountCode: FEE_REVENUE_ACCOUNT[input.kind],
+            accountCode: revenueAccount,
             credit: dpp,
             memo: `Pendapatan ${input.kind}`,
         },
     ];
     if (ppn > 0) {
         lines.push({
-            accountCode: "24100",
+            accountCode: acPpnOut,
             credit: ppn,
             memo: "PPN Keluaran atas fee",
         });
@@ -493,6 +524,10 @@ export async function postAffiliateCommissionAccrual(
 ): Promise<PostJournalResult> {
     const amount = r2(input.commission);
     if (amount <= 0) throw new Error("postAffiliateCommissionAccrual: commission must be > 0");
+    const [acAffExpense, acAffPayable] = await Promise.all([
+        resolveAccount("affiliate_commission_expense", input.accruedAt),
+        resolveAccount("affiliate_payable", input.accruedAt),
+    ]);
     return postJournal({
         source: "AUTO_AFFILIATE",
         description: `Affiliate commission accrual — ${input.attributionId}`,
@@ -501,9 +536,9 @@ export async function postAffiliateCommissionAccrual(
         idempotencyKey: `AFF_ACCRUAL:${input.attributionId}`,
         postedAt: input.accruedAt,
         lines: [
-            { accountCode: "66000", debit: amount, memo: "Beban komisi affiliate" },
+            { accountCode: acAffExpense, debit: amount, memo: "Beban komisi affiliate" },
             {
-                accountCode: "22200",
+                accountCode: acAffPayable,
                 credit: amount,
                 memo: "Utang komisi affiliate",
                 partnerUserId: input.affiliateUserId,
@@ -533,23 +568,29 @@ export async function postAffiliatePayment(
     const cash = r2(gross - wh);
     if (cash < 0) throw new Error("postAffiliatePayment: withholding exceeds gross");
 
+    const [acAffPayable, acOperatingCash] = await Promise.all([
+        resolveAccount("affiliate_payable", input.paidAt),
+        resolveAccount("operating_cash", input.paidAt),
+    ]);
+
     const lines: JournalLineInput[] = [
         {
-            accountCode: "22200",
+            accountCode: acAffPayable,
             debit: gross,
             memo: "Settle commission payable",
             partnerUserId: input.affiliateUserId,
             partnerRole: "AFFILIATE",
         },
-        { accountCode: "11100", credit: cash, memo: "Cash out to affiliate" },
+        { accountCode: acOperatingCash, credit: cash, memo: "Cash out to affiliate" },
     ];
     if (wh > 0) {
-        const whAccount =
+        const whSlot =
             input.withholdingKind === "PPH_21"
-                ? "24300"
+                ? "wht_pph21"
                 : input.withholdingKind === "PPH_4_2"
-                  ? "24400"
-                  : "24200";
+                  ? "wht_pph42"
+                  : "wht_pph23";
+        const whAccount = await resolveAccount(whSlot, input.paidAt);
         lines.push({
             accountCode: whAccount,
             credit: wh,
@@ -576,6 +617,10 @@ export async function postAffiliateCommissionReverse(input: {
 }): Promise<PostJournalResult> {
     const amount = r2(input.commission);
     if (amount <= 0) throw new Error("postAffiliateCommissionReverse: commission must be > 0");
+    const [acAffPayable, acAffExpense] = await Promise.all([
+        resolveAccount("affiliate_payable", input.reversedAt),
+        resolveAccount("affiliate_commission_expense", input.reversedAt),
+    ]);
     return postJournal({
         source: "AUTO_AFFILIATE",
         description: `Affiliate commission reversal — ${input.attributionId}`,
@@ -585,13 +630,13 @@ export async function postAffiliateCommissionReverse(input: {
         postedAt: input.reversedAt,
         lines: [
             {
-                accountCode: "22200",
+                accountCode: acAffPayable,
                 debit: amount,
                 memo: "Reverse commission payable",
                 partnerUserId: input.affiliateUserId,
                 partnerRole: "AFFILIATE",
             },
-            { accountCode: "66000", credit: amount, memo: "Reverse commission expense" },
+            { accountCode: acAffExpense, credit: amount, memo: "Reverse commission expense" },
         ],
     });
 }

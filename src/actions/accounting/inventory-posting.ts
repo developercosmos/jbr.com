@@ -24,6 +24,7 @@
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
 import { postJournal, type PostJournalResult } from "./journals";
+import { resolveAccount } from "./account-map";
 
 export interface InventoryReceiptInput {
     itemId: string;
@@ -168,7 +169,13 @@ export async function postInventoryReceipt(
     if (input.unitCost < 0) throw new Error("unitCost must be >= 0");
     const item = await loadItem(input.itemId);
     const total = round2(input.qty * input.unitCost);
-    const credAccount = input.paymentMode === "CASH" ? "11100" : "21100";
+    const [acInventory, credAccount] = await Promise.all([
+        resolveAccount("inventory_asset", input.occurredAt),
+        resolveAccount(
+            input.paymentMode === "CASH" ? "operating_cash" : "inventory_payable",
+            input.occurredAt
+        ),
+    ]);
 
     const result = await postJournal({
         source: "IMPORT",
@@ -179,7 +186,7 @@ export async function postInventoryReceipt(
         postedAt: input.occurredAt,
         createdBy: input.createdBy,
         lines: [
-            { accountCode: "13100", debit: total, memo: input.memo ?? "Inventory receipt" },
+            { accountCode: acInventory, debit: total, memo: input.memo ?? "Inventory receipt" },
             { accountCode: credAccount, credit: total, memo: input.memo ?? "Inventory receipt" },
         ],
     });
@@ -209,6 +216,10 @@ export async function postCogsOnSale(input: CogsOnSaleInput): Promise<PostJourna
     }
     const avg = Number(item.avg_unit_cost);
     const total = round2(input.qty * avg);
+    const [acCogs, acInventory] = await Promise.all([
+        resolveAccount("cogs", input.occurredAt),
+        resolveAccount("inventory_asset", input.occurredAt),
+    ]);
 
     const result = await postJournal({
         source: "AUTO_ORDER",
@@ -219,8 +230,8 @@ export async function postCogsOnSale(input: CogsOnSaleInput): Promise<PostJourna
         postedAt: input.occurredAt,
         createdBy: input.createdBy,
         lines: [
-            { accountCode: "51100", debit: total, memo: input.memo ?? "COGS on sale" },
-            { accountCode: "13100", credit: total, memo: input.memo ?? "COGS on sale" },
+            { accountCode: acCogs, debit: total, memo: input.memo ?? "COGS on sale" },
+            { accountCode: acInventory, credit: total, memo: input.memo ?? "COGS on sale" },
         ],
     });
 
@@ -252,17 +263,21 @@ export async function postInventoryAdjustment(
     if (unitCost < 0) throw new Error("unitCost must be >= 0");
     const total = round2(Math.abs(input.qtyDelta) * unitCost);
 
-    // Loss / opname-minus → DR 69000 (Beban Lain-lain) / CR 13100
-    // Opname-plus / found → DR 13100 / CR 49000? we use 32000 (saldo laba) too aggressive.
-    //   Use 69000 reversal (DR negative) — simpler: DR 13100 / CR 69000 (mengurangi beban).
+    const [acInventory, acShrinkage] = await Promise.all([
+        resolveAccount("inventory_asset", input.occurredAt),
+        resolveAccount("inventory_shrinkage", input.occurredAt),
+    ]);
+
+    // Loss / opname-minus → DR shrinkage (Beban Lain-lain) / CR inventory
+    // Opname-plus / found → DR inventory / CR shrinkage (mengurangi beban).
     const lines = isPositive
         ? [
-              { accountCode: "13100", debit: total, memo: input.memo ?? `Adj ${input.reason}` },
-              { accountCode: "69000", credit: total, memo: input.memo ?? `Adj ${input.reason}` },
+              { accountCode: acInventory, debit: total, memo: input.memo ?? `Adj ${input.reason}` },
+              { accountCode: acShrinkage, credit: total, memo: input.memo ?? `Adj ${input.reason}` },
           ]
         : [
-              { accountCode: "69000", debit: total, memo: input.memo ?? `Adj ${input.reason}` },
-              { accountCode: "13100", credit: total, memo: input.memo ?? `Adj ${input.reason}` },
+              { accountCode: acShrinkage, debit: total, memo: input.memo ?? `Adj ${input.reason}` },
+              { accountCode: acInventory, credit: total, memo: input.memo ?? `Adj ${input.reason}` },
           ];
 
     const result = await postJournal({

@@ -24,6 +24,8 @@ import { db } from "@/db";
 import { coa_accounts, journal_lines } from "@/db/schema-accounting";
 import { requireAdminFinanceSession } from "@/lib/admin-finance";
 import { recordFinanceAudit } from "@/actions/accounting/audit";
+import { setSetting } from "@/actions/accounting/settings";
+import { ACCOUNT_SLOTS } from "@/actions/accounting/account-map-registry";
 
 const ACCOUNT_CLASSES = [
     "ASSET",
@@ -224,6 +226,58 @@ export async function updateCoaAccount(
         targetType: "coa_account",
         targetId: v.id,
         payload: { code: account.code, name: v.name, is_postable: v.is_postable, is_active: v.is_active },
+    });
+
+    revalidatePath("/admin/finance/accounts");
+    return { success: true };
+}
+
+// ===========================================================================
+// Account mapping override — point a transaction "slot" at a specific account.
+// ===========================================================================
+const SLOT_KEYS = new Set(ACCOUNT_SLOTS.map((s) => s.slot));
+
+const setMappingSchema = z.object({
+    slot: z.string().min(1),
+    code: z
+        .string()
+        .trim()
+        .regex(/^[0-9]{4,10}$/, "Kode akun harus 4–10 digit angka"),
+});
+
+export async function setAccountMapping(
+    input: z.infer<typeof setMappingSchema>
+): Promise<{ success: true } | { success: false; error: string }> {
+    const admin = await requireAdminFinanceSession();
+    const parsed = setMappingSchema.safeParse(input);
+    if (!parsed.success) {
+        return { success: false, error: parsed.error.issues[0]?.message ?? "Input tidak valid" };
+    }
+    const { slot, code } = parsed.data;
+
+    if (!SLOT_KEYS.has(slot)) {
+        return { success: false, error: `Slot transaksi "${slot}" tidak dikenal.` };
+    }
+
+    // The target account must exist, be active, and be postable — otherwise a
+    // future auto-posting would fail when it resolves to this code.
+    const account = await db.query.coa_accounts.findFirst({
+        where: eq(coa_accounts.code, code),
+        columns: { code: true, is_active: true, is_postable: true },
+    });
+    if (!account) return { success: false, error: `Akun dengan kode ${code} tidak ada di Chart of Accounts.` };
+    if (!account.is_active) return { success: false, error: `Akun ${code} non-aktif.` };
+    if (!account.is_postable) return { success: false, error: `Akun ${code} tidak bisa di-posting (is_postable=false).` };
+
+    await setSetting(`gl.account.${slot}`, code, { updatedBy: admin.userId, notes: "account mapping override" });
+
+    await recordFinanceAudit({
+        action: "COA_MAPPING_SET",
+        actorId: admin.userId,
+        actorEmail: admin.email,
+        targetType: "account_slot",
+        targetId: slot,
+        payload: { slot, code },
     });
 
     revalidatePath("/admin/finance/accounts");
