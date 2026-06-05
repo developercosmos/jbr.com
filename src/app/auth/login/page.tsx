@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Zap, ArrowRight, Lock, Mail, Loader2, AlertCircle, Send } from "lucide-react";
 import { signIn } from "@/lib/auth-client";
@@ -25,6 +25,19 @@ function getSafeCallbackUrl(value: string | null): string {
     return "/";
 }
 
+// Google (and most OAuth providers) reject a redirect_uri whose host is a raw IP
+// literal — only loopback (localhost / 127.0.0.1) is allowed. So when the app is
+// opened via a private LAN IP (e.g. http://192.168.1.225:3000), the Google flow
+// fails with "device_id and device_name are required for private IP". In that
+// case we hand the sign-in off to the canonical public domain instead.
+function isOAuthUnsafeHost(hostname: string): boolean {
+    const isIpLiteral = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) || hostname.includes(":");
+    const isLoopback = hostname === "127.0.0.1" || hostname === "::1" || hostname === "localhost";
+    return isIpLiteral && !isLoopback;
+}
+
+const CANONICAL_ORIGIN = (process.env.NEXT_PUBLIC_APP_URL || "https://jualbeliraket.com").replace(/\/+$/, "");
+
 export default function LoginPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -33,6 +46,7 @@ export default function LoginPage() {
     const [needsVerification, setNeedsVerification] = useState(false);
     const [resendLoading, setResendLoading] = useState(false);
     const [resendSuccess, setResendSuccess] = useState(false);
+    const [oauthUnsafe, setOauthUnsafe] = useState(false);
     const submitLockRef = useRef(false);
     const tiktokEnabled = process.env.NEXT_PUBLIC_ENABLE_TIKTOK_LOGIN === "true";
 
@@ -112,8 +126,32 @@ export default function LoginPage() {
 
     const handleSocialLogin = async (provider: "google" | "tiktok") => {
         setError("");
-        setLoading(true);
 
+        // On a private-IP host the OAuth redirect_uri would be a private IP, which
+        // Google rejects. Continue the flow on the canonical public domain (same
+        // app + DB) where the registered redirect URI is valid.
+        if (oauthUnsafe) {
+            try {
+                const current = new URLSearchParams(window.location.search);
+                const cb = current.get("callbackUrl") || current.get("redirect");
+                const target = new URL("/auth/login", CANONICAL_ORIGIN);
+                if (cb) target.searchParams.set("callbackUrl", cb);
+                target.searchParams.set("sso", provider);
+                if (target.origin !== window.location.origin) {
+                    setLoading(true);
+                    window.location.href = target.toString();
+                    return;
+                }
+            } catch {
+                // fall through to the explanatory error
+            }
+            setError(
+                `Login Google/TikTok tidak bisa dipakai saat membuka situs lewat alamat IP. Gunakan email & password, atau buka ${CANONICAL_ORIGIN}.`
+            );
+            return;
+        }
+
+        setLoading(true);
         try {
             const searchParams = new URLSearchParams(window.location.search);
             const callbackUrl = getSafeCallbackUrl(searchParams.get("callbackUrl") || searchParams.get("redirect"));
@@ -126,6 +164,32 @@ export default function LoginPage() {
             setLoading(false);
         }
     };
+
+    // Detect IP-literal hosts (where Google OAuth is blocked) and, if we were
+    // bounced here from such a host to finish social sign-in, resume it now.
+    useEffect(() => {
+        const unsafe = isOAuthUnsafeHost(window.location.hostname);
+        setOauthUnsafe(unsafe);
+        if (unsafe) return;
+
+        const params = new URLSearchParams(window.location.search);
+        const sso = params.get("sso");
+        if (sso === "google" || sso === "tiktok") {
+            // Strip ?sso so a refresh/back doesn't re-trigger the redirect.
+            params.delete("sso");
+            const qs = params.toString();
+            window.history.replaceState(null, "", window.location.pathname + (qs ? `?${qs}` : ""));
+            setLoading(true);
+            const searchParams = new URLSearchParams(window.location.search);
+            const callbackUrl = getSafeCallbackUrl(searchParams.get("callbackUrl") || searchParams.get("redirect"));
+            void signIn
+                .social({ provider: sso, callbackURL: callbackUrl })
+                .catch(() => {
+                    setError("Terjadi kesalahan. Silakan coba lagi.");
+                    setLoading(false);
+                });
+        }
+    }, []);
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-black/20 p-4">
@@ -269,6 +333,19 @@ export default function LoginPage() {
                         </span>
                     </div>
                 </div>
+
+                {/* Notice when opened via a raw IP (Google OAuth blocks private IPs) */}
+                {oauthUnsafe && (
+                    <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+                        <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                        <span>
+                            Anda membuka situs lewat alamat IP, jadi login Google/TikTok akan dilanjutkan di
+                            domain resmi{" "}
+                            <span className="font-semibold">{CANONICAL_ORIGIN.replace(/^https?:\/\//, "")}</span>.
+                            Untuk tetap di sini, gunakan email &amp; password.
+                        </span>
+                    </div>
+                )}
 
                 {/* Social Login */}
                 <div className={`grid gap-4 ${tiktokEnabled ? "grid-cols-2" : "grid-cols-1"}`}>
