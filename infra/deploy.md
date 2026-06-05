@@ -77,6 +77,51 @@ Backup files written by previous edits live next to the originals with `.bak` su
 - **Production**: https://jualbeliraket.com
 - **QA (direct)**: http://192.168.1.225:3000
 
+## Deploy (`deploy-pm2.sh`) — fail-safe
+
+Dijalankan dari mesin dev (script SSH ke server):
+
+```bash
+bash deploy-pm2.sh main                      # deploy branch main
+SKIP_MIGRATIONS=1 bash deploy-pm2.sh main    # deploy tanpa menjalankan migrasi
+```
+
+Script **tidak pernah meninggalkan production mati** saat gagal:
+- **Tidak ada `pm2 stop` di awal** — app lama tetap melayani selama `npm ci` + `npm run build` (tahap paling rawan); swap ke build baru di akhir via `pm2 startOrReload` (downtime minimal).
+- **`npm ci || npm install`** — fallback bila lockfile/registry bermasalah.
+- **ERR trap + health gate** (butuh `set -E`): kegagalan apa pun — atau build baru tidak 200 di `/api/health` — memicu **rollback otomatis** ke commit sebelumnya (reset → rebuild bersih → restart). End state selalu build yang sehat.
+- `.env.production`/`.env.local` disalin ke `.next/standalone/` (next build tidak menyalinnya); static disinkron oleh hook `postbuild`.
+
+### Migrasi (run-once ledger)
+
+Migrasi **default-on** lewat tabel `_deploy_migrations` (`filename` PK, `applied_at`):
+- Tiap `drizzle/*.sql` dijalankan **maksimal sekali**, dengan `ON_ERROR_STOP` (migrasi baru yang gagal → deploy abort → rollback).
+- **Bootstrap** (sekali, pada DB yang sudah ter-migrasi): ledger kosong + tabel `users` ada → semua file existing dicatat *applied* **tanpa dieksekusi**. DB benar-benar fresh (tanpa schema) → semua file dijalankan beneran.
+- Tambah migrasi baru: cukup taruh `drizzle/00XX_*.sql`, commit, deploy — otomatis jalan tepat sekali. **Jangan** lagi apply manual semua file (file lama mis. `0000` tidak idempotent — bare `CREATE TYPE`).
+- Skip untuk satu deploy darurat: `SKIP_MIGRATIONS=1`.
+
+### Caveat: lockfile (npm)
+
+Server = **node 20 / npm 10**; mesin dev mungkin **node 24 / npm 11**. `package-lock.json` yang ditulis npm 11 bisa bikin `npm ci` di server gagal (`Missing ... from lock file`). Regenerasi lock pakai npm 10 agar cocok:
+
+```bash
+cd web && npx -y npm@10 install --package-lock-only
+# pastikan diff HANYA menambah entri (tanpa major bump), lalu commit
+```
+
+### Caveat: Auth base URL / OAuth (IP privat)
+
+Google OAuth menolak `redirect_uri` ke IP privat (*"device_id and device_name are required for private IP"*). Maka:
+- `BETTER_AUTH_URL` dan `NEXT_PUBLIC_APP_URL` **harus** `https://jualbeliraket.com` (bukan IP).
+- `src/lib/auth.ts` punya guard: jika env berisi raw IP non-loopback, `baseURL` otomatis fallback ke domain.
+- **Awas pm2 env basi:** `pm2 reload --update-env` tidak menghapus var lama. Bila proses pernah start dengan `BETTER_AUTH_URL=<IP>`, nilainya nempel meski `.env` sudah benar (process.env menang atas `.env` yang dibaca standalone). Perbaiki:
+  ```bash
+  BETTER_AUTH_URL='https://jualbeliraket.com' NEXT_PUBLIC_APP_URL='https://jualbeliraket.com' \
+    pm2 restart jualbeliraket --update-env && pm2 save
+  # verifikasi: pm2 env <id> | grep AUTH_URL
+  ```
+- File `/var/www/jbr/.env*.bak.*` (berisi IP lama) inert tapi membingungkan — boleh dihapus.
+
 ## Critical Deploy Note (Next.js Standalone Static)
 
 Jika deploy manual tanpa `deploy-pm2.sh`, pastikan folder runtime static benar-benar dibuat sebelum copy.
