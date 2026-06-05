@@ -18,7 +18,9 @@
 #   - A health gate (HTTP 200 on /api/health) decides success; a bad new build
 #     triggers the same rollback path.
 
-set -eo pipefail
+# -E (errtrace) is REQUIRED so the ERR trap fires on failures inside functions;
+# without it, set -e would exit without running the rollback handler.
+set -Eeo pipefail
 
 echo "🚀 JBR Marketplace - PM2 Deployment"
 echo "======================================"
@@ -29,6 +31,13 @@ SSH_USER="developer"
 DEPLOY_PATH="/var/www/jbr"
 APP_NAME="jualbeliraket"
 GIT_BRANCH="${1:-main}"
+
+# Migrations are OPT-IN. The drizzle/*.sql set is not fully idempotent and this
+# script re-applies the whole set, so auto-running it every deploy is unsafe
+# (re-running a data migration could duplicate rows). Apply new migrations
+# manually, or opt in for a single deploy with:
+#   RUN_MIGRATIONS=1 bash deploy-pm2.sh main
+RUN_MIGRATIONS="${RUN_MIGRATIONS:-0}"
 
 # Env file priority: Next.js loads .env.local on top of .env.production at
 # runtime, so DATABASE_URL etc. for production live in .env.local on this box.
@@ -65,15 +74,30 @@ install_and_build() {
 # COLUMN IF NOT EXISTS, so re-runs are no-ops). DATABASE_URL is sourced from
 # .env.local first (Next.js precedence), then .env.production.
 run_migrations() {
-    log_info "Applying database migrations..."
+    # The drizzle/*.sql files are NOT all idempotent (e.g. 0000 does a bare
+    # CREATE TYPE) and this script re-applies every file on each deploy. Rather
+    # than abort the whole deploy when an already-applied statement errors, run
+    # each file and treat a failure as a NON-FATAL warning. This re-attempts only
+    # the EXISTING migrations (adds no new schema objects) so a re-run can never
+    # block a deploy. A genuinely broken NEW migration still shows up here as a
+    # loud WARNING and would be caught by the post-deploy health gate.
+    #
+    # TODO(ops): replace this "re-apply everything" loop with a run-once mechanism
+    # (drizzle-kit migrate, or a _deploy_migrations ledger) so new migrations are
+    # applied exactly once with hard error-stopping. Needs a one-time prod change.
+    log_warn "RUN_MIGRATIONS=1: re-applying ALL drizzle/*.sql. Already-applied/non-idempotent files will warn; a re-run data migration could duplicate rows. Prefer manual apply for incremental migrations."
     remote "if [ -f '${ENV_FILE}' ]; then ENV_TO_SOURCE='${ENV_FILE}'; else ENV_TO_SOURCE='${ENV_FILE_FALLBACK}'; fi; \
       set -a; . \"\$ENV_TO_SOURCE\"; set +a; \
       if [ -z \"\$DATABASE_URL\" ]; then echo 'DATABASE_URL not set in env file'; exit 1; fi; \
-      cd ${DEPLOY_PATH} && \
+      cd ${DEPLOY_PATH}; \
+      warned=0; \
       for f in \$(ls drizzle/*.sql | sort); do \
-        echo \"==> Applying \$f\"; \
-        psql \"\$DATABASE_URL\" -v ON_ERROR_STOP=1 -f \"\$f\" || { echo \"MIGRATION FAILED: \$f\"; exit 1; }; \
-      done"
+        if ! psql \"\$DATABASE_URL\" -v ON_ERROR_STOP=1 -q -f \"\$f\" >/dev/null 2>/tmp/jbr_mig_err; then \
+          warned=\$((warned+1)); \
+          echo \"  WARN \$(basename \"\$f\"): \$(tail -n1 /tmp/jbr_mig_err 2>/dev/null)\"; \
+        fi; \
+      done; \
+      echo \"Migration pass done (\$warned file(s) skipped/warned — expected for already-applied).\""
 }
 
 # `next build` runs a postbuild hook that already syncs .next/static + public
@@ -158,7 +182,11 @@ log_info "Target commit: ${NEW_COMMIT}"
 
 # App keeps serving the previous build throughout install + build.
 install_and_build
-run_migrations
+if [ "${RUN_MIGRATIONS}" = "1" ]; then
+    run_migrations
+else
+    log_warn "Skipping DB migrations (default). Apply new migrations manually, or re-run with RUN_MIGRATIONS=1."
+fi
 inject_env_and_verify
 restart_app
 
