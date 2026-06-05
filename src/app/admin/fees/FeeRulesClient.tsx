@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Plus, Calculator, Archive } from "lucide-react";
 import { archiveFeeRule, createFeeRule, simulateFee } from "@/actions/fees";
@@ -58,6 +58,12 @@ interface SimulationResult {
 
 export default function FeeRulesClient({ initialRules, categories }: Props) {
     const router = useRouter();
+
+    // Resolve a category UUID -> human name for the rule list (scope display).
+    const categoryNameById = useMemo(
+        () => new Map(categories.map((c) => [c.id, c.name])),
+        [categories]
+    );
 
     const [name, setName] = useState("");
     const [mode, setMode] = useState<Mode>("PERCENT");
@@ -445,8 +451,11 @@ export default function FeeRulesClient({ initialRules, categories }: Props) {
                                         )}
                                     </div>
                                     <div className="text-xs text-slate-500">
-                                        Scope: {rule.scope_category_id ? `category:${rule.scope_category_id}` : "all"} ·{" "}
-                                        {rule.scope_seller_tier ?? "all-tiers"}
+                                        Scope:{" "}
+                                        {rule.scope_category_id
+                                            ? `Kategori: ${categoryNameById.get(rule.scope_category_id) ?? rule.scope_category_id}`
+                                            : "Semua kategori"}{" "}
+                                        · {rule.scope_seller_tier ?? "all-tiers"}
                                     </div>
                                     <div className="text-xs text-slate-500">
                                         Default: {rule.mode === "PERCENT" ? `${rule.default_value}%` : `Rp ${rule.default_value.toLocaleString("id-ID")}`}
