@@ -36,6 +36,12 @@ const cards = [
         icon: BookOpen,
     },
     {
+        href: "/admin/finance/accounts",
+        title: "Chart of Accounts",
+        desc: "Daftar akun GL. Buat & kelola akun (kode, kelas, saldo normal).",
+        icon: NotebookPen,
+    },
+    {
         href: "/admin/finance/verify",
         title: "Integrity Check",
         desc: "Verifikasi balance journal, periode, dan rekonsiliasi legacy ledger.",

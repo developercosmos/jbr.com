@@ -62,3 +62,8 @@ END $$;
 
 -- 8. Notification preferences: promo/marketing email opt-in (opt-out model).
 ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "email_promo_opt_in" boolean DEFAULT true NOT NULL;
+--> statement-breakpoint
+
+-- 9. Chart of Accounts: enforce unique account code at the DB level (the CoA admin
+--    UI also checks, but a unique index prevents duplicate codes under any path).
+CREATE UNIQUE INDEX IF NOT EXISTS "uniq_coa_accounts_code" ON "coa_accounts" ("code");
