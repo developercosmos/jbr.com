@@ -38,7 +38,34 @@ if (tiktokClientKey && tiktokClientSecret) {
     };
 }
 
+// Resolve the canonical base URL used to build OAuth redirect URIs. NEVER use a
+// non-loopback raw IP (e.g. a LAN IP like 192.168.x.x): Google rejects private-IP
+// redirect URIs with "device_id and device_name are required for private IP".
+// We skip any such value (e.g. a stale BETTER_AUTH_URL pointing at the box's IP)
+// and fall back to the production domain, so social sign-in can't break even if
+// the runtime env drifts. localhost/127.0.0.1 are kept (Google allows loopback)
+// so local dev still works.
+function resolveAuthBaseURL(): string {
+    const candidates = [process.env.BETTER_AUTH_URL, process.env.NEXT_PUBLIC_APP_URL];
+    for (const c of candidates) {
+        if (!c) continue;
+        try {
+            const host = new URL(c).hostname;
+            const isLoopback = host === "localhost" || host === "127.0.0.1" || host === "::1";
+            const isRawIp = /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+            if (isRawIp && !isLoopback) continue; // private/LAN IP → Google would reject
+            return c.replace(/\/+$/, "");
+        } catch {
+            continue; // not a valid URL — skip
+        }
+    }
+    return "https://jualbeliraket.com";
+}
+
+const authBaseURL = resolveAuthBaseURL();
+
 export const auth = betterAuth({
+    baseURL: authBaseURL,
     secret: process.env.BETTER_AUTH_SECRET,
     database: pool,
     socialProviders: Object.keys(socialProviders).length > 0 ? socialProviders : undefined,
