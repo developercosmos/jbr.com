@@ -32,12 +32,12 @@ DEPLOY_PATH="/var/www/jbr"
 APP_NAME="jualbeliraket"
 GIT_BRANCH="${1:-main}"
 
-# Migrations are OPT-IN. The drizzle/*.sql set is not fully idempotent and this
-# script re-applies the whole set, so auto-running it every deploy is unsafe
-# (re-running a data migration could duplicate rows). Apply new migrations
-# manually, or opt in for a single deploy with:
-#   RUN_MIGRATIONS=1 bash deploy-pm2.sh main
-RUN_MIGRATIONS="${RUN_MIGRATIONS:-0}"
+# Migrations run by default via a run-once ledger (_deploy_migrations): each
+# drizzle/*.sql is applied at most once, ever, with hard error-stopping. Safe to
+# leave on — already-applied files are skipped, not re-run. Escape hatch for an
+# emergency code-only deploy:
+#   SKIP_MIGRATIONS=1 bash deploy-pm2.sh main
+SKIP_MIGRATIONS="${SKIP_MIGRATIONS:-0}"
 
 # Env file priority: Next.js loads .env.local on top of .env.production at
 # runtime, so DATABASE_URL etc. for production live in .env.local on this box.
@@ -70,34 +70,47 @@ install_and_build() {
     remote "cd ${DEPLOY_PATH} && npm run build"
 }
 
-# Apply idempotent SQL migrations (each file wraps DDL in IF NOT EXISTS / ADD
-# COLUMN IF NOT EXISTS, so re-runs are no-ops). DATABASE_URL is sourced from
-# .env.local first (Next.js precedence), then .env.production.
+# Run-once migrations via a ledger table (_deploy_migrations). Each drizzle/*.sql
+# is applied at most once, ever, with ON_ERROR_STOP (a genuine failure aborts the
+# deploy -> ERR trap -> rollback). This replaces the old "re-apply everything"
+# loop, which failed on non-idempotent files (0000 bare CREATE TYPE) and risked
+# re-running data migrations.
+#
+# Bootstrap: the first time it runs against an ALREADY-migrated DB (ledger empty
+# but the schema exists), every existing file is recorded as applied WITHOUT being
+# executed. A genuinely fresh DB (no schema) instead has every file applied for
+# real. The `users` table is the sentinel for "schema already exists".
+# DATABASE_URL is sourced from .env.local first (Next.js precedence), then
+# .env.production.
 run_migrations() {
-    # The drizzle/*.sql files are NOT all idempotent (e.g. 0000 does a bare
-    # CREATE TYPE) and this script re-applies every file on each deploy. Rather
-    # than abort the whole deploy when an already-applied statement errors, run
-    # each file and treat a failure as a NON-FATAL warning. This re-attempts only
-    # the EXISTING migrations (adds no new schema objects) so a re-run can never
-    # block a deploy. A genuinely broken NEW migration still shows up here as a
-    # loud WARNING and would be caught by the post-deploy health gate.
-    #
-    # TODO(ops): replace this "re-apply everything" loop with a run-once mechanism
-    # (drizzle-kit migrate, or a _deploy_migrations ledger) so new migrations are
-    # applied exactly once with hard error-stopping. Needs a one-time prod change.
-    log_warn "RUN_MIGRATIONS=1: re-applying ALL drizzle/*.sql. Already-applied/non-idempotent files will warn; a re-run data migration could duplicate rows. Prefer manual apply for incremental migrations."
-    remote "if [ -f '${ENV_FILE}' ]; then ENV_TO_SOURCE='${ENV_FILE}'; else ENV_TO_SOURCE='${ENV_FILE_FALLBACK}'; fi; \
+    log_info "Applying database migrations (run-once ledger)..."
+    remote "set -e; \
+      if [ -f '${ENV_FILE}' ]; then ENV_TO_SOURCE='${ENV_FILE}'; else ENV_TO_SOURCE='${ENV_FILE_FALLBACK}'; fi; \
       set -a; . \"\$ENV_TO_SOURCE\"; set +a; \
       if [ -z \"\$DATABASE_URL\" ]; then echo 'DATABASE_URL not set in env file'; exit 1; fi; \
       cd ${DEPLOY_PATH}; \
-      warned=0; \
-      for f in \$(ls drizzle/*.sql | sort); do \
-        if ! psql \"\$DATABASE_URL\" -v ON_ERROR_STOP=1 -q -f \"\$f\" >/dev/null 2>/tmp/jbr_mig_err; then \
-          warned=\$((warned+1)); \
-          echo \"  WARN \$(basename \"\$f\"): \$(tail -n1 /tmp/jbr_mig_err 2>/dev/null)\"; \
-        fi; \
-      done; \
-      echo \"Migration pass done (\$warned file(s) skipped/warned — expected for already-applied).\""
+      psql \"\$DATABASE_URL\" -v ON_ERROR_STOP=1 -q -c 'CREATE TABLE IF NOT EXISTS _deploy_migrations (filename text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now());'; \
+      LEDGER_COUNT=\$(psql \"\$DATABASE_URL\" -tAc 'SELECT count(*) FROM _deploy_migrations;' | tr -d '[:space:]'); \
+      SCHEMA_EXISTS=\$(psql \"\$DATABASE_URL\" -tAc \"SELECT (to_regclass('public.users') IS NOT NULL);\" | tr -d '[:space:]'); \
+      if [ \"\$LEDGER_COUNT\" = '0' ] && [ \"\$SCHEMA_EXISTS\" = 't' ]; then \
+        echo 'Bootstrap: migrated DB with empty ledger -> marking existing migrations applied (running none).'; \
+        for f in \$(ls drizzle/*.sql | sort); do \
+          psql \"\$DATABASE_URL\" -v ON_ERROR_STOP=1 -q -c \"INSERT INTO _deploy_migrations(filename) VALUES ('\$(basename \"\$f\")') ON CONFLICT DO NOTHING;\"; \
+        done; \
+        echo \"Ledger bootstrapped: \$(ls drizzle/*.sql | wc -l) file(s) marked applied.\"; \
+      else \
+        applied=0; \
+        for f in \$(ls drizzle/*.sql | sort); do \
+          BN=\$(basename \"\$f\"); \
+          DONE=\$(psql \"\$DATABASE_URL\" -tAc \"SELECT 1 FROM _deploy_migrations WHERE filename='\$BN';\" | tr -d '[:space:]'); \
+          if [ \"\$DONE\" = '1' ]; then continue; fi; \
+          echo \"==> Applying \$BN\"; \
+          psql \"\$DATABASE_URL\" -v ON_ERROR_STOP=1 -f \"\$f\"; \
+          psql \"\$DATABASE_URL\" -v ON_ERROR_STOP=1 -q -c \"INSERT INTO _deploy_migrations(filename) VALUES ('\$BN');\"; \
+          applied=\$((applied+1)); \
+        done; \
+        echo \"Migrations up to date (\$applied newly applied).\"; \
+      fi"
 }
 
 # `next build` runs a postbuild hook that already syncs .next/static + public
@@ -182,10 +195,10 @@ log_info "Target commit: ${NEW_COMMIT}"
 
 # App keeps serving the previous build throughout install + build.
 install_and_build
-if [ "${RUN_MIGRATIONS}" = "1" ]; then
-    run_migrations
+if [ "${SKIP_MIGRATIONS}" = "1" ]; then
+    log_warn "SKIP_MIGRATIONS=1 — not running migrations this deploy."
 else
-    log_warn "Skipping DB migrations (default). Apply new migrations manually, or re-run with RUN_MIGRATIONS=1."
+    run_migrations
 fi
 inject_env_and_verify
 restart_app
