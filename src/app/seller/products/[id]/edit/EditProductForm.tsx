@@ -66,6 +66,15 @@ const CONDITION_CHECKLIST_ITEMS = [
     "Foto sesuai kondisi aktual",
 ];
 
+// Stored money values are decimals like "100000000.00". Show the integer rupiah
+// amount in the input. (Stripping non-digits would keep the ".00" zeros and
+// inflate the value ×100 on every open, eventually overflowing decimal(12,2).)
+function toAmountInput(value: string | null | undefined): string {
+    if (!value) return "";
+    const n = Math.round(parseFloat(value));
+    return Number.isFinite(n) ? String(n) : "";
+}
+
 export function EditProductForm({ product, categories, brands }: EditProductFormProps) {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
@@ -82,10 +91,10 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
     const [conditionRating, setConditionRating] = useState(product.condition_rating ?? 8);
     const [conditionChecklist, setConditionChecklist] = useState<string[]>(product.condition_checklist ?? []);
     const [weight, setWeight] = useState(product.weight_grams?.toString() ?? "");
-    const [price, setPrice] = useState(product.price.replace(/[^0-9]/g, ""));
+    const [price, setPrice] = useState(toAmountInput(product.price));
     const [stock, setStock] = useState(product.stock.toString());
     const [bargainEnabled, setBargainEnabled] = useState(product.bargain_enabled);
-    const [floorPrice, setFloorPrice] = useState(product.floor_price?.replace(/[^0-9]/g, "") ?? "");
+    const [floorPrice, setFloorPrice] = useState(toAmountInput(product.floor_price));
     const [tierFloorDefault, setTierFloorDefault] = useState(product.tiered_floor_price?.default ? String(Math.round(product.tiered_floor_price.default)) : "");
     const [tierFloorHighTrust, setTierFloorHighTrust] = useState(product.tiered_floor_price?.high_trust ? String(Math.round(product.tiered_floor_price.high_trust)) : "");
     const [tierFloorPlatinum, setTierFloorPlatinum] = useState(product.tiered_floor_price?.platinum_buyer ? String(Math.round(product.tiered_floor_price.platinum_buyer)) : "");
