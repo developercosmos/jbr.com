@@ -249,18 +249,31 @@ export async function submitSellerKycApplication(input: z.infer<typeof submitSel
         columns: { id: true },
     });
 
+    // Reviewer notification is a best-effort nudge — it must NEVER block the KYC
+    // submission. On a re-submission after rejection the idempotency_key already
+    // exists (same seller+tier+reviewer), so onConflictDoNothing turns the
+    // duplicate into a no-op instead of throwing; the re-submission still shows
+    // up in the reviewer's PENDING queue (driven by seller_kyc.status). try/catch
+    // guards any other transient failure.
     for (const admin of admins) {
-        await db.insert(notifications).values({
-            user_id: admin.id,
-            type: "SELLER_REVIEW_NEEDED",
-            title: "Review KYC Seller Dibutuhkan",
-            message: `${seller.store_name} mengajukan upgrade KYC ke ${validated.targetTier}.`,
-            idempotency_key: `SELLER_KYC_REVIEW:${sessionUser.id}:${validated.targetTier}:${admin.id}`,
-            data: {
-                seller_id: sessionUser.id,
-                tier: validated.targetTier,
-            },
-        });
+        try {
+            await db
+                .insert(notifications)
+                .values({
+                    user_id: admin.id,
+                    type: "SELLER_REVIEW_NEEDED",
+                    title: "Review KYC Seller Dibutuhkan",
+                    message: `${seller.store_name} mengajukan upgrade KYC ke ${validated.targetTier}.`,
+                    idempotency_key: `SELLER_KYC_REVIEW:${sessionUser.id}:${validated.targetTier}:${admin.id}`,
+                    data: {
+                        seller_id: sessionUser.id,
+                        tier: validated.targetTier,
+                    },
+                })
+                .onConflictDoNothing();
+        } catch (e) {
+            console.error(`[submitKyc] failed to notify admin ${admin.id}:`, e);
+        }
     }
 
     revalidatePath("/seller/settings");

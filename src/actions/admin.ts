@@ -408,7 +408,7 @@ export async function approveSellerActivation(userId: string) {
         data: {
             store_slug: seller.store_slug,
         },
-    });
+    }).onConflictDoNothing();
 
     if (seller.email && seller.store_name && seller.store_slug) {
         await sendSellerActivationApprovedEmail(

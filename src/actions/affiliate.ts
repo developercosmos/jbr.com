@@ -504,7 +504,7 @@ export async function approveAffiliateApplication(affiliateUserId: string) {
         message: `Akun affiliate Anda telah disetujui. Kode referral aktif: ${updated.code}.`,
         idempotency_key: `AFFILIATE_APPROVED:${affiliateUser.id}`,
         data: { code: updated.code },
-    });
+    }).onConflictDoNothing();
 
     await sendAffiliateApprovedEmail(
         affiliateUser.email,
