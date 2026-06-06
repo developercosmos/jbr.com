@@ -14,6 +14,7 @@ import {
     index,
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
+import type { OrderItemSnapshot } from "@/lib/order-snapshot";
 
 // ============================================
 // ENUMS
@@ -684,6 +685,9 @@ export const order_items = pgTable("order_items", {
         .notNull()
         .references(() => products.id),
     variant_id: uuid("variant_id").references(() => product_variants.id, { onDelete: "set null" }),
+    // Snapshot of the product/variant (image, specs, variant, price) at order time
+    // so order history survives later product edits/deletion. Null for old orders.
+    product_snapshot: jsonb("product_snapshot").$type<OrderItemSnapshot | null>(),
     quantity: integer("quantity").default(1).notNull(),
     price: decimal("price", { precision: 12, scale: 2 }).notNull(),
     fee_rule_id: uuid("fee_rule_id"),

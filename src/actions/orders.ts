@@ -16,6 +16,7 @@ import { tryAttributeOrderFromCookie } from "@/actions/affiliate";
 import { notify } from "@/lib/notify";
 import { formatCurrency } from "@/lib/format";
 import { logger } from "@/lib/logger";
+import { buildOrderItemSnapshot } from "@/lib/order-snapshot";
 import { offers as offersTable, product_variants as productVariantsTable } from "@/db/schema";
 import { resolveCheckoutToken, consumeCheckoutToken } from "@/actions/offers";
 import { getCheckoutShippingQuoteForUser as _getQuote } from "@/actions/shipping";
@@ -255,6 +256,9 @@ export async function createOrderFromCart(input: z.infer<typeof createOrderSchem
                     variant_id: item.variant?.id,
                     quantity: item.quantity,
                     price: linePrice,
+                    // PDP snapshot at purchase time — preserves the buyer's reference
+                    // (image, specs, variant, price) against later product edits.
+                    product_snapshot: buildOrderItemSnapshot(item.product, item.variant ?? null, new Date()),
                     fee_rule_id: feeResolution.breakdown?.ruleId ?? null,
                     resolved_fee_value: String(lineFee),
                     resolved_fee_currency: feeResolution.currency,

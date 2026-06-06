@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, Package, Truck, CheckCircle, Clock, XCircle, CreditCard, MapPin, Store, Phone, Mail } from "lucide-react";
 import { getOrderById } from "@/actions/orders";
+import { snapshotVariantLabel, snapshotSpecsLine } from "@/lib/order-snapshot";
 import { notFound } from "next/navigation";
 import ConfirmReceiptButton from "./ConfirmReceiptButton";
 import ConfirmDeliveryButton from "./ConfirmDeliveryButton";
@@ -165,13 +166,22 @@ export default async function OrderDetailPage({ params }: PageProps) {
                             </h2>
                         </div>
                         <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {order.items.map((item) => (
+                            {order.items.map((item) => {
+                                // Prefer the order-time snapshot so history survives later
+                                // product edits/deletion; fall back to the live product.
+                                const snap = item.product_snapshot;
+                                const dispImage = snap?.image ?? item.product?.images?.[0] ?? null;
+                                const dispTitle = snap?.title ?? item.product?.title ?? "Produk";
+                                const dispSlug = snap?.slug ?? item.product?.slug ?? null;
+                                const variantLabel = snapshotVariantLabel(snap ?? null);
+                                const specsLine = snapshotSpecsLine(snap ?? null);
+                                return (
                                 <div key={item.id} className="p-4 flex gap-4">
                                     <div className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800">
-                                        {item.product?.images && item.product.images.length > 0 ? (
+                                        {dispImage ? (
                                             <Image
-                                                src={item.product.images[0]}
-                                                alt={item.product.title}
+                                                src={dispImage}
+                                                alt={dispTitle}
                                                 fill
                                                 className="object-cover"
                                             />
@@ -183,22 +193,33 @@ export default async function OrderDetailPage({ params }: PageProps) {
                                     </div>
                                     <div className="flex-1">
                                         <Link
-                                            href={item.product?.slug ? `/product/${item.product.slug}` : "#"}
+                                            href={dispSlug ? `/product/${dispSlug}` : "#"}
                                             className="font-bold text-slate-900 dark:text-white hover:text-brand-primary transition-colors"
                                         >
-                                            {item.product?.title || "Produk"}
+                                            {dispTitle}
                                         </Link>
+                                        {variantLabel && (
+                                            <p className="text-xs text-slate-500 mt-0.5">Varian: {variantLabel}</p>
+                                        )}
+                                        {specsLine && (
+                                            <p className="text-xs text-slate-400 mt-0.5">{specsLine}</p>
+                                        )}
                                         <p className="text-sm text-slate-500 mt-1">
                                             {item.quantity} x {formatPrice(item.price)}
                                         </p>
                                         <p className="text-brand-primary font-bold mt-2">
                                             {formatPrice((parseFloat(item.price) * item.quantity).toString())}
                                         </p>
+                                        {snap && (
+                                            <p className="text-[11px] text-slate-400 mt-1">
+                                                Tampilan &amp; detail sesuai saat pembelian.
+                                            </p>
+                                        )}
                                         {(order.status === "PAID" || order.status === "PROCESSING" || order.status === "SHIPPED" || order.status === "DELIVERED") && (
                                             <div className="mt-2">
                                                 <StringingAddOnButton
                                                     orderItemId={item.id}
-                                                    productTitle={item.product?.title || "raket"}
+                                                    productTitle={dispTitle || "raket"}
                                                 />
                                             </div>
                                         )}
@@ -206,15 +227,16 @@ export default async function OrderDetailPage({ params }: PageProps) {
                                             <div className="mt-2">
                                                 <OrderItemReviewButton
                                                     orderItemId={item.id}
-                                                    productName={item.product?.title || "Produk"}
-                                                    productImage={item.product?.images?.[0]}
+                                                    productName={dispTitle}
+                                                    productImage={dispImage ?? undefined}
                                                     alreadyReviewed={reviewedItemIds.has(item.id)}
                                                 />
                                             </div>
                                         )}
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
 

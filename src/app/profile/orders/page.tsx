@@ -149,10 +149,10 @@ export default async function ProfileOrdersPage() {
                                     {firstItem && (
                                         <>
                                             <div className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800">
-                                                {firstItem.product?.images && firstItem.product.images.length > 0 ? (
+                                                {(firstItem.product_snapshot?.image || firstItem.product?.images?.[0]) ? (
                                                     <Image
-                                                        src={firstItem.product.images[0]}
-                                                        alt={firstItem.product.title}
+                                                        src={firstItem.product_snapshot?.image || firstItem.product!.images![0]}
+                                                        alt={firstItem.product_snapshot?.title || firstItem.product?.title || "Produk"}
                                                         fill
                                                         className="object-cover"
                                                     />
@@ -164,7 +164,7 @@ export default async function ProfileOrdersPage() {
                                             </div>
                                             <div className="flex-1">
                                                 <h3 className="font-bold text-slate-900 dark:text-white text-lg mb-1">
-                                                    {firstItem.product?.title || "Produk"}
+                                                    {firstItem.product_snapshot?.title || firstItem.product?.title || "Produk"}
                                                 </h3>
                                                 <p className="text-sm text-slate-500 mb-2">
                                                     {firstItem.quantity} x {formatPrice(firstItem.price)}
