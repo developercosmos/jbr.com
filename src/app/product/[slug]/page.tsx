@@ -114,6 +114,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
                                 ].filter(Boolean)
                             )
                         )}
+                        conditionLabel={
+                            product.condition === "NEW"
+                                ? "Baru"
+                                : product.condition_rating
+                                  ? `Pre-loved ${product.condition_rating}/10`
+                                  : "Pre-loved"
+                        }
                     />
                 </div>
 

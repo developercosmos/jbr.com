@@ -6,9 +6,10 @@ import { ZoomIn } from "lucide-react";
 
 interface ProductGalleryProps {
     images: string[];
+    conditionLabel?: string;
 }
 
-export function ProductGallery({ images }: ProductGalleryProps) {
+export function ProductGallery({ images, conditionLabel }: ProductGalleryProps) {
     const sanitizedImages = images.filter(
         (img): img is string => typeof img === "string" && img.trim().length > 0
     );
@@ -16,15 +17,17 @@ export function ProductGallery({ images }: ProductGalleryProps) {
 
     return (
         <div className="flex flex-col gap-4">
-            {/* Main Image */}
-            <div className="group relative w-full aspect-[4/3] bg-surface-dark rounded-xl overflow-hidden border border-slate-200 dark:border-gray-800">
-                {/* Condition Tag */}
-                <div className="absolute top-4 left-4 z-10 bg-slate-900/80 backdrop-blur-sm text-white text-xs font-bold px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
-                    Pre-loved
-                </div>
+            {/* Main Image — contain so wide/promo images are not cropped */}
+            <div className="group relative w-full aspect-[4/3] bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden border border-slate-200 dark:border-gray-800">
+                {/* Condition Tag (reflects the real product condition) */}
+                {conditionLabel && (
+                    <div className="absolute top-4 left-4 z-10 bg-slate-900/80 backdrop-blur-sm text-white text-xs font-bold px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
+                        {conditionLabel}
+                    </div>
+                )}
                 {activeImage ? (
                     <div
-                        className="w-full h-full bg-center bg-cover transition-transform duration-500 group-hover:scale-110 cursor-zoom-in"
+                        className="w-full h-full bg-center bg-contain bg-no-repeat transition-transform duration-500 group-hover:scale-105 cursor-zoom-in"
                         style={{ backgroundImage: `url('${activeImage}')` }}
                     ></div>
                 ) : (
