@@ -4,12 +4,14 @@ import { users, products } from "@/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import Image from "next/image";
 import Link from "next/link";
-import { Store, Package, Star, MapPin, Calendar, ChevronRight } from "lucide-react";
+import { Store, Package, MapPin, Calendar, ChevronRight } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { checkIsFollowing, getFollowerCount } from "@/actions/store";
 import { getSellerReputationSummary } from "@/actions/reputation";
 import { StoreActionButtons } from "@/components/store/StoreActionButtons";
+import { SellerRating } from "@/components/seller/SellerBadges";
+import { LowStockText } from "@/components/product/LowStockBadge";
 
 type Props = {
     params: Promise<{ slug: string }>;
@@ -135,12 +137,7 @@ export default async function StorePage({ params }: Props) {
                                     <span>{sellerProducts.length} produk</span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
-                                    <Star className="w-4 h-4 text-yellow-500" />
-                                    {reputation.ratingCount > 0 ? (
-                                        <span>{reputation.avgRating.toFixed(1)} rating ({reputation.ratingCount})</span>
-                                    ) : (
-                                        <span>Belum ada review</span>
-                                    )}
+                                    <SellerRating rating={reputation.avgRating} reviewCount={reputation.ratingCount} size="sm" />
                                 </div>
                                 <div className="flex items-center gap-1.5">
                                     <Calendar className="w-4 h-4" />
@@ -229,6 +226,7 @@ export default async function StorePage({ params }: Props) {
                                     <p className="text-sm font-bold text-brand-primary">
                                         {formatPrice(product.price)}
                                     </p>
+                                    <div className="mt-1"><LowStockText stock={product.stock} /></div>
                                     {product.brand && (
                                         <p className="text-xs text-slate-500 mt-1">
                                             {product.brand}

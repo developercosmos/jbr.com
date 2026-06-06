@@ -369,6 +369,7 @@ export async function getPublishedProducts(limit = 20, offset = 0) {
                     store_name: true,
                     store_slug: true,
                     image: true,
+                    tier: true,
                 },
             },
             category: true,

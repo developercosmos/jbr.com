@@ -3,6 +3,8 @@ import Image from "next/image";
 import { Heart } from "lucide-react";
 import { getPublishedProducts } from "@/actions/products";
 import { TrackedProductLink } from "@/components/product/TrackedProductLink";
+import { LowStockText } from "@/components/product/LowStockBadge";
+import { SellerBadgeIcon } from "@/components/seller/SellerBadges";
 
 export async function ProductGrid() {
     const products = await getPublishedProducts(8);
@@ -83,6 +85,7 @@ export async function ProductGrid() {
                                             <h3 className="font-bold text-slate-900 line-clamp-1 group-hover:text-brand-primary transition-colors">
                                                 {product.title}
                                             </h3>
+                                            <div className="mt-1"><LowStockText stock={product.stock} /></div>
                                         </div>
                                     </div>
 
@@ -102,6 +105,9 @@ export async function ProductGrid() {
                                             <span className="text-xs text-slate-600 truncate max-w-[80px]">
                                                 {product.seller?.store_name || product.seller?.name || "Seller"}
                                             </span>
+                                            {(product.seller?.tier === "T1" || product.seller?.tier === "T2") && (
+                                                <SellerBadgeIcon type="verified" size={13} />
+                                            )}
                                         </div>
                                         <p className="font-bold text-brand-primary">{formatPrice(product.price)}</p>
                                     </div>

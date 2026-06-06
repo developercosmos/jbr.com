@@ -4,9 +4,23 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Search, Package, Tag, Loader2, X, ArrowRight } from "lucide-react";
+import { Search, Package, Tag, Loader2, X, ArrowRight, Clock, TrendingUp } from "lucide-react";
 import { useDebouncedCallback } from "use-debounce";
-import { searchAutocomplete } from "@/actions/search";
+import { searchAutocomplete, getPopularSearches } from "@/actions/search";
+
+const RECENT_SEARCHES_KEY = "jbr_recent_searches";
+const MAX_RECENT = 5;
+
+function loadRecentSearches(): string[] {
+    if (typeof window === "undefined") return [];
+    try {
+        const raw = window.localStorage.getItem(RECENT_SEARCHES_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed.filter((t): t is string => typeof t === "string").slice(0, MAX_RECENT) : [];
+    } catch {
+        return [];
+    }
+}
 
 interface SearchResult {
     suggestions: Array<{
@@ -41,8 +55,56 @@ export function SearchBar() {
     const [results, setResults] = useState<SearchResult | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
+    const [recentSearches, setRecentSearches] = useState<string[]>([]);
+    const [popularSearches, setPopularSearches] = useState<string[]>([]);
     const containerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // Load recent (localStorage) + popular (server) searches once on mount.
+    useEffect(() => {
+        setRecentSearches(loadRecentSearches());
+        getPopularSearches()
+            .then((titles) => setPopularSearches(titles))
+            .catch(() => {});
+    }, []);
+
+    // Persist a term to the recent-searches list (dedup, most-recent-first, capped).
+    const saveRecentSearch = (term: string) => {
+        const trimmed = term.trim();
+        if (!trimmed) return;
+        setRecentSearches((prev) => {
+            const next = [trimmed, ...prev.filter((t) => t.toLowerCase() !== trimmed.toLowerCase())].slice(0, MAX_RECENT);
+            try {
+                window.localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(next));
+            } catch {
+                /* storage unavailable */
+            }
+            return next;
+        });
+    };
+
+    const clearRecentSearches = () => {
+        setRecentSearches([]);
+        try {
+            window.localStorage.removeItem(RECENT_SEARCHES_KEY);
+        } catch {
+            /* storage unavailable */
+        }
+    };
+
+    // Navigate to the full search page for a given term (used by recent/popular chips).
+    const runSearch = (term: string) => {
+        const trimmed = term.trim();
+        if (!trimmed) return;
+        saveRecentSearch(trimmed);
+        setQuery(trimmed);
+        setIsOpen(false);
+        const params = new URLSearchParams({ q: trimmed });
+        if (condition !== "all") {
+            params.set("condition", condition);
+        }
+        router.push(`/search?${params}`);
+    };
 
     // Debounced search using server action
     const debouncedSearch = useDebouncedCallback(async (searchQuery: string) => {
@@ -75,8 +137,9 @@ export function SearchBar() {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (query.trim()) {
+            saveRecentSearch(query);
             setIsOpen(false);
-            const params = new URLSearchParams({ q: query });
+            const params = new URLSearchParams({ q: query.trim() });
             if (condition !== "all") {
                 params.set("condition", condition);
             }
@@ -126,11 +189,7 @@ export function SearchBar() {
                     ref={inputRef}
                     value={query}
                     onChange={handleInputChange}
-                    onFocus={() => {
-                        if (query.trim().length >= 2 && results) {
-                            setIsOpen(true);
-                        }
-                    }}
+                    onFocus={() => setIsOpen(true)}
                     className="block w-full pl-9 pr-24 py-2.5 border border-slate-200 rounded-full leading-5 bg-slate-50 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-brand-primary focus:border-brand-primary sm:text-sm transition-all"
                     placeholder="Cari raket, sepatu, tas..."
                     type="text"
@@ -164,6 +223,59 @@ export function SearchBar() {
                     </select>
                 </div>
             </form>
+
+            {/* Suggestions (recent + popular) — shown when focused with a short/empty query */}
+            {isOpen && query.trim().length < 2 && (recentSearches.length > 0 || popularSearches.length > 0) && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden z-50 max-h-[70vh] overflow-y-auto">
+                    {recentSearches.length > 0 && (
+                        <div className="p-3 border-b border-slate-100">
+                            <div className="flex items-center justify-between mb-2 px-2">
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pencarian Terakhir</p>
+                                <button
+                                    type="button"
+                                    onClick={clearRecentSearches}
+                                    className="text-xs text-slate-400 hover:text-brand-primary transition-colors"
+                                >
+                                    Hapus
+                                </button>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {recentSearches.map((term) => (
+                                    <button
+                                        key={term}
+                                        type="button"
+                                        onClick={() => runSearch(term)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-brand-primary hover:text-white rounded-full text-sm font-medium text-slate-700 transition-colors"
+                                    >
+                                        <Clock className="w-3 h-3" />
+                                        {term}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    {popularSearches.length > 0 && (
+                        <div className="p-3">
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">
+                                Pencarian Populer
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                {popularSearches.map((term) => (
+                                    <button
+                                        key={term}
+                                        type="button"
+                                        onClick={() => runSearch(term)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-brand-primary hover:text-white rounded-full text-sm font-medium text-slate-700 transition-colors"
+                                    >
+                                        <TrendingUp className="w-3 h-3" />
+                                        {term}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Search Results Dropdown */}
             {isOpen && query.trim().length >= 2 && (

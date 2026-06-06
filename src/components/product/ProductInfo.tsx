@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, Loader2, MessageCircle, Scale, Share2, ShieldCheck, ShoppingCart, Tag, Truck } from "lucide-react";
+import { Heart, Loader2, MessageCircle, Scale, ShieldCheck, ShoppingCart, Tag, Truck } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -13,6 +13,8 @@ import { addToWishlist } from "@/actions/wishlist";
 import { MyOfferStatusPanel } from "@/components/product/MyOfferStatusPanel";
 import { VariantSelector } from "@/components/product/VariantSelector";
 import MakeOfferButton from "@/components/product/MakeOfferButton";
+import { LowStockBadge } from "@/components/product/LowStockBadge";
+import { ShareProduct } from "@/components/product/ShareProduct";
 import { SellerBadge } from "@/components/seller/SellerBadges";
 import { getSellerBadgeTypes } from "@/lib/seller-badges";
 import { useFlag } from "@/lib/use-flag";
@@ -142,7 +144,6 @@ export function ProductInfo({
     const [isOfferPending, startOfferTransition] = useTransition();
     const [added, setAdded] = useState(false);
     const [wishlisted, setWishlisted] = useState(false);
-    const [shared, setShared] = useState(false);
     const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
     const [offerAmount, setOfferAmount] = useState<string>(() => initialOfferAmount ?? product.auto_decline_below ?? String(Math.round(parseFloat(product.price) * 0.9)));
     const [offerMessage, setOfferMessage] = useState<{
@@ -379,30 +380,6 @@ export function ProductInfo({
         });
     };
 
-    const handleShare = async () => {
-        const shareUrl = window.location.href;
-        const shareTitle = product.title;
-        const shareText = `Lihat ${product.title} di Jual Beli Raket!`;
-
-        try {
-            if (navigator.share) {
-                await navigator.share({ title: shareTitle, text: shareText, url: shareUrl });
-            } else {
-                await navigator.clipboard.writeText(shareUrl);
-                setShared(true);
-                setTimeout(() => setShared(false), 2000);
-            }
-        } catch (error) {
-            try {
-                await navigator.clipboard.writeText(shareUrl);
-                setShared(true);
-                setTimeout(() => setShared(false), 2000);
-            } catch {
-                console.error("Failed to share:", error);
-            }
-        }
-    };
-
     const handleCompare = () => {
         try {
             const raw = localStorage.getItem("jbr_compare_slugs");
@@ -530,8 +507,9 @@ export function ProductInfo({
                     <span className="inline-flex items-center rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-semibold text-green-700 border border-green-100">Kondisi: {getConditionLabel()}</span>
                 </div>
                 <h1 className="text-3xl font-bold text-slate-900 font-heading leading-tight">{product.title}</h1>
-                <div className="flex items-center gap-4 mt-3 text-sm">
+                <div className="flex items-center gap-3 mt-3 text-sm">
                     <span className="text-slate-500">Stok: {displayStock}</span>
+                    <LowStockBadge stock={displayStock} />
                 </div>
             </div>
 
@@ -692,9 +670,9 @@ export function ProductInfo({
                     <button onClick={handleAddToWishlist} disabled={isWishlistPending} className="flex-1 flex items-center justify-center gap-2 text-slate-600 hover:text-red-500 py-2.5 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium disabled:opacity-50">
                         {isWishlistPending ? <Loader2 className="w-4 h-4 animate-spin" /> : wishlisted ? <><Heart className="w-4 h-4 fill-red-500 text-red-500" />Ditambahkan!</> : <><Heart className="w-4 h-4" />Add to Wishlist</>}
                     </button>
-                    <button onClick={handleShare} className="flex-1 flex items-center justify-center gap-2 text-slate-600 hover:text-brand-primary py-2.5 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium">
-                        {shared ? <><Share2 className="w-4 h-4" />Link Disalin!</> : <><Share2 className="w-4 h-4" />Share</>}
-                    </button>
+                    <div className="flex-1 flex items-center justify-center">
+                        <ShareProduct productTitle={product.title} productUrl={`/product/${product.slug}`} />
+                    </div>
                 </div>
                 {compareModeEnabled && (
                     <button onClick={handleCompare} className="w-full flex items-center justify-center gap-2 text-slate-700 hover:text-slate-900 py-2.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors text-sm font-medium">

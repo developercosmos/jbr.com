@@ -2,10 +2,12 @@ import Link from "next/link";
 import Image from "next/image";
 import { ChevronRight, ShoppingBag } from "lucide-react";
 import { TrackedProductLink } from "@/components/product/TrackedProductLink";
+import { LowStockText } from "@/components/product/LowStockBadge";
 
 type Product = {
     id: string;
     title: string;
+    stock: number;
     slug: string;
     price: string;
     images: string[] | null;
@@ -152,6 +154,7 @@ export function BrowsePageLayout({
                                     <p className="text-base font-bold text-brand-primary">
                                         {formatPrice(product.price)}
                                     </p>
+                                    <div className="mt-1"><LowStockText stock={product.stock} /></div>
                                     {product.seller && (
                                         <p className="text-xs text-slate-500 mt-1 truncate">
                                             {product.seller.store_name || product.seller.name}
