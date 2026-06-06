@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Loader2, ShieldCheck, ShieldX } from "lucide-react";
+import { ExternalLink, Eye, Loader2, ShieldCheck, ShieldX, X } from "lucide-react";
 import { reviewSellerKycApplication } from "@/actions/kyc";
 
 type KycStatus = "NOT_SUBMITTED" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
@@ -63,6 +63,17 @@ export default function KycReviewClient({ submissions }: Props) {
     const [decisionNotes, setDecisionNotes] = useState<Record<string, string>>({});
     const [error, setError] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
+    const [preview, setPreview] = useState<FileRef | null>(null);
+
+    // Close the preview modal on Escape.
+    useEffect(() => {
+        if (!preview) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setPreview(null);
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [preview]);
 
     function handleDecision(submission: Submission, decision: "APPROVED" | "REJECTED") {
         setError(null);
@@ -169,13 +180,13 @@ export default function KycReviewClient({ submissions }: Props) {
                                             </div>
                                         </div>
                                         {doc.file && (
-                                            <Link
-                                                href={`/api/files/${doc.file.id}`}
-                                                target="_blank"
+                                            <button
+                                                type="button"
+                                                onClick={() => doc.file && setPreview(doc.file)}
                                                 className="text-brand-primary hover:underline text-sm whitespace-nowrap inline-flex items-center gap-1"
                                             >
-                                                lihat <ExternalLink className="w-3 h-3" />
-                                            </Link>
+                                                <Eye className="w-3.5 h-3.5" /> lihat
+                                            </button>
                                         )}
                                     </div>
                                 ))}
@@ -244,6 +255,72 @@ export default function KycReviewClient({ submissions }: Props) {
                     </div>
                 );
             })}
+
+            {preview && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+                    onClick={() => setPreview(null)}
+                    role="dialog"
+                    aria-modal="true"
+                >
+                    <div
+                        className="relative flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-white dark:bg-surface-dark shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 p-3">
+                            <div className="min-w-0 truncate text-sm font-semibold text-slate-900 dark:text-white">
+                                {preview.original_name}
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <a
+                                    href={`/api/files/${preview.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs text-brand-primary hover:underline"
+                                >
+                                    Tab baru <ExternalLink className="h-3 w-3" />
+                                </a>
+                                <button
+                                    type="button"
+                                    onClick={() => setPreview(null)}
+                                    className="rounded-lg p-1 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                    aria-label="Tutup"
+                                >
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex min-h-[200px] flex-1 items-center justify-center overflow-auto bg-slate-50 dark:bg-black/40 p-2">
+                            {preview.mime_type.startsWith("image/") ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                    src={`/api/files/${preview.id}`}
+                                    alt={preview.original_name}
+                                    className="max-h-[76vh] w-auto object-contain"
+                                />
+                            ) : preview.mime_type === "application/pdf" ? (
+                                <iframe
+                                    src={`/api/files/${preview.id}`}
+                                    title={preview.original_name}
+                                    className="h-[76vh] w-full"
+                                />
+                            ) : (
+                                <div className="p-8 text-center text-sm text-slate-500">
+                                    Pratinjau tidak tersedia untuk tipe file ini.{" "}
+                                    <a
+                                        href={`/api/files/${preview.id}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-brand-primary hover:underline"
+                                    >
+                                        Unduh / buka di tab baru
+                                    </a>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
