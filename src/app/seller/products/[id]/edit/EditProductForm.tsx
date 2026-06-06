@@ -109,6 +109,18 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
     );
 
     const getErrorMessage = (err: unknown, fallback: string) => {
+        const raw =
+            err instanceof Error ? err.message
+                : typeof err === "string" ? err
+                    : err && typeof err === "object" && typeof (err as { message?: unknown }).message === "string"
+                        ? (err as { message: string }).message
+                        : "";
+        // A stale server-action binding (page loaded before a new deploy) — the
+        // save never reaches the server. Tell the user to reload rather than show
+        // a cryptic "Failed to find Server Action" message.
+        if (/server action|older or newer deployment/i.test(raw)) {
+            return "Aplikasi baru saja diperbarui. Muat ulang halaman (Ctrl/Cmd + R), lalu simpan lagi.";
+        }
         if (err instanceof Error && err.message.trim()) return err.message;
         if (typeof err === "string" && err.trim()) return err;
         if (err && typeof err === "object") {

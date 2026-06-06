@@ -70,6 +70,16 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
     const [uploading, setUploading] = useState(false);
 
     const getErrorMessage = (err: unknown, fallback: string) => {
+        const raw =
+            err instanceof Error ? err.message
+                : typeof err === "string" ? err
+                    : err && typeof err === "object" && typeof (err as { message?: unknown }).message === "string"
+                        ? (err as { message: string }).message
+                        : "";
+        // Stale server-action binding after a new deploy — tell the user to reload.
+        if (/server action|older or newer deployment/i.test(raw)) {
+            return "Aplikasi baru saja diperbarui. Muat ulang halaman (Ctrl/Cmd + R), lalu coba lagi.";
+        }
         if (err instanceof Error && err.message.trim()) {
             return err.message;
         }
