@@ -80,6 +80,7 @@ const createProductSchema = z.object({
                 option2_value: z.string().trim().max(60).optional().nullable(),
                 price: z.number().positive().optional().nullable(),
                 stock: z.number().int().min(0).default(1),
+                images: z.array(productImageSchema).max(8).optional(),
             })
         )
         .max(100)
@@ -212,6 +213,7 @@ export async function createProduct(input: z.infer<typeof createProductSchema>) 
                     option2_value: v.option2_value ?? null,
                     price: v.price != null ? v.price.toString() : null,
                     stock: v.stock,
+                    images: v.images ?? [],
                     sort_order: i,
                 }))
             );
@@ -285,6 +287,7 @@ export async function updateProduct(input: z.infer<typeof updateProductSchema>) 
                     option2_value: v.option2_value ?? null,
                     price: v.price != null ? v.price.toString() : null,
                     stock: v.stock,
+                    images: v.images ?? [],
                     sort_order: i,
                 }))
             );

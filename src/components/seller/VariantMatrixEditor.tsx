@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Plus } from "lucide-react";
+import { X, Plus, Loader2, ImagePlus } from "lucide-react";
 
 // One generated combination row, as held in the seller form state.
 export interface ComboVariant {
@@ -12,6 +12,7 @@ export interface ComboVariant {
     option2_value: string | null;
     price: string; // form string ("" = pakai harga produk)
     stock: string; // form string
+    images: string[]; // variant image(s); tied to the Warna value
 }
 
 const AXIS1 = "Warna";
@@ -43,11 +44,13 @@ interface InitState {
     colors: string[];
     sizes: string[];
     cells: Record<string, { price: string; stock: string }>;
+    colorImages: Record<string, string>;
 }
 
 function deriveInitial(value: ComboVariant[]): InitState {
     const hasOptionData = value.some((v) => v.option1_value || v.option2_value);
     const cells: Record<string, { price: string; stock: string }> = {};
+    const colorImages: Record<string, string> = {};
 
     if (hasOptionData) {
         const colors = uniqueOrdered(value.map((v) => v.option1_value));
@@ -57,8 +60,9 @@ function deriveInitial(value: ComboVariant[]): InitState {
                 price: v.price ?? "",
                 stock: v.stock ?? "1",
             };
+            if (v.option1_value && v.images?.[0]) colorImages[v.option1_value] = v.images[0];
         }
-        return { colors, sizes, cells };
+        return { colors, sizes, cells, colorImages };
     }
 
     // Legacy / flat variants (name only): load each as a single "Warna" value.
@@ -66,11 +70,12 @@ function deriveInitial(value: ComboVariant[]): InitState {
         const colors = uniqueOrdered(value.map((v) => v.name));
         for (const v of value) {
             cells[cellKey(v.name || null, null)] = { price: v.price ?? "", stock: v.stock ?? "1" };
+            if (v.name && v.images?.[0]) colorImages[v.name] = v.images[0];
         }
-        return { colors, sizes: [], cells };
+        return { colors, sizes: [], cells, colorImages };
     }
 
-    return { colors: [], sizes: [], cells: {} };
+    return { colors: [], sizes: [], cells: {}, colorImages: {} };
 }
 
 export default function VariantMatrixEditor({
@@ -92,6 +97,9 @@ export default function VariantMatrixEditor({
     const [sizeInput, setSizeInput] = useState("");
     const [bulkPrice, setBulkPrice] = useState("");
     const [bulkStock, setBulkStock] = useState("");
+    const [colorImages, setColorImages] = useState<Record<string, string>>(initial.current.colorImages);
+    const [uploadingColor, setUploadingColor] = useState<string | null>(null);
+    const [uploadError, setUploadError] = useState<string | null>(null);
 
     // Build the combination list from the current axes.
     const c1list: Array<string | null> = colors.length ? colors : [null];
@@ -119,11 +127,12 @@ export default function VariantMatrixEditor({
                 option2_value: c2,
                 price: cell.price,
                 stock: cell.stock,
+                images: c1 && colorImages[c1] ? [colorImages[c1]] : [],
             };
         });
         onChangeRef.current(out);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [colors, sizes, cells]);
+    }, [colors, sizes, cells, colorImages]);
 
     function addValue(axis: "color" | "size") {
         const raw = (axis === "color" ? colorInput : sizeInput).trim();
@@ -142,6 +151,41 @@ export default function VariantMatrixEditor({
     function removeValue(axis: "color" | "size", val: string) {
         if (axis === "color") setColors((prev) => prev.filter((v) => v !== val));
         else setSizes((prev) => prev.filter((v) => v !== val));
+    }
+
+    async function uploadColorImage(color: string, file: File) {
+        setUploadError(null);
+        setUploadingColor(color);
+        try {
+            const fd = new FormData();
+            fd.append("file", file);
+            fd.append("folder", "products");
+            const res = await fetch("/api/upload", { method: "POST", body: fd });
+            if (!res.ok) {
+                let msg = "Upload gagal";
+                try {
+                    const d = await res.json();
+                    msg = d.error || msg;
+                } catch {
+                    /* non-JSON error body */
+                }
+                throw new Error(res.status === 429 ? "Terlalu banyak request. Coba lagi sebentar." : msg);
+            }
+            const data = await res.json();
+            setColorImages((prev) => ({ ...prev, [color]: data.url as string }));
+        } catch (e) {
+            setUploadError(e instanceof Error ? e.message : "Upload gagal");
+        } finally {
+            setUploadingColor(null);
+        }
+    }
+
+    function removeColorImage(color: string) {
+        setColorImages((prev) => {
+            const next = { ...prev };
+            delete next[color];
+            return next;
+        });
     }
 
     function updateCell(c1: string | null, c2: string | null, patch: Partial<{ price: string; stock: string }>) {
@@ -208,6 +252,49 @@ export default function VariantMatrixEditor({
                 {chipInput("color", "Warna", "Tambahkan pilihan warna (opsional).", colors, colorInput, setColorInput)}
                 {chipInput("size", "Ukuran", "Tambahkan pilihan ukuran (opsional).", sizes, sizeInput, setSizeInput)}
             </div>
+
+            {colors.length > 0 && (
+                <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">Gambar per Warna (opsional)</label>
+                    <p className="text-xs text-slate-400 mb-2">Satu foto untuk tiap warna — tampil sebagai swatch &amp; di galeri halaman produk.</p>
+                    {uploadError && <p className="text-xs text-rose-600 mb-2">{uploadError}</p>}
+                    <div className="flex flex-wrap gap-3">
+                        {colors.map((color) => {
+                            const img = colorImages[color];
+                            return (
+                                <div key={color} className="flex w-20 flex-col items-center gap-1">
+                                    <label className="relative flex h-20 w-20 cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-slate-300 bg-slate-50 hover:border-brand-primary dark:border-slate-700 dark:bg-black/20">
+                                        {img ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img src={img} alt={color} className="h-full w-full object-cover" />
+                                        ) : uploadingColor === color ? (
+                                            <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                                        ) : (
+                                            <ImagePlus className="h-5 w-5 text-slate-400" />
+                                        )}
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                                const f = e.target.files?.[0];
+                                                if (f) uploadColorImage(color, f);
+                                                e.target.value = "";
+                                            }}
+                                        />
+                                    </label>
+                                    <span className="w-full truncate text-center text-[11px] text-slate-600 dark:text-slate-300">{color}</span>
+                                    {img && (
+                                        <button type="button" onClick={() => removeColorImage(color)} className="text-[11px] text-rose-600 hover:underline">
+                                            Hapus
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {combos.length === 0 ? (
                 <p className="text-sm text-slate-400 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 p-4 text-center">

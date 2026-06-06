@@ -71,6 +71,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
                         option1_value: v.option1_value ?? null,
                         option2_name: v.option2_name ?? null,
                         option2_value: v.option2_value ?? null,
+                        images: v.images ?? [],
                     })),
             }}
             categories={categories}

@@ -48,6 +48,7 @@ interface ProductData {
         option1_value: string | null;
         option2_name: string | null;
         option2_value: string | null;
+        images: string[] | null;
     }[];
 }
 
@@ -105,6 +106,7 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
             option2_value: v.option2_value,
             price: v.price ?? "",
             stock: v.stock ?? "1",
+            images: v.images ?? [],
         }))
     );
 
@@ -230,6 +232,7 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
                         option2_value: v.option2_value,
                         price: v.price ? parseFloat(v.price) : undefined,
                         stock: v.stock ? parseInt(v.stock) : 1,
+                        images: v.images,
                     })),
                 images,
                 stock: parseInt(stock) || 1,

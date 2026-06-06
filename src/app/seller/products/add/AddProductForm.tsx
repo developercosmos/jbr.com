@@ -239,6 +239,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                         option2_value: v.option2_value,
                         price: v.price ? parseFloat(v.price) : undefined,
                         stock: v.stock ? parseInt(v.stock) : 1,
+                        images: v.images,
                     })),
                 images,
                 stock: parseInt(stock) || 1,

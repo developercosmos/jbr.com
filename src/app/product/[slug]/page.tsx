@@ -103,9 +103,18 @@ export default async function ProductPage({ params }: ProductPageProps) {
             </nav>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-                {/* Left Side: Gallery */}
+                {/* Left Side: Gallery (product images + any per-variant images) */}
                 <div className="lg:col-span-7">
-                    <ProductGallery images={product.images || []} />
+                    <ProductGallery
+                        images={Array.from(
+                            new Set(
+                                [
+                                    ...(product.images || []),
+                                    ...product.variants.flatMap((v) => v.images || []),
+                                ].filter(Boolean)
+                            )
+                        )}
+                    />
                 </div>
 
                 {/* Right Side: Details & Actions */}
