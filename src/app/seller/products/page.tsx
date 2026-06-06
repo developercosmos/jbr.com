@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, Search, Edit, Trash2, Eye, Package, AlertTriangle } from "lucide-react";
+import { Plus, Search, Edit, Eye, Package, AlertTriangle } from "lucide-react";
+import DeleteProductButton from "@/components/seller/DeleteProductButton";
 import { getSellerProducts } from "@/actions/products";
 import { getSellerProfileByUserId } from "@/actions/seller";
 import { canAccessSellerCenter } from "@/lib/seller";
@@ -187,12 +188,7 @@ export default async function SellerProductsPage() {
                                                             >
                                                                 <Edit className="w-4 h-4" />
                                                             </Link>
-                                                            <button
-                                                                className="p-2 text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg transition-colors"
-                                                                title="Hapus"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </button>
+                                                            <DeleteProductButton productId={product.id} productTitle={product.title} />
                                                         </div>
                                                     </td>
                                                 </tr>

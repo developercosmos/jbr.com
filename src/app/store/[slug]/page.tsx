@@ -66,6 +66,24 @@ export default async function StorePage({ params }: Props) {
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+            {/* Store Banner (4:1) — only when the seller uploaded one */}
+            {seller.store_banner_url && (
+                <div className="bg-slate-100 dark:bg-slate-800">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="relative w-full aspect-[4/1] overflow-hidden">
+                            <Image
+                                src={seller.store_banner_url}
+                                alt={`Banner ${seller.store_name}`}
+                                fill
+                                priority
+                                sizes="(max-width: 1280px) 100vw, 1280px"
+                                className="object-cover"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Store Header */}
             <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
                 <div className="max-w-7xl mx-auto px-4 md:px-8 py-8">
@@ -81,9 +99,13 @@ export default async function StorePage({ params }: Props) {
                     </nav>
 
                     <div className="flex flex-col md:flex-row gap-6 items-start">
-                        {/* Store Avatar */}
-                        <div className="w-24 h-24 bg-gradient-to-br from-brand-primary to-blue-600 rounded-2xl flex items-center justify-center text-white text-3xl font-bold shadow-lg">
-                            {seller.store_name.charAt(0).toUpperCase()}
+                        {/* Store Avatar — uploaded logo, fallback to initial */}
+                        <div className="relative w-24 h-24 shrink-0 bg-gradient-to-br from-brand-primary to-blue-600 rounded-2xl overflow-hidden flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+                            {seller.image ? (
+                                <Image src={seller.image} alt={seller.store_name} fill sizes="96px" className="object-cover" />
+                            ) : (
+                                seller.store_name.charAt(0).toUpperCase()
+                            )}
                         </div>
 
                         {/* Store Info */}

@@ -424,6 +424,7 @@ async function uploadSellerImage(formData: FormData, kind: "banner" | "logo") {
 
     revalidatePath("/seller/settings");
     revalidatePath("/seller");
+    revalidatePath("/store/[slug]", "page");
 
     return { success: true as const, url: result.url };
 }
@@ -434,4 +435,19 @@ export async function uploadSellerBanner(formData: FormData) {
 
 export async function uploadSellerLogo(formData: FormData) {
     return uploadSellerImage(formData, "logo");
+}
+
+// Clear the store banner or logo.
+export async function removeSellerImage(kind: "banner" | "logo") {
+    const sessionUser = await getCurrentUser();
+    await db
+        .update(users)
+        .set(kind === "banner" ? { store_banner_url: null, updated_at: new Date() } : { image: null, updated_at: new Date() })
+        .where(eq(users.id, sessionUser.id));
+
+    revalidatePath("/seller/settings");
+    revalidatePath("/seller");
+    revalidatePath("/store/[slug]", "page");
+
+    return { success: true as const };
 }

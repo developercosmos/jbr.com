@@ -17,12 +17,14 @@ import {
     Camera,
     PencilLine,
     ExternalLink,
+    Trash2,
 } from "lucide-react";
 import {
     updateSellerProfile,
     resubmitSellerActivationReview,
     uploadSellerBanner,
     uploadSellerLogo,
+    removeSellerImage,
 } from "@/actions/seller";
 
 type SellerProfile = {
@@ -130,6 +132,36 @@ export default function StoreSettingsForm({
         } finally {
             setLogoUploading(false);
             if (logoInput.current) logoInput.current.value = "";
+        }
+    };
+
+    const handleRemoveBanner = async () => {
+        setBannerUploading(true);
+        try {
+            const res = await removeSellerImage("banner");
+            if (res.success) {
+                setBannerUrl(null);
+                showToast({ type: "success", message: "Banner toko dihapus" });
+            }
+        } catch {
+            showToast({ type: "error", message: "Gagal menghapus banner." });
+        } finally {
+            setBannerUploading(false);
+        }
+    };
+
+    const handleRemoveLogo = async () => {
+        setLogoUploading(true);
+        try {
+            const res = await removeSellerImage("logo");
+            if (res.success) {
+                setLogoUrl(null);
+                showToast({ type: "success", message: "Logo toko dihapus" });
+            }
+        } catch {
+            showToast({ type: "error", message: "Gagal menghapus logo." });
+        } finally {
+            setLogoUploading(false);
         }
     };
 
@@ -277,6 +309,16 @@ export default function StoreSettingsForm({
                                 <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
                             </div>
                         )}
+                        {bannerUrl && !bannerUploading && (
+                            <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); handleRemoveBanner(); }}
+                                className="absolute top-2 right-2 z-10 rounded-full bg-white/90 hover:bg-white text-rose-600 p-1.5 shadow"
+                                title="Hapus banner"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                        )}
                         <input
                             ref={bannerInput}
                             type="file"
@@ -285,6 +327,9 @@ export default function StoreSettingsForm({
                             onChange={handleBannerChange}
                         />
                     </div>
+                    <p className="mt-2 text-xs text-slate-400">
+                        Rekomendasi banner <span className="font-medium">1600 × 400 px</span> (rasio 4:1) agar tidak terpotong.
+                    </p>
 
                     {/* Logo */}
                     <div className="-mt-12 ml-6 relative inline-block">
@@ -316,6 +361,11 @@ export default function StoreSettingsForm({
                     </div>
                     <p className="mt-4 ml-6 text-xs text-slate-500">
                         Logo akan tampil di kartu produk dan halaman toko publik. Upload langsung tersimpan otomatis.
+                        {logoUrl && (
+                            <button type="button" onClick={handleRemoveLogo} className="ml-2 font-medium text-rose-600 hover:underline">
+                                Hapus logo
+                            </button>
+                        )}
                     </p>
                 </div>
             </section>
