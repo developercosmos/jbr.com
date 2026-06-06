@@ -207,7 +207,7 @@ export default async function StorePage({ params }: Props) {
                                             alt={product.title}
                                             fill
                                             sizes="(max-width: 768px) 50vw, 300px"
-                                            className="object-contain group-hover:scale-105 transition-transform duration-300"
+                                            className="object-cover group-hover:scale-105 transition-transform duration-300"
                                         />
                                     ) : (
                                         <div className="absolute inset-0 flex items-center justify-center">
