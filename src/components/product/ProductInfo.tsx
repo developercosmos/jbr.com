@@ -56,6 +56,10 @@ interface ProductInfoProps {
             id: string;
             name: string;
             variant_type: string;
+            option1_name: string | null;
+            option1_value: string | null;
+            option2_name: string | null;
+            option2_value: string | null;
             price: string | null;
             stock: number;
             images: string[] | null;

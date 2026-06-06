@@ -9,6 +9,7 @@ import {
     Clock, Info, Save, AlertTriangle, Loader2, Upload
 } from "lucide-react";
 import { updateProduct, publishProduct, archiveProduct } from "@/actions/products";
+import VariantMatrixEditor, { type ComboVariant } from "@/components/seller/VariantMatrixEditor";
 
 interface Category {
     id: string;
@@ -39,7 +40,15 @@ interface ProductData {
     shaft_flex: string | null;
     grip_size: string | null;
     max_string_tension_lbs: number | null;
-    variants: { name: string; price: string; stock: string }[];
+    variants: {
+        name: string;
+        price: string;
+        stock: string;
+        option1_name: string | null;
+        option1_value: string | null;
+        option2_name: string | null;
+        option2_value: string | null;
+    }[];
 }
 
 interface EditProductFormProps {
@@ -87,7 +96,17 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
     const [shaftFlex, setShaftFlex] = useState(product.shaft_flex ?? "");
     const [gripSize, setGripSize] = useState(product.grip_size ?? "");
     const [stringTension, setStringTension] = useState(product.max_string_tension_lbs?.toString() ?? "");
-    const [variants, setVariants] = useState<{ name: string; price: string; stock: string }[]>(product.variants ?? []);
+    const [variants, setVariants] = useState<ComboVariant[]>(
+        (product.variants ?? []).map((v) => ({
+            name: v.name,
+            option1_name: v.option1_name,
+            option1_value: v.option1_value,
+            option2_name: v.option2_name,
+            option2_value: v.option2_value,
+            price: v.price ?? "",
+            stock: v.stock ?? "1",
+        }))
+    );
 
     const getErrorMessage = (err: unknown, fallback: string) => {
         if (err instanceof Error && err.message.trim()) return err.message;
@@ -192,7 +211,11 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
                     .filter((v) => v.name.trim())
                     .map((v) => ({
                         name: v.name.trim(),
-                        variant_type: "varian",
+                        variant_type: "combination",
+                        option1_name: v.option1_name,
+                        option1_value: v.option1_value,
+                        option2_name: v.option2_name,
+                        option2_value: v.option2_value,
                         price: v.price ? parseFloat(v.price) : undefined,
                         stock: v.stock ? parseInt(v.stock) : 1,
                     })),
@@ -572,18 +595,8 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
                     {/* Varian */}
                     <section className="bg-white dark:bg-surface-dark rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">
                         <h3 className="text-lg font-bold mb-1 text-slate-900 dark:text-white">Varian (Opsional)</h3>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Atur varian (mis. grip G4/G5, warna) dengan stok & harga per varian. Mengosongkan semua varian akan menghapusnya.</p>
-                        <div className="space-y-3">
-                            {variants.map((v, i) => (
-                                <div key={i} className="flex flex-col sm:flex-row gap-2 items-stretch">
-                                    <input className="flex-1 rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white py-2.5 px-3 text-sm" placeholder="Nama varian (mis. Grip G5)" value={v.name} onChange={(e) => setVariants((prev) => prev.map((x, j) => j === i ? { ...x, name: e.target.value } : x))} />
-                                    <input className="w-full sm:w-36 rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white py-2.5 px-3 text-sm" placeholder="Harga (opsional)" type="number" value={v.price} onChange={(e) => setVariants((prev) => prev.map((x, j) => j === i ? { ...x, price: e.target.value } : x))} />
-                                    <input className="w-full sm:w-24 rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white py-2.5 px-3 text-sm" placeholder="Stok" type="number" min={0} value={v.stock} onChange={(e) => setVariants((prev) => prev.map((x, j) => j === i ? { ...x, stock: e.target.value } : x))} />
-                                    <button type="button" onClick={() => setVariants((prev) => prev.filter((_, j) => j !== i))} className="px-3 py-2.5 rounded-lg border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-sm font-medium hover:bg-rose-50 dark:hover:bg-rose-900/20">Hapus</button>
-                                </div>
-                            ))}
-                            <button type="button" onClick={() => setVariants((prev) => [...prev, { name: "", price: "", stock: "1" }])} className="text-sm font-bold text-brand-primary hover:underline">+ Tambah Varian</button>
-                        </div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Atur kombinasi Warna &amp; Ukuran dengan harga &amp; stok per kombinasi. Kosongkan semua untuk menghapus varian.</p>
+                        <VariantMatrixEditor value={variants} onChange={setVariants} basePrice={price} />
                     </section>
 
                     {/* Pengiriman */}

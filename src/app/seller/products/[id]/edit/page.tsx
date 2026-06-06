@@ -67,6 +67,10 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
                         name: v.name,
                         price: v.price != null ? String(Math.round(parseFloat(v.price))) : "",
                         stock: String(v.stock),
+                        option1_name: v.option1_name ?? null,
+                        option1_value: v.option1_value ?? null,
+                        option2_name: v.option2_name ?? null,
+                        option2_value: v.option2_value ?? null,
                     })),
             }}
             categories={categories}

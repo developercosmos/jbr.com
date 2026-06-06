@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Home, ChevronRight, X, Image as ImageIcon, ChevronDown, CheckCircle, Clock, Info, Save, AlertTriangle, Loader2 } from "lucide-react";
 import { Upload } from "lucide-react";
 import { createProduct, publishProduct } from "@/actions/products";
+import VariantMatrixEditor, { type ComboVariant } from "@/components/seller/VariantMatrixEditor";
 
 interface Category {
     id: string;
@@ -52,8 +53,8 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
     const [stringTension, setStringTension] = useState("");
     const [price, setPrice] = useState("");
     const [stock, setStock] = useState("1");
-    // Optional variants (grip/color/size). Each: label + optional price override + stock.
-    const [variants, setVariants] = useState<{ name: string; price: string; stock: string }[]>([]);
+    // Optional combination variants (Warna × Ukuran) with price/stock per combo.
+    const [variants, setVariants] = useState<ComboVariant[]>([]);
     const [bargainEnabled, setBargainEnabled] = useState(false);
     const [floorPrice, setFloorPrice] = useState("");
     const [tierFloorDefault, setTierFloorDefault] = useState("");
@@ -221,7 +222,11 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                     .filter((v) => v.name.trim())
                     .map((v) => ({
                         name: v.name.trim(),
-                        variant_type: "varian",
+                        variant_type: "combination",
+                        option1_name: v.option1_name,
+                        option1_value: v.option1_value,
+                        option2_name: v.option2_name,
+                        option2_value: v.option2_value,
                         price: v.price ? parseFloat(v.price) : undefined,
                         stock: v.stock ? parseInt(v.stock) : 1,
                     })),
@@ -791,56 +796,16 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                         </div>
                     </section>
 
-                    {/* Variants Section — optional grip/color/size with per-variant stock + price */}
+                    {/* Variants Section — combination variants (Warna × Ukuran) with price/stock per combo */}
                     <section className="bg-white dark:bg-surface-dark rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">
                         <h3 className="text-lg font-bold mb-1 text-slate-900 dark:text-white">
                             Varian (Opsional)
                         </h3>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                            Tambahkan varian (mis. grip G4/G5, warna) jika produk punya pilihan. Stok & harga
-                            bisa diatur per varian. Kosongkan jika produk tidak punya varian.
+                            Atur kombinasi Warna &amp; Ukuran dengan harga &amp; stok per kombinasi. Kosongkan jika
+                            produk tidak punya varian.
                         </p>
-                        <div className="space-y-3">
-                            {variants.map((v, i) => (
-                                <div key={i} className="flex flex-col sm:flex-row gap-2 items-stretch">
-                                    <input
-                                        className="flex-1 rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white py-2.5 px-3 text-sm"
-                                        placeholder="Nama varian (mis. Grip G5)"
-                                        value={v.name}
-                                        onChange={(e) => setVariants((prev) => prev.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
-                                    />
-                                    <input
-                                        className="w-full sm:w-36 rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white py-2.5 px-3 text-sm"
-                                        placeholder="Harga (opsional)"
-                                        type="number"
-                                        value={v.price}
-                                        onChange={(e) => setVariants((prev) => prev.map((x, j) => j === i ? { ...x, price: e.target.value } : x))}
-                                    />
-                                    <input
-                                        className="w-full sm:w-24 rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white py-2.5 px-3 text-sm"
-                                        placeholder="Stok"
-                                        type="number"
-                                        min={0}
-                                        value={v.stock}
-                                        onChange={(e) => setVariants((prev) => prev.map((x, j) => j === i ? { ...x, stock: e.target.value } : x))}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setVariants((prev) => prev.filter((_, j) => j !== i))}
-                                        className="px-3 py-2.5 rounded-lg border border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-sm font-medium hover:bg-rose-50 dark:hover:bg-rose-900/20"
-                                    >
-                                        Hapus
-                                    </button>
-                                </div>
-                            ))}
-                            <button
-                                type="button"
-                                onClick={() => setVariants((prev) => [...prev, { name: "", price: "", stock: "1" }])}
-                                className="text-sm font-bold text-brand-primary hover:underline"
-                            >
-                                + Tambah Varian
-                            </button>
-                        </div>
+                        <VariantMatrixEditor value={variants} onChange={setVariants} basePrice={price} />
                     </section>
 
                     {/* 5. Shipping Section */}

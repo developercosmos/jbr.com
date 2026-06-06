@@ -426,8 +426,14 @@ export const product_variants = pgTable(
         product_id: uuid("product_id")
             .notNull()
             .references(() => products.id, { onDelete: "cascade" }),
-        name: text("name").notNull(), // e.g., "4U G5", "Size 42", "Red"
-        variant_type: text("variant_type").notNull(), // "size", "color", "grip_size", etc.
+        name: text("name").notNull(), // combined label, e.g. "Merah / M" (or "4U G5", "Red")
+        variant_type: text("variant_type").notNull(), // "combination" for option-axis variants; legacy: "size","color",...
+        // Combination axes (nullable). A combination variant carries up to two
+        // (name,value) pairs, e.g. option1=("Warna","Merah") option2=("Ukuran","M").
+        option1_name: text("option1_name"),
+        option1_value: text("option1_value"),
+        option2_name: text("option2_name"),
+        option2_value: text("option2_value"),
         sku: text("sku"),
         price: decimal("price", { precision: 12, scale: 2 }), // Override product price if set
         stock: integer("stock").default(1).notNull(),

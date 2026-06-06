@@ -71,13 +71,18 @@ const createProductSchema = z.object({
     variants: z
         .array(
             z.object({
-                name: z.string().trim().min(1).max(60),
+                name: z.string().trim().min(1).max(80),
                 variant_type: z.string().trim().min(1).max(30).default("varian"),
+                // Combination axes (e.g. option1=Warna/Merah, option2=Ukuran/M).
+                option1_name: z.string().trim().max(30).optional().nullable(),
+                option1_value: z.string().trim().max(60).optional().nullable(),
+                option2_name: z.string().trim().max(30).optional().nullable(),
+                option2_value: z.string().trim().max(60).optional().nullable(),
                 price: z.number().positive().optional().nullable(),
                 stock: z.number().int().min(0).default(1),
             })
         )
-        .max(30)
+        .max(100)
         .optional(),
 });
 
@@ -201,6 +206,10 @@ export async function createProduct(input: z.infer<typeof createProductSchema>) 
                     product_id: product.id,
                     name: v.name,
                     variant_type: v.variant_type || "varian",
+                    option1_name: v.option1_name ?? null,
+                    option1_value: v.option1_value ?? null,
+                    option2_name: v.option2_name ?? null,
+                    option2_value: v.option2_value ?? null,
                     price: v.price != null ? v.price.toString() : null,
                     stock: v.stock,
                     sort_order: i,
@@ -270,6 +279,10 @@ export async function updateProduct(input: z.infer<typeof updateProductSchema>) 
                     product_id: id,
                     name: v.name,
                     variant_type: v.variant_type || "varian",
+                    option1_name: v.option1_name ?? null,
+                    option1_value: v.option1_value ?? null,
+                    option2_name: v.option2_name ?? null,
+                    option2_value: v.option2_value ?? null,
                     price: v.price != null ? v.price.toString() : null,
                     stock: v.stock,
                     sort_order: i,
