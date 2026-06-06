@@ -1,4 +1,4 @@
-import { Verified, ShieldCheck, Star, Clock, Award } from "lucide-react";
+import { Verified, ShieldCheck, Clock, Award } from "lucide-react";
 
 interface SellerBadgeProps {
     type: "verified" | "topSeller" | "fastResponse" | "trusted";
@@ -69,50 +69,5 @@ export function SellerBadge({ type, size = "md" }: SellerBadgeProps) {
             <Icon className={`${sizeStyles.icon} ${badge.iconColor}`} />
             {badge.label}
         </span>
-    );
-}
-
-// Icon-only version for compact displays
-interface SellerBadgeIconProps {
-    type: "verified" | "topSeller" | "fastResponse" | "trusted";
-    size?: number;
-}
-
-export function SellerBadgeIcon({ type, size = 16 }: SellerBadgeIconProps) {
-    const badge = badgeConfig[type];
-    const Icon = badge.icon;
-
-    return (
-        <span
-            className={`inline-flex items-center justify-center ${badge.iconColor}`}
-            title={badge.label}
-        >
-            <Icon style={{ width: size, height: size }} className="fill-current" />
-        </span>
-    );
-}
-
-// Seller rating display with stars
-interface SellerRatingProps {
-    rating: number;
-    reviewCount: number;
-    size?: "sm" | "md";
-}
-
-export function SellerRating({ rating, reviewCount, size = "md" }: SellerRatingProps) {
-    const isSmall = size === "sm";
-
-    return (
-        <div className={`flex items-center ${isSmall ? "gap-1" : "gap-1.5"}`}>
-            <Star
-                className={`${isSmall ? "w-3 h-3" : "w-4 h-4"} text-amber-400 fill-amber-400`}
-            />
-            <span className={`${isSmall ? "text-xs" : "text-sm"} font-bold text-slate-900`}>
-                {rating.toFixed(1)}
-            </span>
-            <span className={`${isSmall ? "text-xs" : "text-sm"} text-slate-500`}>
-                ({reviewCount} ulasan)
-            </span>
-        </div>
     );
 }

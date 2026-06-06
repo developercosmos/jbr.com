@@ -16,10 +16,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
-        console.log('[AUTH POST] URL:', request.url);
-        const response = await originalPOST(request);
-        console.log('[AUTH POST] Response status:', response.status);
-        return response;
+        return await originalPOST(request);
     } catch (error) {
         console.error('[AUTH POST ERROR]', error);
         throw error;
