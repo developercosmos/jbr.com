@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { files, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { eq, desc, and, ilike, sql, count } from "drizzle-orm";
+import { eq, desc, and, ilike, inArray, sql, count } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { uploadFile as uploadToStorage, deleteFile as deleteFromStorage } from "@/lib/storage";
 import { getFileTypeFromMime } from "@/lib/file-utils";
@@ -253,10 +253,11 @@ export async function deleteAdminFile(fileId: string) {
 // ============================================
 export async function bulkDeleteFiles(fileIds: string[]) {
     await requireAdmin();
+    if (fileIds.length === 0) return { success: true, deletedCount: 0 };
 
     // Get all files info
     const filesToDelete = await db.query.files.findMany({
-        where: sql`${files.id} = ANY(${fileIds})`,
+        where: inArray(files.id, fileIds),
     });
 
     // Delete from storage
@@ -269,7 +270,7 @@ export async function bulkDeleteFiles(fileIds: string[]) {
     }
 
     // Delete from database
-    await db.delete(files).where(sql`${files.id} = ANY(${fileIds})`);
+    await db.delete(files).where(inArray(files.id, fileIds));
 
     revalidatePath("/admin/files");
     return { success: true, deletedCount: filesToDelete.length };

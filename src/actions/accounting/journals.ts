@@ -10,7 +10,7 @@ import {
     type ledgerBookEnum,
     type taxKindEnum,
 } from "@/db/schema";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { getSetting } from "./settings";
 
 export type LedgerBook = (typeof ledgerBookEnum.enumValues)[number];
@@ -207,7 +207,7 @@ export async function postJournal(
         .from(coa_accounts)
         .where(
             and(
-                sql`${coa_accounts.code} = ANY(${codes})`,
+                inArray(coa_accounts.code, codes),
                 eq(coa_accounts.book, book)
             )
         );

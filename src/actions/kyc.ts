@@ -3,7 +3,7 @@
 import { db } from "@/db";
 import { files, notifications, orders, seller_kyc, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
-import { and, desc, eq, gte, lt, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -200,7 +200,7 @@ export async function submitSellerKycApplication(input: z.infer<typeof submitSel
     const fileIds = [validated.ktpFileId, validated.selfieFileId, validated.businessDocFileId].filter(Boolean) as string[];
     const uploadedFiles = fileIds.length
         ? await db.query.files.findMany({
-            where: sql`${files.id} = ANY(${fileIds})`,
+            where: inArray(files.id, fileIds),
             columns: {
                 id: true,
                 uploaded_by: true,

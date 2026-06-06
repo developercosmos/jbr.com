@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/db";
 import { feature_flags, feature_flag_audit_log, product_event_daily } from "@/db/schema";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { ChartLine } from "lucide-react";
@@ -68,7 +68,7 @@ export default async function FlagImpactPage({ params }: { params: Promise<{ key
               .from(product_event_daily)
               .where(
                   and(
-                      sql`${product_event_daily.event_type} = ANY(${eventTypes})`,
+                      inArray(product_event_daily.event_type, eventTypes),
                       sql`${product_event_daily.date} >= ${sinceIso}`
                   )
               )
