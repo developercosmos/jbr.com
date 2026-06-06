@@ -1,13 +1,12 @@
 /**
  * TECH-05: Search backend abstraction.
  *
- * Today: PostgresFallback (no-op stub; existing actions/search.ts continues
- * to serve traffic via direct Drizzle queries).
- * When SEARCH_BACKEND=meilisearch + MEILISEARCH_HOST + MEILISEARCH_API_KEY
- * are set, MeilisearchAdapter takes over with full-text + faceted search.
- *
- * Switching the live search action to use this adapter is a follow-up; the
- * abstraction lets that swap happen without touching every call site.
+ * When SEARCH_BACKEND=meilisearch + MEILISEARCH_HOST + MEILISEARCH_API_KEY are
+ * set, MeilisearchAdapter serves full-text + faceted search. Otherwise search is
+ * served by actions/search.ts via direct Drizzle queries — searchProducts() only
+ * routes to a backend adapter when Meilisearch is active. PostgresFallback is a
+ * guard for the non-Meilisearch case: its indexing methods are intentionally
+ * absent (no external index to maintain) and query() must never be called.
  */
 
 import { logger } from "@/lib/logger";
@@ -57,9 +56,13 @@ const PRODUCTS_INDEX = "products";
 class PostgresFallback implements SearchBackend {
     name = "postgres";
     async query(): Promise<SearchQueryResult> {
-        // Stub: real Postgres search lives in actions/search.ts. This adapter
-        // exists so callers can compile against the interface uniformly.
-        return { hits: [], estimatedTotal: 0 };
+        // Not a real search backend: Postgres search is served by actions/search.ts
+        // (direct Drizzle). searchProducts() only routes to a backend adapter when
+        // Meilisearch is active, so this should never run. Fail loudly instead of
+        // silently returning empty results.
+        throw new Error(
+            "PostgresFallback.query() must not be called — use searchProducts() (Postgres search runs via direct Drizzle)."
+        );
     }
 }
 

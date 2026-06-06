@@ -12,7 +12,12 @@ interface OfferDraftPayload {
 }
 
 function getSecret(): string {
-    return process.env.BETTER_AUTH_SECRET || process.env.PDP_FIELD_ENCRYPTION_KEY || "jbr-dev-secret";
+    const secret = process.env.BETTER_AUTH_SECRET || process.env.PDP_FIELD_ENCRYPTION_KEY;
+    if (secret && secret.trim()) return secret;
+    if (process.env.NODE_ENV === "production") {
+        throw new Error("[config] BETTER_AUTH_SECRET (or PDP_FIELD_ENCRYPTION_KEY) must be set in production");
+    }
+    return "jbr-dev-secret"; // dev-only fallback
 }
 
 function sign(encodedPayload: string): string {

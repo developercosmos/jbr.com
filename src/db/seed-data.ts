@@ -377,6 +377,9 @@ function generateSlug(title: string): string {
 }
 
 export async function seedDatabase() {
+    if (process.env.NODE_ENV === "production") {
+        throw new Error("Refusing to run the demo seed in production (NODE_ENV=production).");
+    }
     console.log("🌱 Starting database seed...\n");
 
     try {

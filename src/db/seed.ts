@@ -1208,6 +1208,10 @@ export async function seedDatabase() {
 }
 
 // Run if called directly
+if (process.env.NODE_ENV === "production") {
+    console.error("❌ Refusing to run the demo seed in production (NODE_ENV=production). Aborting.");
+    process.exit(1);
+}
 seedDatabase()
     .then(() => {
         console.log("\n🎉 Done!");

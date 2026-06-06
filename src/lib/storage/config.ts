@@ -3,6 +3,8 @@
  * Determines whether to use AWS S3 or local filesystem storage
  */
 
+import { envOrThrowInProd } from "@/lib/require-env";
+
 export const storageConfig = {
     // S3 Configuration
     s3: {
@@ -18,7 +20,7 @@ export const storageConfig = {
             process.env.LOCAL_UPLOAD_DIR ||
             (process.env.NODE_ENV === "production" ? "/var/www/jbr/uploads" : "public/uploads"),
         publicPath: process.env.LOCAL_UPLOAD_PUBLIC_PATH || "/uploads",
-        baseUrl: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+        baseUrl: envOrThrowInProd("NEXT_PUBLIC_APP_URL", "http://localhost:3000"),
     },
 
     // Maximum file size in bytes (10MB default)

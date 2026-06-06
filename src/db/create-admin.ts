@@ -15,6 +15,10 @@ const ADMIN_PASSWORD = "admin123";
 const ADMIN_NAME = "Administrator";
 
 async function createAdmin() {
+    if (process.env.NODE_ENV === "production") {
+        console.error("❌ Refusing to run create-admin in production (weak default password). Aborting.");
+        process.exit(1);
+    }
     console.log("🔐 Creating admin account...\n");
 
     try {
