@@ -17,13 +17,17 @@ export function ProductGallery({ images, conditionLabel }: ProductGalleryProps) 
     const sanitizedImages = images.filter(
         (img): img is string => typeof img === "string" && img.trim().length > 0
     );
-    const [activeImage, setActiveImage] = useState(sanitizedImages[0] ?? "");
+    const firstImage = sanitizedImages[0] ?? "";
+    const [activeImage, setActiveImage] = useState(firstImage);
 
     // Zoom + pan lightbox state
     const [zoomOpen, setZoomOpen] = useState(false);
     const [scale, setScale] = useState(1);
     const [pos, setPos] = useState({ x: 0, y: 0 });
-    const drag = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
+    // Active pointers (for pinch) + the current pan/pinch gesture anchors.
+    const pointers = useRef<Map<number, { x: number; y: number }>>(new Map());
+    const pinch = useRef<{ startDist: number; startScale: number } | null>(null);
+    const pan = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
 
     const openZoom = useCallback(() => {
         if (!activeImage) return;
@@ -34,7 +38,9 @@ export function ProductGallery({ images, conditionLabel }: ProductGalleryProps) 
 
     const closeZoom = useCallback(() => {
         setZoomOpen(false);
-        drag.current = null;
+        pointers.current.clear();
+        pinch.current = null;
+        pan.current = null;
     }, []);
 
     // Reset pan when scale returns to 1
@@ -61,20 +67,57 @@ export function ProductGallery({ images, conditionLabel }: ProductGalleryProps) 
         };
     }, [zoomOpen, scale, closeZoom, setScaleClamped]);
 
+    // Swap the main image when a variant (color) is selected on the PDP.
+    // VariantSelector → ProductInfo dispatches this event (decoupled across the
+    // server-rendered gallery/info columns without a shared client wrapper).
+    useEffect(() => {
+        const onVariantImage = (e: Event) => {
+            const detail = (e as CustomEvent).detail as { image?: string | null } | undefined;
+            setActiveImage(detail?.image || firstImage);
+        };
+        window.addEventListener("pdp:variant-image", onVariantImage as EventListener);
+        return () => window.removeEventListener("pdp:variant-image", onVariantImage as EventListener);
+    }, [firstImage]);
+
+    const pointerDist = () => {
+        const pts = Array.from(pointers.current.values());
+        if (pts.length < 2) return 0;
+        return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    };
     const onPointerDown = (e: React.PointerEvent) => {
         e.preventDefault();
         (e.target as Element).setPointerCapture?.(e.pointerId);
-        drag.current = { sx: e.clientX, sy: e.clientY, px: pos.x, py: pos.y };
+        pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pointers.current.size === 2) {
+            // Two fingers → pinch-to-zoom.
+            pinch.current = { startDist: pointerDist(), startScale: scale };
+            pan.current = null;
+        } else if (pointers.current.size === 1) {
+            pan.current = { sx: e.clientX, sy: e.clientY, px: pos.x, py: pos.y };
+        }
     };
     const onPointerMove = (e: React.PointerEvent) => {
-        if (!drag.current) return;
-        setPos({
-            x: drag.current.px + (e.clientX - drag.current.sx),
-            y: drag.current.py + (e.clientY - drag.current.sy),
-        });
+        if (!pointers.current.has(e.pointerId)) return;
+        pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pointers.current.size >= 2 && pinch.current && pinch.current.startDist > 0) {
+            setScaleClamped(pinch.current.startScale * (pointerDist() / pinch.current.startDist));
+        } else if (pan.current) {
+            setPos({
+                x: pan.current.px + (e.clientX - pan.current.sx),
+                y: pan.current.py + (e.clientY - pan.current.sy),
+            });
+        }
     };
-    const onPointerUp = () => {
-        drag.current = null;
+    const endPointer = (e: React.PointerEvent) => {
+        pointers.current.delete(e.pointerId);
+        if (pointers.current.size < 2) pinch.current = null;
+        if (pointers.current.size === 1) {
+            // One finger left after a pinch → resume panning from it.
+            const [rem] = Array.from(pointers.current.values());
+            pan.current = { sx: rem.x, sy: rem.y, px: pos.x, py: pos.y };
+        } else if (pointers.current.size === 0) {
+            pan.current = null;
+        }
     };
     const onWheel = (e: React.WheelEvent) => {
         setScaleClamped(scale - e.deltaY * 0.0015);
@@ -159,8 +202,8 @@ export function ProductGallery({ images, conditionLabel }: ProductGalleryProps) 
                         onWheel={onWheel}
                         onPointerDown={onPointerDown}
                         onPointerMove={onPointerMove}
-                        onPointerUp={onPointerUp}
-                        onPointerCancel={onPointerUp}
+                        onPointerUp={endPointer}
+                        onPointerCancel={endPointer}
                         style={{
                             transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
                             touchAction: "none",

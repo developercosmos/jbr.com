@@ -546,7 +546,13 @@ export function ProductInfo({
 
             {product.variants.length > 0 && (
                 <div className="space-y-2">
-                    <VariantSelector variants={product.variants} grouped={groupedVariants} basePrice={product.price} onVariantSelect={(variant) => setSelectedVariantId(variant?.id ?? null)} />
+                    <VariantSelector variants={product.variants} grouped={groupedVariants} basePrice={product.price} onVariantSelect={(variant) => {
+                        setSelectedVariantId(variant?.id ?? null);
+                        // Tell the gallery to swap its main image to the selected variant's photo.
+                        if (typeof window !== "undefined") {
+                            window.dispatchEvent(new CustomEvent("pdp:variant-image", { detail: { image: variant?.images?.[0] ?? null } }));
+                        }
+                    }} />
                     {requiresVariantSelection && <p className="text-sm text-amber-600">Pilih varian sebelum menambahkan ke keranjang.</p>}
                 </div>
             )}
