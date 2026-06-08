@@ -402,6 +402,9 @@ export const products = pgTable(
         stock: integer("stock").default(1).notNull(),
         views: integer("views").default(0),
         status: productStatusEnum("status").default("DRAFT").notNull(),
+        // Why the product is under moderation (admin reason or auto-policy), shown
+        // to the seller on the edit page. Null when not moderated.
+        moderation_reason: text("moderation_reason"),
         images: jsonb("images").$type<string[]>().default([]),
         bargain_enabled: boolean("bargain_enabled").default(false).notNull(),
         min_acceptable_price: decimal("min_acceptable_price", { precision: 12, scale: 2 }),

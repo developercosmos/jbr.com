@@ -35,6 +35,7 @@ interface ProductData {
     category_id: string | null;
     images: string[];
     status: "DRAFT" | "PUBLISHED" | "ARCHIVED" | "MODERATED";
+    moderation_reason?: string | null;
     weight_class: string | null;
     balance: string | null;
     shaft_flex: string | null;
@@ -646,7 +647,14 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
                                 <AlertTriangle className="w-5 h-5 text-orange-500 mt-0.5 shrink-0" />
                                 <div>
                                     <p className="text-orange-500 font-bold text-sm mb-1">Produk Dimoderasi</p>
-                                    <p className="text-slate-500 text-xs">Produk ini sedang dalam tinjauan tim moderasi. Perbaiki konten sesuai kebijakan lalu simpan.</p>
+                                    {product.moderation_reason ? (
+                                        <>
+                                            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-0.5">Alasan:</p>
+                                            <p className="text-slate-500 text-xs whitespace-pre-line">{product.moderation_reason}</p>
+                                        </>
+                                    ) : (
+                                        <p className="text-slate-500 text-xs">Produk ini sedang dalam tinjauan tim moderasi. Perbaiki konten sesuai kebijakan lalu simpan.</p>
+                                    )}
                                 </div>
                             </div>
                         )}

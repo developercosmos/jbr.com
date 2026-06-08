@@ -14,8 +14,12 @@ export function ModerationActions({ productId }: { productId: string }) {
     };
 
     const handleReject = () => {
+        // Reason is stored on the product and shown to the seller on their edit
+        // page (and emailed), so they know exactly what to fix.
+        const reason = window.prompt("Alasan moderasi (ditampilkan ke penjual):", "");
+        if (reason === null) return; // cancelled
         startTransition(async () => {
-            await rejectProduct(productId);
+            await rejectProduct(productId, reason.trim() || undefined);
         });
     };
 

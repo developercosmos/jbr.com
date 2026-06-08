@@ -108,9 +108,10 @@ function normalizeChecklist(input?: string[]): string[] {
 function validatePrelovedChecklist(input: { condition: "NEW" | "PRELOVED"; checklist?: string[] }): {
     checklist: string[];
     requiresModeration: boolean;
+    moderationReason: string | null;
 } {
     if (input.condition !== "PRELOVED") {
-        return { checklist: [], requiresModeration: false };
+        return { checklist: [], requiresModeration: false, moderationReason: null };
     }
 
     const checklist = normalizeChecklist(input.checklist);
@@ -118,10 +119,14 @@ function validatePrelovedChecklist(input: { condition: "NEW" | "PRELOVED"; check
         throw new Error("Produk pre-loved wajib mengisi minimal 3 item condition checklist.");
     }
 
-    const hasRiskMarker = checklist.some((item) => /retak|struktural|patah/i.test(item));
+    const riskItems = checklist.filter((item) => /retak|struktural|patah/i.test(item));
+    const hasRiskMarker = riskItems.length > 0;
     return {
         checklist,
         requiresModeration: hasRiskMarker,
+        moderationReason: hasRiskMarker
+            ? `Checklist kondisi menandai potensi kerusakan struktural (${riskItems.join(", ")}). Produk pre-loved seperti ini ditinjau manual demi keamanan pembeli — perbaiki/lengkapi deskripsi & foto kerusakan, lalu simpan untuk diajukan ulang.`
+            : null,
     };
 }
 
@@ -196,6 +201,7 @@ export async function createProduct(input: z.infer<typeof createProductSchema>) 
                 floor_price: validated.floor_price?.toString(),
                 tiered_floor_price: validated.tiered_floor_price,
                 status: nextStatus,
+                moderation_reason: checklistPolicy.moderationReason,
             })
             .returning();
 
@@ -255,6 +261,18 @@ export async function updateProduct(input: z.infer<typeof updateProductSchema>) 
         checklist: updateData.condition_checklist ?? (existing.condition_checklist ?? []),
     });
 
+    const finalStatus = checklistPolicy.requiresModeration && updateData.status === "PUBLISHED"
+        ? ("MODERATED" as const)
+        : updateData.status;
+    // Set the auto reason when auto-moderated; clear it when leaving moderation;
+    // otherwise leave it untouched (so an admin-set reason isn't clobbered when a
+    // seller just re-saves a still-moderated product).
+    const moderationReasonPatch =
+        finalStatus === "MODERATED" && checklistPolicy.requiresModeration
+            ? { moderation_reason: checklistPolicy.moderationReason }
+            : finalStatus !== "MODERATED"
+                ? { moderation_reason: null }
+                : {};
     const [product] = await db
         .update(products)
         .set({
@@ -263,9 +281,8 @@ export async function updateProduct(input: z.infer<typeof updateProductSchema>) 
             price: updateData.price?.toString(),
             floor_price: updateData.floor_price?.toString(),
             tiered_floor_price: updateData.tiered_floor_price,
-            status: checklistPolicy.requiresModeration && updateData.status === "PUBLISHED"
-                ? "MODERATED"
-                : updateData.status,
+            status: finalStatus,
+            ...moderationReasonPatch,
             updated_at: new Date(),
         })
         .where(eq(products.id, id))

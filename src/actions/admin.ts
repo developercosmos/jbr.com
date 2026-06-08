@@ -145,7 +145,7 @@ export async function approveProduct(productId: string) {
 
     await db
         .update(products)
-        .set({ status: "PUBLISHED", updated_at: new Date() })
+        .set({ status: "PUBLISHED", moderation_reason: null, updated_at: new Date() })
         .where(eq(products.id, productId));
 
     // Notify the seller (best-effort: email if available, plus in-app).
@@ -175,14 +175,15 @@ export async function rejectProduct(productId: string, reason?: string) {
     await getCurrentAdmin();
     const product = await getProductWithSeller(productId);
 
+    const rejectionReason = reason?.trim() || "Produk belum memenuhi standar marketplace. Silakan periksa kembali deskripsi, foto, dan kelengkapan data.";
+
     await db
         .update(products)
-        .set({ status: "MODERATED", updated_at: new Date() })
+        .set({ status: "MODERATED", moderation_reason: rejectionReason, updated_at: new Date() })
         .where(eq(products.id, productId));
 
     if (product?.seller) {
         const sellerName = product.seller.store_name || product.seller.name || "Penjual";
-        const rejectionReason = reason?.trim() || "Produk belum memenuhi standar marketplace. Silakan periksa kembali deskripsi, foto, dan kelengkapan data.";
         if (product.seller.email) {
             sendProductRejectedEmail(product.seller.email, sellerName, product.title, rejectionReason)
                 .catch((e) => console.error("rejectProduct email failed:", e));
