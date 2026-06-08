@@ -24,6 +24,7 @@ import {
     resubmitSellerActivationReview,
     removeSellerImage,
 } from "@/actions/seller";
+import { StoreHeaderPreview } from "./StoreHeaderPreview";
 
 // Upload a seller image through the /api/upload ROUTE (same proven path product
 // images use) — avoids the Server Action multipart/body-limit hang. Returns the
@@ -381,6 +382,16 @@ export default function StoreSettingsForm({
                         />
                         <span className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full bg-slate-300 transition-colors peer-checked:bg-brand-primary after:absolute after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-5"></span>
                     </label>
+
+                    {/* Live preview — updates as the toggle/banner/logo/name change */}
+                    <div className="mt-3">
+                        <StoreHeaderPreview
+                            overlay={headerOverlay}
+                            bannerUrl={bannerUrl}
+                            logoUrl={logoUrl}
+                            storeName={storeName}
+                        />
+                    </div>
 
                     {/* Logo */}
                     <div className="-mt-12 ml-6 relative inline-block">
