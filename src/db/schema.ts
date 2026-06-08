@@ -89,6 +89,9 @@ export const users = pgTable(
         store_description: text("store_description"),
         store_tagline: text("store_tagline"),
         store_banner_url: text("store_banner_url"),
+        // Per-seller: overlay header (avatar/name/rating/followers/actions) on top
+        // of the banner (Shopee-style) instead of stacking below it.
+        store_header_overlay: boolean("store_header_overlay").default(false).notNull(),
         payout_bank_name: text("payout_bank_name"),
         store_status: storeStatusEnum("store_status").default("ACTIVE"),
         store_review_notes: text("store_review_notes"),

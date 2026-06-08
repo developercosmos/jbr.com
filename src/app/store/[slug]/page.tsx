@@ -10,6 +10,7 @@ import { headers } from "next/headers";
 import { checkIsFollowing, getFollowerCount } from "@/actions/store";
 import { getSellerReputationSummary } from "@/actions/reputation";
 import { StoreActionButtons } from "@/components/store/StoreActionButtons";
+import { StoreOverlayHeader } from "@/components/store/StoreOverlayHeader";
 import { SellerRating } from "@/components/seller/SellerBadges";
 import { LowStockText } from "@/components/product/LowStockBadge";
 
@@ -68,7 +69,18 @@ export default async function StorePage({ params }: Props) {
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
-            {/* Store Banner (4:1) — only when the seller uploaded one */}
+            {seller.store_header_overlay && seller.store_banner_url ? (
+                <StoreOverlayHeader
+                    seller={seller}
+                    reputation={reputation}
+                    followerCount={followerCount}
+                    productCount={sellerProducts.length}
+                    isFollowing={isFollowing}
+                    isOwnStore={isOwnStore}
+                />
+            ) : (
+                <>
+            {/* Store Banner — only when the seller uploaded one */}
             {seller.store_banner_url && (
                 <div className="bg-slate-100 dark:bg-slate-800">
                     <div className="max-w-7xl mx-auto">
@@ -169,6 +181,8 @@ export default async function StorePage({ params }: Props) {
                     </div>
                 </div>
             </div>
+                </>
+            )}
 
             {/* Store Products */}
             <div className="max-w-7xl mx-auto px-4 md:px-8 py-8">

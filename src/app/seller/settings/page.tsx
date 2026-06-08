@@ -93,6 +93,7 @@ export default async function SellerSettingsPage({ searchParams }: PageProps) {
                         store_description: sellerProfile.store_description,
                         store_tagline: sellerProfile.store_tagline ?? null,
                         store_banner_url: sellerProfile.store_banner_url ?? null,
+                        store_header_overlay: sellerProfile.store_header_overlay ?? false,
                         payout_bank_name: sellerProfile.payout_bank_name,
                         tier: currentTier,
                     }}

@@ -51,6 +51,7 @@ type SellerProfile = {
     store_description: string | null;
     store_tagline: string | null;
     store_banner_url: string | null;
+    store_header_overlay: boolean;
     payout_bank_name: string | null;
     tier: "T0" | "T1" | "T2";
 };
@@ -89,6 +90,7 @@ export default function StoreSettingsForm({
     const [tagline, setTagline] = useState(profile.store_tagline ?? "");
     const [description, setDescription] = useState(profile.store_description ?? "");
     const [bankName, setBankName] = useState(profile.payout_bank_name ?? "");
+    const [headerOverlay, setHeaderOverlay] = useState<boolean>(profile.store_header_overlay ?? false);
     const [pickupAddressId, setPickupAddressId] = useState<string>(
         addresses.find((a) => a.is_default_pickup)?.id ?? addresses[0]?.id ?? "",
     );
@@ -216,6 +218,7 @@ export default function StoreSettingsForm({
                 storeDescription: description.trim() || null,
                 payoutBankName: bankName.trim(),
                 pickupAddressId: pickupAddressId || null,
+                headerOverlay,
             });
             if (res.success) {
                 showToast({ type: "success", message: "Perubahan tersimpan" });
@@ -360,6 +363,24 @@ export default function StoreSettingsForm({
                     <p className="mt-2 text-xs text-slate-400">
                         Banner ditampilkan <span className="font-medium">penuh tanpa terpotong</span>. Untuk hasil terbaik gunakan rasio <span className="font-medium">±2.4 : 1</span> (mis. 2000 × 820 px).
                     </p>
+
+                    {/* Header layout: overlay vs stacked */}
+                    <label className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-3 cursor-pointer">
+                        <span className="min-w-0">
+                            <span className="block text-sm font-medium text-slate-900">Tampilkan info toko di atas banner</span>
+                            <span className="block text-xs text-slate-500">
+                                Avatar, nama, rating, dan tombol melayang di atas banner (gaya overlay). Pada mode ini banner mengisi penuh area sebagai latar
+                                (bisa sedikit ter-crop). Nonaktif = banner & info tampil terpisah (banner utuh).
+                            </span>
+                        </span>
+                        <input
+                            type="checkbox"
+                            checked={headerOverlay}
+                            onChange={(e) => setHeaderOverlay(e.target.checked)}
+                            className="peer sr-only"
+                        />
+                        <span className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full bg-slate-300 transition-colors peer-checked:bg-brand-primary after:absolute after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-5"></span>
+                    </label>
 
                     {/* Logo */}
                     <div className="-mt-12 ml-6 relative inline-block">

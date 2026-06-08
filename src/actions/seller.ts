@@ -63,6 +63,7 @@ export async function getSellerProfileByUserId(userId: string) {
             store_description: true,
             store_tagline: true,
             store_banner_url: true,
+            store_header_overlay: true,
             store_status: true,
             store_review_notes: true,
             store_reviewed_at: true,
@@ -318,6 +319,7 @@ const updateSellerProfileSchema = z.object({
     storeDescription: z.string().max(600).optional().nullable(),
     payoutBankName: z.string().min(2, "Bank payout minimal 2 karakter").max(80),
     pickupAddressId: z.string().uuid().optional().nullable(),
+    headerOverlay: z.boolean().optional(),
 });
 
 export type UpdateSellerProfileInput = z.infer<typeof updateSellerProfileSchema>;
@@ -373,12 +375,14 @@ export async function updateSellerProfile(input: UpdateSellerProfileInput) {
             store_tagline: data.storeTagline ?? null,
             store_description: data.storeDescription ?? null,
             payout_bank_name: data.payoutBankName,
+            ...(data.headerOverlay !== undefined ? { store_header_overlay: data.headerOverlay } : {}),
             updated_at: new Date(),
         })
         .where(eq(users.id, sessionUser.id));
 
     revalidatePath("/seller/settings");
     revalidatePath("/seller");
+    revalidatePath("/store/[slug]", "page");
 
     return { success: true as const };
 }
