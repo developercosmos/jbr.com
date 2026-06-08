@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { uploadFile, getStorageInfo } from "@/lib/storage";
+import { db } from "@/db";
+import { users } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +27,11 @@ export async function POST(request: NextRequest) {
         const formData = await request.formData();
         const file = formData.get("file") as File | null;
         const folder = (formData.get("folder") as string) || "uploads";
+        // Optional: persist the resulting URL to the user's profile in THIS same
+        // request, so the file-write and DB-write are atomic (can't half-complete
+        // like the old route-then-Server-Action two-step did → banner saved file
+        // but not the DB column → banner never showed).
+        const persistAs = (formData.get("persistAs") as string) || "";
 
         if (!file) {
             return NextResponse.json(
@@ -43,6 +52,16 @@ export async function POST(request: NextRequest) {
             file.type,
             session.user.id
         );
+
+        // Atomically persist to the seller's profile when requested.
+        if (persistAs === "store-banner" || persistAs === "store-logo") {
+            const column = persistAs === "store-banner" ? { store_banner_url: result.url } : { image: result.url };
+            await db.update(users).set({ ...column, updated_at: new Date() }).where(eq(users.id, session.user.id));
+            revalidatePath("/seller/settings");
+            revalidatePath("/seller");
+            revalidatePath("/store/[slug]", "page");
+            console.log(`[upload] persisted ${persistAs} user=${session.user.id} url=${result.url}`);
+        }
 
         return NextResponse.json({
             success: true,

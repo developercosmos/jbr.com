@@ -22,17 +22,17 @@ import {
 import {
     updateSellerProfile,
     resubmitSellerActivationReview,
-    setSellerImageUrl,
     removeSellerImage,
 } from "@/actions/seller";
 
 // Upload a seller image through the /api/upload ROUTE (same proven path product
 // images use) — avoids the Server Action multipart/body-limit hang. Returns the
 // stored URL or throws with a real reason.
-async function uploadViaRoute(file: File, folder: string): Promise<string> {
+async function uploadViaRoute(file: File, folder: string, persistAs?: string): Promise<string> {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("folder", folder);
+    if (persistAs) fd.append("persistAs", persistAs);
     const res = await fetch("/api/upload", { method: "POST", body: fd });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data?.url) {
@@ -128,14 +128,10 @@ export default function StoreSettingsForm({
         }
         setBannerUploading(true);
         try {
-            const url = await uploadViaRoute(file, "store-banners");
-            const res = await setSellerImageUrl("banner", url);
-            if (res.success) {
-                setBannerUrl(res.url);
-                showToast({ type: "success", message: "Banner toko berhasil diunggah" });
-            } else {
-                showToast({ type: "error", message: res.error });
-            }
+            // Atomic: route writes the file AND persists store_banner_url in one request.
+            const url = await uploadViaRoute(file, "store-banners", "store-banner");
+            setBannerUrl(url);
+            showToast({ type: "success", message: "Banner toko berhasil diunggah" });
         } catch (err) {
             const msg = err instanceof Error ? err.message : "";
             showToast({ type: "error", message: msg ? `Upload gagal: ${msg}` : "Upload gagal — periksa koneksi internet lalu coba lagi." });
@@ -156,14 +152,10 @@ export default function StoreSettingsForm({
         }
         setLogoUploading(true);
         try {
-            const url = await uploadViaRoute(file, "store-logos");
-            const res = await setSellerImageUrl("logo", url);
-            if (res.success) {
-                setLogoUrl(res.url);
-                showToast({ type: "success", message: "Logo berhasil diunggah" });
-            } else {
-                showToast({ type: "error", message: res.error });
-            }
+            // Atomic: route writes the file AND persists the logo (users.image) in one request.
+            const url = await uploadViaRoute(file, "store-logos", "store-logo");
+            setLogoUrl(url);
+            showToast({ type: "success", message: "Logo berhasil diunggah" });
         } catch (err) {
             const msg = err instanceof Error ? err.message : "";
             showToast({ type: "error", message: msg ? `Upload gagal: ${msg}` : "Upload gagal — periksa koneksi internet lalu coba lagi." });
