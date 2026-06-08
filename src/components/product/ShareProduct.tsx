@@ -29,14 +29,20 @@ export function ShareProduct({ productTitle, productUrl }: ShareProductProps) {
         }
     };
 
-    // Prefer the native share sheet on mobile.
+    // Use the OS native share sheet ONLY on mobile (touch / coarse pointer).
+    // On desktop the native sheet is inconsistent across browsers (often shows a
+    // blank box that closes), so we always use our own reliable dropdown there.
     const handleNativeShare = async () => {
-        if (typeof navigator !== "undefined" && navigator.share) {
+        const isMobile =
+            typeof window !== "undefined" &&
+            ((window.matchMedia?.("(pointer: coarse)")?.matches ?? false) ||
+                /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
+        if (isMobile && typeof navigator !== "undefined" && navigator.share) {
             try {
                 await navigator.share({ title: productTitle, url: fullUrl });
                 return;
             } catch {
-                /* user cancelled — fall through to the menu */
+                /* user cancelled — fall through to the dropdown */
             }
         }
         setIsOpen((o) => !o);

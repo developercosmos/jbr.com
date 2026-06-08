@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { products, categories, users } from "@/db/schema";
-import { eq, ilike, or, and, sql, desc, asc, inArray, gte, isNotNull } from "drizzle-orm";
+import { eq, ne, ilike, or, and, sql, desc, asc, inArray, gte, isNotNull } from "drizzle-orm";
 import { getSearchBackend } from "@/lib/search-backend";
 import { logger } from "@/lib/logger";
 
@@ -297,12 +297,22 @@ export async function searchAutocomplete(query: string, limit = 8) {
             and(
                 eq(products.status, "PUBLISHED"),
                 or(
-                    ...patterns.map((pattern) =>
-                        or(
-                            ilike(products.title, `%${pattern}%`),
-                            ilike(products.brand, `%${pattern}%`),
-                            sql`REPLACE(LOWER(${products.brand}), ' ', '') LIKE ${`%${pattern.replace(/\s+/g, "")}%`}`
+                    or(
+                        ...patterns.map((pattern) =>
+                            or(
+                                ilike(products.title, `%${pattern}%`),
+                                ilike(products.brand, `%${pattern}%`),
+                                sql`REPLACE(LOWER(${products.brand}), ' ', '') LIKE ${`%${pattern.replace(/\s+/g, "")}%`}`
+                            )
                         )
+                    ),
+                    // Match by the seller's store name too.
+                    inArray(
+                        products.seller_id,
+                        db
+                            .select({ id: users.id })
+                            .from(users)
+                            .where(or(...patterns.map((pattern) => ilike(users.store_name, `%${pattern}%`)))!)
                     )
                 )!
             )
@@ -336,8 +346,11 @@ export async function searchAutocomplete(query: string, limit = 8) {
         .from(users)
         .where(
             and(
-                eq(users.store_status, "ACTIVE"),
+                // Any visible store (has a public slug + name), excluding banned —
+                // not only ACTIVE, so pending-review stores with a live page show too.
                 isNotNull(users.store_slug),
+                isNotNull(users.store_name),
+                ne(users.store_status, "BANNED"),
                 or(...patterns.map((pattern) => ilike(users.store_name, `%${pattern}%`)))!
             )
         )
