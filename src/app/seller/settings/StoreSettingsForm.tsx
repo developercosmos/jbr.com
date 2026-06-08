@@ -313,7 +313,7 @@ export default function StoreSettingsForm({
                 <div className="p-6">
                     {/* Banner */}
                     <div
-                        className="relative h-44 sm:h-52 rounded-xl bg-slate-100 border-2 border-dashed border-slate-300 overflow-hidden cursor-pointer group"
+                        className="relative aspect-[2.4/1] rounded-xl bg-slate-100 border-2 border-dashed border-slate-300 overflow-hidden cursor-pointer group"
                         onClick={() => !bannerUploading && bannerInput.current?.click()}
                     >
                         {bannerUrl ? (
@@ -322,7 +322,7 @@ export default function StoreSettingsForm({
                                 alt="Banner toko"
                                 fill
                                 sizes="(max-width: 768px) 100vw, 800px"
-                                className="object-cover"
+                                className="object-contain"
                             />
                         ) : (
                             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-slate-500">
@@ -331,7 +331,7 @@ export default function StoreSettingsForm({
                                     Klik untuk upload banner
                                 </span>
                                 <span className="text-xs text-slate-400">
-                                    Rekomendasi 1600 × 400 px
+                                    Rekomendasi 2000 × 820 px (rasio ±2.4 : 1)
                                 </span>
                             </div>
                         )}
@@ -366,7 +366,7 @@ export default function StoreSettingsForm({
                         />
                     </div>
                     <p className="mt-2 text-xs text-slate-400">
-                        Rekomendasi banner <span className="font-medium">1600 × 400 px</span> (rasio 4:1) agar tidak terpotong.
+                        Banner ditampilkan <span className="font-medium">penuh tanpa terpotong</span>. Untuk hasil terbaik gunakan rasio <span className="font-medium">±2.4 : 1</span> (mis. 2000 × 820 px).
                     </p>
 
                     {/* Logo */}

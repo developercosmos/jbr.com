@@ -72,14 +72,17 @@ export default async function StorePage({ params }: Props) {
             {seller.store_banner_url && (
                 <div className="bg-slate-100 dark:bg-slate-800">
                     <div className="max-w-7xl mx-auto">
-                        <div className="relative w-full aspect-[4/1] overflow-hidden">
+                        {/* object-contain so the full banner is always visible (never
+                            cropped). Container ratio tracks the recommended ~2.4:1
+                            banner so a well-sized image fills edge-to-edge. */}
+                        <div className="relative w-full aspect-[2.4/1] overflow-hidden">
                             <Image
                                 src={seller.store_banner_url}
                                 alt={`Banner ${seller.store_name}`}
                                 fill
                                 priority
                                 sizes="(max-width: 1280px) 100vw, 1280px"
-                                className="object-cover"
+                                className="object-contain"
                             />
                         </div>
                     </div>
