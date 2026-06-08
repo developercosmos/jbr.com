@@ -408,25 +408,34 @@ async function uploadSellerImage(formData: FormData, kind: "banner" | "logo") {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const folder = kind === "banner" ? "store-banners" : "store-logos";
-    const result = await uploadToStorage(folder, file.name, buffer, file.type, sessionUser.id);
 
-    if (kind === "banner") {
-        await db
-            .update(users)
-            .set({ store_banner_url: result.url, updated_at: new Date() })
-            .where(eq(users.id, sessionUser.id));
-    } else {
-        await db
-            .update(users)
-            .set({ image: result.url, updated_at: new Date() })
-            .where(eq(users.id, sessionUser.id));
+    try {
+        const result = await uploadToStorage(folder, file.name, buffer, file.type, sessionUser.id);
+
+        if (kind === "banner") {
+            await db
+                .update(users)
+                .set({ store_banner_url: result.url, updated_at: new Date() })
+                .where(eq(users.id, sessionUser.id));
+        } else {
+            await db
+                .update(users)
+                .set({ image: result.url, updated_at: new Date() })
+                .where(eq(users.id, sessionUser.id));
+        }
+
+        revalidatePath("/seller/settings");
+        revalidatePath("/seller");
+        revalidatePath("/store/[slug]", "page");
+
+        return { success: true as const, url: result.url };
+    } catch (error) {
+        // Surface the REAL reason (S3 misconfig/timeout, disk, size) instead of
+        // letting it throw up to a generic "Upload gagal. Coba lagi." toast.
+        const reason = error instanceof Error ? error.message : "Penyimpanan gagal";
+        console.error(`uploadSellerImage:${kind} failed`, error);
+        return { success: false as const, error: `Gagal menyimpan: ${reason}` };
     }
-
-    revalidatePath("/seller/settings");
-    revalidatePath("/seller");
-    revalidatePath("/store/[slug]", "page");
-
-    return { success: true as const, url: result.url };
 }
 
 export async function uploadSellerBanner(formData: FormData) {

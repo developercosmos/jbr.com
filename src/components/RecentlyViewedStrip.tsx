@@ -68,29 +68,10 @@ export function RecentlyViewedStrip({ seed = [] }: RecentlyViewedStripProps) {
     );
 
     useEffect(() => {
-        // On mount, merge localStorage with server-seeded list. Server entries
-        // win on conflict (more authoritative timestamp); local fills gaps when
-        // the server hasn't synced yet (e.g. anonymous browsing).
+        let cancelled = false;
+
+        // Merge localStorage with the server-seeded list (newest-first, dedup, cap).
         const local = readLocal();
-        if (local.length === 0 && seed.length > 0) {
-            // Hydrate localStorage from server so anonymous browsing later
-            // still shows the strip.
-            try {
-                window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-            } catch {
-                // ignore quota errors
-            }
-            return;
-        }
-        if (seed.length === 0 && local.length > 0) {
-            setItems(local);
-            // Best-effort sync to server when authenticated.
-            const ids = local.map((l) => l.id);
-            syncRecentlyViewedFromClient(ids).catch(() => {
-                // ignore — user might be anonymous
-            });
-            return;
-        }
         const merged = new Map<string, LocalEntry>();
         for (const entry of [...local, ...items]) {
             const existing = merged.get(entry.id);
@@ -98,13 +79,56 @@ export function RecentlyViewedStrip({ seed = [] }: RecentlyViewedStripProps) {
                 merged.set(entry.id, entry);
             }
         }
-        const sorted = Array.from(merged.values()).sort((a, b) => b.viewed_at - a.viewed_at).slice(0, MAX_LOCAL);
-        setItems(sorted);
-        try {
-            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sorted));
-        } catch {
-            // ignore quota errors
+        const candidates = Array.from(merged.values())
+            .sort((a, b) => b.viewed_at - a.viewed_at)
+            .slice(0, MAX_LOCAL);
+
+        if (candidates.length === 0) {
+            setItems([]);
+            return;
         }
+
+        const viewedAtById = new Map(candidates.map((c) => [c.id, c.viewed_at]));
+
+        // Re-validate against the server: /api/products/batch returns ONLY existing
+        // PUBLISHED products (drops deleted/archived). This is what fixes deleted
+        // products lingering in the strip with dead links (→ 404) and broken images.
+        (async () => {
+            try {
+                const ids = candidates.map((c) => c.id);
+                const res = await fetch(`/api/products/batch?ids=${ids.map(encodeURIComponent).join(",")}`);
+                if (!res.ok) throw new Error("batch validation failed");
+                const data = (await res.json()) as { products?: SeedItem[] };
+                const valid: LocalEntry[] = (data.products ?? [])
+                    .map((p) => ({
+                        id: p.id,
+                        slug: p.slug,
+                        title: p.title,
+                        price: p.price,
+                        image: p.images?.[0] ?? null,
+                        viewed_at: viewedAtById.get(p.id) ?? Date.now(),
+                    }))
+                    .sort((a, b) => b.viewed_at - a.viewed_at);
+
+                if (cancelled) return;
+                setItems(valid);
+                // Prune localStorage to the still-valid set so stale entries don't linger.
+                try {
+                    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(valid));
+                } catch {
+                    // ignore quota errors
+                }
+                // Best-effort server sync (authenticated users only).
+                syncRecentlyViewedFromClient(valid.map((v) => v.id)).catch(() => {});
+            } catch {
+                // Validation unavailable (offline/500) — show merged candidates as-is.
+                if (!cancelled) setItems(candidates);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 

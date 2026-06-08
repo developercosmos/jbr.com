@@ -91,9 +91,27 @@ export default function StoreSettingsForm({
         if (t) setTimeout(() => setToast(null), 4000);
     };
 
+    // Validate before uploading so the user gets INSTANT feedback (oversized files
+    // previously uploaded for a long time and then failed with a generic message).
+    const imageFileError = (file: File): string | null => {
+        const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+        const maxMb = 5;
+        if (!allowed.includes(file.type)) return "Format tidak didukung. Gunakan JPG, PNG, atau WEBP.";
+        if (file.size > maxMb * 1024 * 1024) {
+            return `Ukuran file ${(file.size / 1024 / 1024).toFixed(1)} MB melebihi maksimum ${maxMb} MB. Kompres dulu gambarnya.`;
+        }
+        return null;
+    };
+
     const handleBannerChange = async (e: ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        const validationError = imageFileError(file);
+        if (validationError) {
+            showToast({ type: "error", message: validationError });
+            if (bannerInput.current) bannerInput.current.value = "";
+            return;
+        }
         setBannerUploading(true);
         try {
             const fd = new FormData();
@@ -105,8 +123,9 @@ export default function StoreSettingsForm({
             } else {
                 showToast({ type: "error", message: res.error });
             }
-        } catch {
-            showToast({ type: "error", message: "Upload gagal. Coba lagi." });
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : "";
+            showToast({ type: "error", message: msg ? `Upload gagal: ${msg}` : "Upload gagal — periksa koneksi internet lalu coba lagi." });
         } finally {
             setBannerUploading(false);
             if (bannerInput.current) bannerInput.current.value = "";
@@ -116,6 +135,12 @@ export default function StoreSettingsForm({
     const handleLogoChange = async (e: ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        const validationError = imageFileError(file);
+        if (validationError) {
+            showToast({ type: "error", message: validationError });
+            if (logoInput.current) logoInput.current.value = "";
+            return;
+        }
         setLogoUploading(true);
         try {
             const fd = new FormData();
@@ -127,8 +152,9 @@ export default function StoreSettingsForm({
             } else {
                 showToast({ type: "error", message: res.error });
             }
-        } catch {
-            showToast({ type: "error", message: "Upload gagal. Coba lagi." });
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : "";
+            showToast({ type: "error", message: msg ? `Upload gagal: ${msg}` : "Upload gagal — periksa koneksi internet lalu coba lagi." });
         } finally {
             setLogoUploading(false);
             if (logoInput.current) logoInput.current.value = "";
