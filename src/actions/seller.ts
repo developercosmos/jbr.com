@@ -389,6 +389,16 @@ export async function updateSellerProfile(input: UpdateSellerProfileInput) {
 const ALLOWED_IMAGE_MIME = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
 
+// Bound any storage call so a hung S3/network never leaves the user staring at a
+// spinner with no error (the reported symptom: "proses lama tanpa error").
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+    let timer: ReturnType<typeof setTimeout>;
+    const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(message)), ms);
+    });
+    return Promise.race([promise.finally(() => clearTimeout(timer)), timeout]);
+}
+
 async function uploadSellerImage(formData: FormData, kind: "banner" | "logo") {
     const sessionUser = await getCurrentUser();
     const file = formData.get("file") as File | null;
@@ -410,7 +420,11 @@ async function uploadSellerImage(formData: FormData, kind: "banner" | "logo") {
     const folder = kind === "banner" ? "store-banners" : "store-logos";
 
     try {
-        const result = await uploadToStorage(folder, file.name, buffer, file.type, sessionUser.id);
+        const result = await withTimeout(
+            uploadToStorage(folder, file.name, buffer, file.type, sessionUser.id),
+            25_000,
+            "Penyimpanan tidak merespons (timeout 25 detik). Kemungkinan konfigurasi/jaringan storage bermasalah — hubungi admin."
+        );
 
         if (kind === "banner") {
             await db

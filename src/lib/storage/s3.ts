@@ -20,6 +20,9 @@ export function getS3Client(): S3Client {
                 accessKeyId: storageConfig.s3.accessKeyId,
                 secretAccessKey: storageConfig.s3.secretAccessKey,
             },
+            // Fail fast instead of hanging for minutes when S3 is unreachable or
+            // misconfigured (the SDK otherwise retries with long backoffs).
+            maxAttempts: 2,
         });
     }
     return s3Client;

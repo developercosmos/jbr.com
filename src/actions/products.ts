@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { categories, products, product_variants } from "@/db/schema";
+import { categories, products, product_variants, order_items } from "@/db/schema";
 import { ensureCurrentUserCanSell } from "@/actions/seller";
 import { auth } from "@/lib/auth";
 import { logger } from "@/lib/logger";
@@ -314,17 +314,38 @@ export async function deleteProduct(productId: string) {
     // Verify ownership
     const existing = await db.query.products.findFirst({
         where: and(eq(products.id, productId), eq(products.seller_id, user.id)),
+        columns: { id: true, slug: true },
     });
 
     if (!existing) {
         throw new Error("Product not found or unauthorized");
     }
 
+    // A product that has EVER been transacted must not be hard-deleted: order_items
+    // FK-references it (RESTRICT) and order history must survive. Inactivate
+    // (ARCHIVED) instead so it leaves the catalog but the record + history remain.
+    const transacted = await db
+        .select({ id: order_items.id })
+        .from(order_items)
+        .where(eq(order_items.product_id, productId))
+        .limit(1);
+
+    if (transacted.length > 0) {
+        await db
+            .update(products)
+            .set({ status: "ARCHIVED", updated_at: new Date() })
+            .where(eq(products.id, productId));
+        revalidatePath("/seller/products");
+        revalidatePath(`/product/${existing.slug}`);
+        void syncProductToIndex(productId, "delete"); // drop from search — no longer listed
+        return { success: true as const, archived: true as const };
+    }
+
     await db.delete(products).where(eq(products.id, productId));
 
     revalidatePath("/seller/products");
     void syncProductToIndex(productId, "delete");
-    return { success: true };
+    return { success: true as const, archived: false as const };
 }
 
 export async function getSellerProducts() {

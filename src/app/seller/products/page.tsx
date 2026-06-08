@@ -188,7 +188,7 @@ export default async function SellerProductsPage() {
                                                             >
                                                                 <Edit className="w-4 h-4" />
                                                             </Link>
-                                                            <DeleteProductButton productId={product.id} productTitle={product.title} />
+                                                            <DeleteProductButton productId={product.id} productTitle={product.title} status={product.status} />
                                                         </div>
                                                     </td>
                                                 </tr>
