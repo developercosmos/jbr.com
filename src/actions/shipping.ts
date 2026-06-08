@@ -171,9 +171,13 @@ export async function getCheckoutShippingQuoteForUser(userId: string, addressId:
         where: and(eq(addresses.id, validated.addressId), eq(addresses.user_id, userId)),
     });
 
-    if (!shippingAddress?.city_id) {
-        throw new Error("Alamat pengiriman belum memiliki kota tujuan yang valid");
-    }
+    // A missing destination city (e.g. address created before RajaOngkir city
+    // mapping is available) must NOT crash the checkout shipping render. Fall back
+    // to the flat estimate + a gentle warning so the buyer can still proceed and
+    // is nudged to complete their address.
+    const destinationCityId = shippingAddress?.city_id ? String(shippingAddress.city_id) : null;
+    const missingCityWarning =
+        "Alamat belum memiliki kota tujuan. Ongkir masih estimasi — lengkapi kota pada alamat untuk tarif akurat.";
 
     const cartItems = await db.query.carts.findMany({
         where: eq(carts.user_id, userId),
@@ -229,12 +233,14 @@ export async function getCheckoutShippingQuoteForUser(userId: string, addressId:
             continue;
         }
 
-        const { options, usedFallback: sellerUsedFallback, warning } = await fetchShippingOptions({
-            origin: settings.originCityId,
-            destination: String(shippingAddress.city_id),
-            weight,
-            courier: validated.courier,
-        });
+        const { options, usedFallback: sellerUsedFallback, warning } = destinationCityId
+            ? await fetchShippingOptions({
+                origin: settings.originCityId,
+                destination: destinationCityId,
+                weight,
+                courier: validated.courier,
+            })
+            : { options: getFallbackOptions(settings.fallbackCost), usedFallback: true, warning: missingCityWarning };
 
         const selectedOption = options.reduce((lowest, option) => (option.cost < lowest.cost ? option : lowest), options[0]);
         const sellerQuote: CheckoutShippingQuoteResult = {

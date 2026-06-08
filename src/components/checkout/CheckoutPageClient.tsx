@@ -135,7 +135,10 @@ export function CheckoutPageClient({
             } catch (error) {
                 if (!cancelled) {
                     setShippingQuote(null);
-                    setShippingError(error instanceof Error ? error.message : "Gagal mengambil ongkir");
+                    // Never surface raw server error text (in production it's an
+                    // opaque "Server Components render" digest). Show clear guidance.
+                    console.error("checkout shipping quote failed:", error);
+                    setShippingError("Gagal menghitung ongkir. Coba pilih ulang alamat/kurir, atau lengkapi alamat pengiriman Anda.");
                 }
             }
         });
