@@ -25,7 +25,7 @@ export function StoreHeaderPreview({
     const avatar = (
         <div className="relative w-10 h-10 shrink-0 rounded-xl overflow-hidden bg-white ring-2 ring-white shadow flex items-center justify-center font-bold text-brand-primary">
             {logoUrl ? (
-                <Image src={logoUrl} alt={name} fill sizes="40px" className="object-cover" />
+                <Image src={logoUrl} alt={name} fill sizes="40px" className="object-cover" unoptimized />
             ) : (
                 <span className="text-sm">{initial}</span>
             )}
@@ -58,7 +58,7 @@ export function StoreHeaderPreview({
             {overlay ? (
                 <div className="relative aspect-[12/5] bg-slate-900">
                     {bannerUrl ? (
-                        <Image src={bannerUrl} alt="Pratinjau banner" fill sizes="640px" className="object-cover" />
+                        <Image src={bannerUrl} alt="Pratinjau banner" fill sizes="640px" className="object-cover" unoptimized />
                     ) : (
                         <div className="absolute inset-0 flex items-center justify-center text-white/50 text-xs">Belum ada banner</div>
                     )}
@@ -76,7 +76,7 @@ export function StoreHeaderPreview({
                 <div>
                     <div className="relative aspect-[12/5] bg-slate-100">
                         {bannerUrl ? (
-                            <Image src={bannerUrl} alt="Pratinjau banner" fill sizes="640px" className="object-contain" />
+                            <Image src={bannerUrl} alt="Pratinjau banner" fill sizes="640px" className="object-contain" unoptimized />
                         ) : (
                             <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-xs">Belum ada banner</div>
                         )}

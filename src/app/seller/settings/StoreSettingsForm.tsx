@@ -319,6 +319,7 @@ export default function StoreSettingsForm({
                                 fill
                                 sizes="(max-width: 768px) 100vw, 800px"
                                 className="object-contain"
+                                unoptimized
                             />
                         ) : (
                             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-slate-500">
@@ -400,7 +401,7 @@ export default function StoreSettingsForm({
                             onClick={() => !logoUploading && logoInput.current?.click()}
                         >
                             {logoUrl ? (
-                                <Image src={logoUrl} alt="Logo toko" fill className="object-cover" sizes="96px" />
+                                <Image src={logoUrl} alt="Logo toko" fill className="object-cover" sizes="96px" unoptimized />
                             ) : (
                                 <span className="text-2xl font-bold text-brand-primary">{initials}</span>
                             )}

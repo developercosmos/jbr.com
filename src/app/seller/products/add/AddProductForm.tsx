@@ -402,6 +402,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                                             src={url}
                                             fill
                                             sizes="96px"
+                                            unoptimized
                                         />
                                     </div>
                                 ))}

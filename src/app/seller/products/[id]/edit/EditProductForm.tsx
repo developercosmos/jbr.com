@@ -374,7 +374,11 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
                                             </button>
                                         </div>
                                         {index === 0 && <div className="absolute bottom-1 left-1 z-10 bg-brand-primary text-white text-[10px] px-1.5 py-0.5 rounded font-bold">UTAMA</div>}
-                                        <Image alt={`Product image ${index + 1}`} className="object-cover" src={url} fill sizes="96px" />
+                                        {/* unoptimized: just-uploaded local files choke the Next image
+                                            optimizer (it can cache a miss for a freshly written file),
+                                            which made the first upload appear to "not work". Loading the
+                                            file directly shows it immediately. */}
+                                        <Image alt={`Product image ${index + 1}`} className="object-cover" src={url} fill sizes="96px" unoptimized />
                                     </div>
                                 ))}
                                 {images.length < 10 && (
