@@ -75,7 +75,7 @@ export default async function StorePage({ params }: Props) {
                         {/* object-contain so the full banner is always visible (never
                             cropped). Container ratio tracks the recommended ~2.4:1
                             banner so a well-sized image fills edge-to-edge. */}
-                        <div className="relative w-full aspect-[2.4/1] overflow-hidden">
+                        <div className="relative w-full aspect-[12/5] overflow-hidden">
                             <Image
                                 src={seller.store_banner_url}
                                 alt={`Banner ${seller.store_name}`}

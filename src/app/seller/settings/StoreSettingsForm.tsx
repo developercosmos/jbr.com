@@ -313,7 +313,7 @@ export default function StoreSettingsForm({
                 <div className="p-6">
                     {/* Banner */}
                     <div
-                        className="relative aspect-[2.4/1] rounded-xl bg-slate-100 border-2 border-dashed border-slate-300 overflow-hidden cursor-pointer group"
+                        className="relative aspect-[12/5] rounded-xl bg-slate-100 border-2 border-dashed border-slate-300 overflow-hidden cursor-pointer group"
                         onClick={() => !bannerUploading && bannerInput.current?.click()}
                     >
                         {bannerUrl ? (
