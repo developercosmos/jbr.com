@@ -38,6 +38,13 @@ interface SearchResult {
         slug: string;
         icon: string | null;
     }>;
+    stores?: Array<{
+        type: "store";
+        id: string;
+        name: string;
+        slug: string;
+        image: string | null;
+    }>;
 }
 
 function formatPrice(price: string) {
@@ -172,7 +179,8 @@ export function SearchBar() {
 
     const hasResults = results && (
         results.suggestions.length > 0 ||
-        results.categories.length > 0
+        results.categories.length > 0 ||
+        (results.stores?.length ?? 0) > 0
     );
 
     return (
@@ -288,6 +296,37 @@ export function SearchBar() {
                         </div>
                     ) : (
                         <>
+                            {/* Stores */}
+                            {results?.stores && results.stores.length > 0 && (
+                                <div className="p-3 border-b border-slate-100">
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">
+                                        Toko
+                                    </p>
+                                    <div className="space-y-1">
+                                        {results.stores.map((store) => (
+                                            <Link
+                                                key={store.id}
+                                                href={`/store/${store.slug}`}
+                                                onClick={() => setIsOpen(false)}
+                                                className="flex items-center gap-3 px-2 py-2 hover:bg-slate-50 rounded-lg transition-colors"
+                                            >
+                                                <div className="w-9 h-9 rounded-lg bg-brand-primary/10 overflow-hidden flex-shrink-0 relative flex items-center justify-center text-brand-primary font-bold">
+                                                    {store.image ? (
+                                                        <Image src={store.image} alt={store.name} fill className="object-cover" />
+                                                    ) : (
+                                                        store.name.charAt(0).toUpperCase()
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-slate-900 truncate">{store.name}</p>
+                                                    <p className="text-xs text-slate-500">Kunjungi toko</p>
+                                                </div>
+                                            </Link>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Categories */}
                             {results?.categories && results.categories.length > 0 && (
                                 <div className="p-3 border-b border-slate-100">

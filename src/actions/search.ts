@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/db";
-import { products, categories } from "@/db/schema";
-import { eq, ilike, or, and, sql, desc, asc, inArray, gte } from "drizzle-orm";
+import { products, categories, users } from "@/db/schema";
+import { eq, ilike, or, and, sql, desc, asc, inArray, gte, isNotNull } from "drizzle-orm";
 import { getSearchBackend } from "@/lib/search-backend";
 import { logger } from "@/lib/logger";
 
@@ -325,6 +325,24 @@ export async function searchAutocomplete(query: string, limit = 8) {
         )
         .limit(3);
 
+    // Get matching stores (active sellers with a public slug).
+    const storeResults = await db
+        .select({
+            id: users.id,
+            name: users.store_name,
+            slug: users.store_slug,
+            image: users.image,
+        })
+        .from(users)
+        .where(
+            and(
+                eq(users.store_status, "ACTIVE"),
+                isNotNull(users.store_slug),
+                or(...patterns.map((pattern) => ilike(users.store_name, `%${pattern}%`)))!
+            )
+        )
+        .limit(3);
+
     return {
         suggestions: productResults.map((p) => ({
             type: "product" as const,
@@ -341,6 +359,15 @@ export async function searchAutocomplete(query: string, limit = 8) {
             slug: c.slug,
             icon: c.icon,
         })),
+        stores: storeResults
+            .filter((s) => s.slug && s.name)
+            .map((s) => ({
+                type: "store" as const,
+                id: s.id,
+                name: s.name as string,
+                slug: s.slug as string,
+                image: s.image,
+            })),
     };
 }
 

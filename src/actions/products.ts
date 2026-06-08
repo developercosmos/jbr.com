@@ -1,12 +1,12 @@
 "use server";
 
 import { db } from "@/db";
-import { categories, products, product_variants, order_items } from "@/db/schema";
+import { categories, products, product_variants, order_items, users } from "@/db/schema";
 import { ensureCurrentUserCanSell } from "@/actions/seller";
 import { auth } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { headers } from "next/headers";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -532,13 +532,19 @@ export async function getFilteredProducts(filters: ProductFilters = {}) {
         conditions.push(ilike(products.brand, filters.brand));
     }
 
-    // Search filter
+    // Search filter — matches product title/description/brand AND the seller's
+    // store name (so searching a shop name surfaces that shop's products).
     if (filters.search) {
+        const term = `%${filters.search}%`;
         conditions.push(
             or(
-                ilike(products.title, `%${filters.search}%`),
-                ilike(products.description, `%${filters.search}%`),
-                ilike(products.brand, `%${filters.search}%`)
+                ilike(products.title, term),
+                ilike(products.description, term),
+                ilike(products.brand, term),
+                inArray(
+                    products.seller_id,
+                    db.select({ id: users.id }).from(users).where(ilike(users.store_name, term))
+                )
             )!
         );
     }
