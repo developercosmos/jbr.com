@@ -84,19 +84,14 @@ export default async function StorePage({ params }: Props) {
             {seller.store_banner_url && (
                 <div className="bg-slate-100 dark:bg-slate-800">
                     <div className="max-w-7xl mx-auto">
-                        {/* object-contain so the full banner is always visible (never
-                            cropped). Container ratio tracks the recommended ~2.4:1
-                            banner so a well-sized image fills edge-to-edge. */}
-                        <div className="relative w-full aspect-[12/5] overflow-hidden">
-                            <Image
-                                src={seller.store_banner_url}
-                                alt={`Banner ${seller.store_name}`}
-                                fill
-                                priority
-                                sizes="(max-width: 1280px) 100vw, 1280px"
-                                className="object-contain"
-                            />
-                        </div>
+                        {/* Natural aspect ratio: the banner is shown in FULL at its own
+                            ratio — never cropped and no letterbox bars. */}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                            src={seller.store_banner_url}
+                            alt={`Banner ${seller.store_name}`}
+                            className="block w-full h-auto"
+                        />
                     </div>
                 </div>
             )}

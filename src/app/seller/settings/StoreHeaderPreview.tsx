@@ -74,13 +74,12 @@ export function StoreHeaderPreview({
                 </div>
             ) : (
                 <div>
-                    <div className="relative aspect-[12/5] bg-slate-100">
-                        {bannerUrl ? (
-                            <Image src={bannerUrl} alt="Pratinjau banner" fill sizes="640px" className="object-contain" unoptimized />
-                        ) : (
-                            <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-xs">Belum ada banner</div>
-                        )}
-                    </div>
+                    {bannerUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={bannerUrl} alt="Pratinjau banner" className="block w-full h-auto" />
+                    ) : (
+                        <div className="aspect-[12/5] bg-slate-100 flex items-center justify-center text-slate-400 text-xs">Belum ada banner</div>
+                    )}
                     <div className="p-3 flex items-center gap-2 bg-white border-t border-slate-100">
                         {avatar}
                         <div className="flex-1 min-w-0">

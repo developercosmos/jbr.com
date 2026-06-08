@@ -38,8 +38,9 @@ export function StoreOverlayHeader({
     const joined = new Date(seller.created_at).toLocaleDateString("id-ID", { month: "long", year: "numeric" });
 
     return (
-        <div className="relative w-full overflow-hidden bg-slate-900 min-h-[240px] md:min-h-[320px]">
-            {/* Banner background */}
+        <div className="relative w-full aspect-[12/5] overflow-hidden bg-slate-900">
+            {/* Banner background — aspect locked to ~2.4:1 so a well-sized banner
+                fills with only minimal crop (instead of a tall box that zooms it). */}
             {seller.store_banner_url && (
                 <Image
                     src={seller.store_banner_url}
@@ -48,24 +49,27 @@ export function StoreOverlayHeader({
                     priority
                     sizes="100vw"
                     className="object-cover"
+                    unoptimized
                 />
             )}
             {/* Scrim for text legibility */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-black/15" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/10" />
 
-            <div className="relative max-w-7xl mx-auto px-4 md:px-8 h-full flex flex-col">
-                {/* Breadcrumb */}
-                <nav className="flex items-center gap-2 text-xs text-white/80 pt-4">
+            {/* Breadcrumb (top) */}
+            <div className="absolute inset-x-0 top-0">
+                <nav className="max-w-7xl mx-auto px-4 md:px-8 pt-3 flex items-center gap-2 text-xs text-white/80">
                     <Link href="/" className="hover:text-white">Home</Link>
                     <ChevronRight className="w-3.5 h-3.5" />
-                    <span className="text-white font-medium">{storeName}</span>
+                    <span className="text-white font-medium truncate">{storeName}</span>
                 </nav>
+            </div>
 
-                {/* Identity pinned to the bottom of the banner */}
-                <div className="mt-auto pb-6 pt-20 flex flex-col md:flex-row md:items-end gap-4">
-                    <div className="relative w-20 h-20 md:w-24 md:h-24 shrink-0 rounded-2xl overflow-hidden ring-4 ring-white/85 bg-white flex items-center justify-center text-3xl font-bold text-brand-primary shadow-xl">
+            {/* Identity (overlaid at the bottom) */}
+            <div className="absolute inset-x-0 bottom-0">
+                <div className="max-w-7xl mx-auto px-4 md:px-8 pb-4 md:pb-6 flex flex-col sm:flex-row sm:items-end gap-3">
+                    <div className="relative w-16 h-16 md:w-20 md:h-20 shrink-0 rounded-2xl overflow-hidden ring-4 ring-white/85 bg-white flex items-center justify-center text-2xl md:text-3xl font-bold text-brand-primary shadow-xl">
                         {seller.image ? (
-                            <Image src={seller.image} alt={storeName} fill sizes="96px" className="object-cover" />
+                            <Image src={seller.image} alt={storeName} fill sizes="80px" className="object-cover" unoptimized />
                         ) : (
                             storeName.charAt(0).toUpperCase()
                         )}
@@ -73,14 +77,14 @@ export function StoreOverlayHeader({
 
                     <div className="flex-1 min-w-0 text-white">
                         <div className="flex items-center gap-2 flex-wrap">
-                            <h1 className="text-2xl md:text-3xl font-bold drop-shadow-sm truncate">{storeName}</h1>
+                            <h1 className="text-xl md:text-3xl font-bold drop-shadow-sm truncate">{storeName}</h1>
                             {verified && (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500 text-white text-xs font-semibold">
                                     <Verified className="w-3.5 h-3.5" /> Verified
                                 </span>
                             )}
                         </div>
-                        <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/90 drop-shadow-sm">
+                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs md:text-sm text-white/90 drop-shadow-sm">
                             {reputation.ratingCount > 0 ? (
                                 <span className="inline-flex items-center gap-1">
                                     <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
@@ -94,7 +98,7 @@ export function StoreOverlayHeader({
                                 <Package className="w-4 h-4" /> {productCount} produk
                             </span>
                             {followerCount > 0 && <span>{followerCount} pengikut</span>}
-                            <span className="inline-flex items-center gap-1.5">
+                            <span className="hidden sm:inline-flex items-center gap-1.5">
                                 <Calendar className="w-4 h-4" /> Bergabung {joined}
                             </span>
                         </div>
