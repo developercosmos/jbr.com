@@ -76,7 +76,9 @@ async function getRajaOngkirSettings() {
     return {
         enabled: setting?.enabled ?? false,
         apiKey: credentials.api_key || process.env.RAJAONGKIR_API_KEY || "",
-        apiUrl: `https://api.rajaongkir.com/${accountType}`,
+        // Base host overridable via RAJAONGKIR_API_URL so a local simulator can
+        // stand in. Defaults to the real API — production behavior unchanged.
+        apiUrl: `${process.env.RAJAONGKIR_API_URL?.trim() || "https://api.rajaongkir.com"}/${accountType}`,
         originCityId: String(config.origin_city_id ?? process.env.RAJAONGKIR_ORIGIN_CITY_ID ?? "1"),
         fallbackCost: Number(config.fallback_cost ?? process.env.CHECKOUT_SHIPPING_FALLBACK_COST ?? 20000),
     };

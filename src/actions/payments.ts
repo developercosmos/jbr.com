@@ -15,8 +15,10 @@ import { getSetting } from "@/actions/accounting/settings";
 import { getIntegrationCredentials, getSiteConfig } from "@/actions/settings";
 import { logger } from "@/lib/logger";
 
-// Xendit API configuration
-const XENDIT_API_URL = "https://api.xendit.co";
+// Xendit API configuration. Base URL is overridable via XENDIT_API_URL so a
+// local sandbox/simulator can stand in for Xendit during full-cycle testing.
+// Defaults to the real API — production behavior is unchanged when unset.
+const XENDIT_API_URL = process.env.XENDIT_API_URL?.trim() || "https://api.xendit.co";
 
 async function getXenditSecretKey() {
     if (process.env.XENDIT_SECRET_KEY?.trim()) {

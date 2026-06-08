@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { getSellerProfileByUserId } from "@/actions/seller";
 import { canAccessSellerCenter } from "@/lib/seller";
 import { getOrderById, updateOrderStatus } from "@/actions/orders";
+import { updateShippingInfo } from "@/actions/shipping";
 import { getSellerInteractionRatingForContext } from "@/actions/reputation";
 import Image from "next/image";
 import Link from "next/link";
@@ -36,8 +37,10 @@ function formatDate(date: Date) {
 
 const NEXT_STATUSES: Record<string, { value: string; label: string; className: string }[]> = {
     PAID: [{ value: "PROCESSING", label: "Proses Pesanan", className: "bg-indigo-600 hover:bg-indigo-700 text-white" }],
+    // PROCESSING → SHIPPED is handled by the dedicated "Kirim Pesanan" form below
+    // (it captures courier + resi via updateShippingInfo and notifies the buyer),
+    // so only the cancel action remains as a plain status button.
     PROCESSING: [
-        { value: "SHIPPED", label: "Tandai Sudah Dikirim", className: "bg-purple-600 hover:bg-purple-700 text-white" },
         { value: "CANCELLED", label: "Batalkan", className: "bg-red-600 hover:bg-red-700 text-white" },
     ],
     // After SHIPPED the seller has no further status action: the BUYER confirms
@@ -86,6 +89,19 @@ export default async function SellerOrderDetailPage({ params }: { params: Promis
         try {
             await updateOrderStatus(id, newStatus as Parameters<typeof updateOrderStatus>[1]);
         } catch { /* handled by redirect */ }
+        revalidatePath(`/seller/orders/${id}`);
+        revalidatePath("/seller/orders");
+    }
+
+    async function handleShip(formData: FormData) {
+        "use server";
+        const shippingProvider = String(formData.get("shippingProvider") || "").trim();
+        const trackingNumber = String(formData.get("trackingNumber") || "").trim();
+        const estimatedDelivery = String(formData.get("estimatedDelivery") || "").trim() || undefined;
+        if (!shippingProvider || !trackingNumber) return;
+        try {
+            await updateShippingInfo({ orderId: id, trackingNumber, shippingProvider, estimatedDelivery });
+        } catch { /* validation/ownership errors surface on refresh */ }
         revalidatePath(`/seller/orders/${id}`);
         revalidatePath("/seller/orders");
     }
@@ -163,6 +179,56 @@ export default async function SellerOrderDetailPage({ params }: { params: Promis
                                         </form>
                                     ))}
                                 </div>
+                            </div>
+                        )}
+                        {/* Ship form — captures courier + resi, sets SHIPPED, and notifies the buyer */}
+                        {(order.status === "PAID" || order.status === "PROCESSING") && (
+                            <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
+                                <h2 className="font-bold text-slate-900 dark:text-white mb-1">Kirim Pesanan</h2>
+                                <p className="text-xs text-slate-500 mb-4">Masukkan kurir dan nomor resi. Pembeli akan menerima notifikasi pelacakan.</p>
+                                <form action={handleShip} className="space-y-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Kurir</label>
+                                            <select
+                                                name="shippingProvider"
+                                                required
+                                                defaultValue=""
+                                                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-black/20 px-3 py-2 text-sm text-slate-900 dark:text-white"
+                                            >
+                                                <option value="" disabled>Pilih kurir</option>
+                                                <option value="JNE">JNE</option>
+                                                <option value="J&T">J&T Express</option>
+                                                <option value="SiCepat">SiCepat</option>
+                                                <option value="AnterAja">AnterAja</option>
+                                                <option value="POS">POS Indonesia</option>
+                                                <option value="TIKI">TIKI</option>
+                                                <option value="Ninja">Ninja Xpress</option>
+                                                <option value="Lainnya">Lainnya</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">No. Resi</label>
+                                            <input
+                                                name="trackingNumber"
+                                                required
+                                                placeholder="Mis. JP1234567890"
+                                                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-black/20 px-3 py-2 text-sm text-slate-900 dark:text-white"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Estimasi tiba (opsional)</label>
+                                        <input
+                                            type="date"
+                                            name="estimatedDelivery"
+                                            className="w-full sm:w-1/2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-black/20 px-3 py-2 text-sm text-slate-900 dark:text-white"
+                                        />
+                                    </div>
+                                    <button type="submit" className="px-5 py-2.5 rounded-xl font-bold text-sm bg-purple-600 hover:bg-purple-700 text-white transition-colors">
+                                        Tandai Sudah Dikirim
+                                    </button>
+                                </form>
                             </div>
                         )}
                         {order.status === "SHIPPED" && (
