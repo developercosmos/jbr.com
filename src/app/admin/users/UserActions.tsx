@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, RefreshCcw, Trash2, Mail, Loader2, Eye, ExternalLink, Store, UserCircle2, Landmark } from "lucide-react";
+import { Ban, RefreshCcw, Trash2, Mail, Loader2, Eye, ExternalLink, Store, UserCircle2, Landmark, ShieldCheck } from "lucide-react";
 import { useState, useTransition } from "react";
 import { banUser, unbanUser, deleteUser, approveSellerActivation, rejectSellerActivation } from "@/actions/admin";
 import { requestEmailVerification } from "@/actions/auth-email";
@@ -101,8 +101,23 @@ export function UserActions({ user, isBanned, isPendingVerification, isPendingSt
 
     return (
         <>
-            <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                <EditUserButton user={user} />
+            <div className="flex items-center justify-end gap-2">
+                {/* Always-visible Review button for sellers awaiting activation review.
+                    Opens the same detail modal (with Approve/Reject) — independent of
+                    canViewStoreDetail so a pending seller can always be reviewed. */}
+                {isPendingStoreReview && (
+                    <button
+                        onClick={() => setShowStoreDetail(true)}
+                        disabled={isPending}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-amber-600 disabled:opacity-50"
+                        title="Review pengajuan seller"
+                    >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        Review
+                    </button>
+                )}
+                <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+                    <EditUserButton user={user} />
                 {canViewStoreDetail && (
                     <>
                         <button
@@ -161,6 +176,7 @@ export function UserActions({ user, isBanned, isPendingVerification, isPendingSt
                 >
                     <Trash2 className="w-4 h-4" />
                 </button>
+                </div>
             </div>
 
             {/* Delete Confirmation Modal */}
