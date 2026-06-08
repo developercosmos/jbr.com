@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { eq, desc, and, or, asc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { notify } from "@/lib/notify";
 
 function firstRelation<T>(value: T | T[] | null | undefined): T | null {
     if (Array.isArray(value)) return value[0] ?? null;
@@ -279,6 +280,23 @@ export async function sendMessage(conversationId: string, content: string, attac
         .update(conversations)
         .set({ last_message_at: new Date() })
         .where(eq(conversations.id, conversationId));
+
+    // Notify the recipient in-app. Email for chat is intentionally NOT sent per
+    // message — it comes from the unanswered-1h CHAT_REMINDER sweep — so users
+    // aren't flooded. A notify failure must never break sending the message.
+    const recipientId = conversation.buyer_id === user.id ? conversation.seller_id : conversation.buyer_id;
+    try {
+        await notify({
+            event: "NEW_MESSAGE",
+            recipientUserId: recipientId,
+            conversationId,
+            senderName: user.name || "Pengguna",
+            preview: content?.trim()?.slice(0, 140) || (attachmentUrl ? "📎 Mengirim lampiran" : "Pesan baru"),
+            messageId: newMessage.id,
+        });
+    } catch (error) {
+        console.error("chat:notify_failed", error);
+    }
 
     revalidatePath("/messages");
     revalidatePath("/chat");

@@ -96,10 +96,16 @@ export const users = pgTable(
         store_reviewer_id: text("store_reviewer_id").references((): AnyPgColumn => users.id, { onDelete: "set null" }),
         buyer_score: decimal("buyer_score", { precision: 3, scale: 2 }).default("0").notNull(),
         buyer_score_count: integer("buyer_score_count").default(0).notNull(),
-        // Notification preferences. Transactional emails are always sent; only
-        // promo/marketing-style emails (digest, price-drop, abandonment) honor this.
-        // Opt-out model: default true.
+        // Legacy single promo opt-in. Kept in sync with notification_preferences
+        // .promotions.email for back-compat (older code paths may still read it).
         email_promo_opt_in: boolean("email_promo_opt_in").default(true).notNull(),
+        // Granular per-category notification preferences, per channel:
+        // { orders: {email,inApp}, chat: {...}, offers, reviews, disputes, promotions }.
+        // Missing keys default to ON via resolveNotificationPreferences().
+        notification_preferences: jsonb("notification_preferences")
+            .$type<Record<string, { email: boolean; inApp: boolean }>>()
+            .default({})
+            .notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
         updated_at: timestamp("updated_at").defaultNow().notNull(),
     },
@@ -1304,11 +1310,16 @@ export const notifications = pgTable(
         data: jsonb("data"), // Additional data like order_id, product_id, etc.
         read: boolean("read").default(false).notNull(),
         read_at: timestamp("read_at"),
+        // When the recipient has opted out of in-app notifications for this
+        // category, the row is still written (idempotency + audit ledger) but
+        // hidden from the bell list + unread count.
+        in_app_suppressed: boolean("in_app_suppressed").default(false).notNull(),
         created_at: timestamp("created_at").defaultNow().notNull(),
     },
     (table) => ({
         user_id_idx: index("idx_notifications_user_id").on(table.user_id),
         user_read_idx: index("idx_notifications_user_read").on(table.user_id, table.read),
+        user_visible_idx: index("idx_notifications_user_visible").on(table.user_id, table.read, table.in_app_suppressed),
         idempotency_idx: uniqueIndex("idx_notifications_idempotency_key").on(table.idempotency_key),
     })
 );

@@ -25,7 +25,12 @@ export async function getNotifications(limit = 20, offset = 0) {
     const user = await getCurrentUser();
 
     const userNotifications = await db.query.notifications.findMany({
-        where: eq(notifications.user_id, user.id),
+        // Hide rows the user opted out of in-app for (in_app_suppressed); the row
+        // still exists as the idempotency / audit ledger.
+        where: and(
+            eq(notifications.user_id, user.id),
+            eq(notifications.in_app_suppressed, false)
+        ),
         orderBy: [desc(notifications.created_at)],
         limit,
         offset,
@@ -52,7 +57,8 @@ export async function getUnreadNotificationCount(): Promise<number> {
         .where(
             and(
                 eq(notifications.user_id, session.user.id),
-                eq(notifications.read, false)
+                eq(notifications.read, false),
+                eq(notifications.in_app_suppressed, false)
             )
         );
 

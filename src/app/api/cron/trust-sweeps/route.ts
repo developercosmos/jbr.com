@@ -14,6 +14,7 @@ import { runSellerWeeklyDigestSweep } from "@/actions/seller-digest";
 import { runSearchIndexReconcile } from "@/actions/search-index-sync";
 import { runGlReconciliation } from "@/actions/accounting/reconciliation";
 import { reconcilePendingPayments } from "@/actions/payments";
+import { runUnansweredChatReminderSweep } from "@/actions/chat-reminders";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,7 @@ export async function POST(request: NextRequest) {
             flagCleanup,
             presencePrune,
             paymentsReconcile,
+            chatReminders,
         ] = await Promise.all([
             runEscrowAutoRelease(),
             runDisputeSlaSweep(),
@@ -72,6 +74,7 @@ export async function POST(request: NextRequest) {
             runFeatureFlagCleanupNotices(),
             runPresencePruneSweep(),
             reconcilePendingPayments(),
+            runUnansweredChatReminderSweep(),
         ]);
 
         return NextResponse.json({
@@ -94,6 +97,7 @@ export async function POST(request: NextRequest) {
             flagCleanup,
             presencePrune,
             paymentsReconcile,
+            chatReminders,
             ranAt: new Date().toISOString(),
         });
     } catch (error) {

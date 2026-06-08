@@ -149,6 +149,43 @@ export async function sendReEngagementEmail(params: {
     });
 }
 
+/**
+ * Generic transactional notification email. Used by notify() for events that
+ * don't have a bespoke template (offers, reviews, disputes, order completed/
+ * refunded, chat reminders). Mirrors the in-app notification's title + message
+ * so copy stays consistent, with an optional CTA button and a manage-prefs link.
+ */
+export async function sendNotificationEmail(params: {
+    to: string;
+    name?: string | null;
+    title: string;
+    message: string;
+    ctaLabel?: string;
+    ctaUrl?: string;
+}): Promise<boolean> {
+    const greeting = params.name ? `Halo ${esc(params.name)},` : "Halo,";
+    const cta = params.ctaUrl
+        ? `<p style="text-align:center;"><a href="${esc(params.ctaUrl)}" class="button">${esc(params.ctaLabel || "Lihat Detail")}</a></p>`
+        : "";
+    const manageUrl = `${APP_URL}/profile/settings`;
+    const content = `
+        <h2>${esc(params.title)}</h2>
+        <p>${greeting}</p>
+        <p>${esc(params.message)}</p>
+        ${cta}
+        <p style="font-size:12px;color:#94a3b8;margin-top:24px;">
+            Anda menerima email ini sebagai notifikasi aktivitas akun JualBeliRaket.
+            Atur jenis notifikasi yang ingin Anda terima di
+            <a href="${manageUrl}" style="color:#0066FF;">Pengaturan Akun</a>.
+        </p>
+    `;
+    return sendEmail({
+        to: params.to,
+        subject: params.title,
+        html: getBaseTemplate(content),
+    });
+}
+
 async function sendEmail(options: SendEmailOptions): Promise<boolean> {
     const from = `"${APP_NAME}" <${FROM_EMAIL}>`;
 

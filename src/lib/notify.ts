@@ -9,9 +9,11 @@ import {
     sendPaymentSuccessEmail,
     sendShippingNotificationEmail,
     sendReEngagementEmail,
+    sendNotificationEmail,
 } from "@/lib/email";
 import { enqueue } from "@/lib/queue";
 import { logger } from "@/lib/logger";
+import { categoryForEvent, resolveNotificationPreferences } from "@/lib/notification-preferences";
 import { eq } from "drizzle-orm";
 
 // Promo/marketing-style events: emailed only to users who opted in
@@ -199,6 +201,24 @@ type NotifyInput =
         conversionPct: number;
         topProducts: Array<{ title: string; slug: string; purchases: number }>;
         idempotencyKey?: string;
+    }
+    | {
+        event: "NEW_MESSAGE";
+        recipientUserId: string;
+        conversationId: string;
+        senderName: string;
+        preview: string;
+        messageId: string;
+        idempotencyKey?: string;
+    }
+    | {
+        event: "CHAT_REMINDER";
+        recipientUserId: string;
+        conversationId: string;
+        senderName: string;
+        preview: string;
+        messageId: string;
+        idempotencyKey?: string;
     };
 
 function getIdempotencyKey(input: NotifyInput) {
@@ -243,7 +263,52 @@ function getIdempotencyKey(input: NotifyInput) {
             return `${input.event}:${input.cartId}:${input.stage}`;
         case "SELLER_WEEKLY_DIGEST":
             return `${input.event}:${input.recipientUserId}:${input.periodEnd}`;
+        case "NEW_MESSAGE":
+            return `${input.event}:${input.messageId}:${input.recipientUserId}`;
+        case "CHAT_REMINDER":
+            return `${input.event}:${input.conversationId}:${input.recipientUserId}:${input.messageId}`;
     }
+}
+
+// Best-effort deep-link for the generic notification email's CTA button.
+function ctaForEvent(input: NotifyInput): { url: string; label: string } | undefined {
+    const base = process.env.NEXT_PUBLIC_APP_URL || "https://jualbeliraket.com";
+    switch (input.event) {
+        case "ORDER_CREATED":
+        case "ORDER_DELIVERED":
+        case "ORDER_COMPLETED": {
+            const audience = "audience" in input ? input.audience : "buyer";
+            const path = audience === "seller" ? `/seller/orders/${input.orderId}` : `/profile/orders/${input.orderId}`;
+            return { url: `${base}${path}`, label: "Lihat Pesanan" };
+        }
+        case "PAYMENT_SUCCESS":
+        case "ORDER_SHIPPED":
+        case "ORDER_REFUNDED":
+            return { url: `${base}/profile/orders/${input.orderId}`, label: "Lihat Pesanan" };
+        case "DISPUTE_OPENED":
+        case "DISPUTE_UPDATED": {
+            const path = input.audience === "admin" ? `/admin` : input.audience === "seller" ? `/seller/orders/${input.orderId}` : `/profile/orders/${input.orderId}`;
+            return { url: `${base}${path}`, label: "Lihat Sengketa" };
+        }
+        case "OFFER_RECEIVED":
+        case "OFFER_ACCEPTED":
+        case "OFFER_SLA_REMINDER":
+            return { url: `${base}/profile/offers`, label: "Lihat Penawaran" };
+        case "REVIEW_RECEIVED":
+            return { url: `${base}/seller/reviews`, label: "Lihat Ulasan" };
+        case "REVIEW_REPLY":
+            return { url: `${base}/profile`, label: "Lihat Ulasan" };
+        case "NEW_MESSAGE":
+        case "CHAT_REMINDER":
+            return { url: `${base}/messages`, label: "Buka Chat" };
+        case "WISHLIST_PRICE_DROP":
+            return { url: `${base}/product/${input.productSlug}`, label: "Lihat Produk" };
+        case "CART_ABANDONMENT_REMINDER":
+            return { url: `${base}/cart`, label: "Lihat Keranjang" };
+        case "SELLER_WEEKLY_DIGEST":
+            return { url: `${base}/seller/analytics`, label: "Lihat Analitik" };
+    }
+    return undefined;
 }
 
 export async function notify(input: NotifyInput) {
@@ -261,7 +326,9 @@ export async function notify(input: NotifyInput) {
     let title: string;
     let message: string;
     let data: Record<string, unknown>;
-    let emailPromise: Promise<boolean> | null = null;
+    // Lazy: only invoked when the recipient has email enabled for this category,
+    // so disabling a category never fires its email side-effect.
+    let emailThunk: (() => Promise<boolean>) | null = null;
 
     switch (input.event) {
         case "ORDER_CREATED":
@@ -271,8 +338,8 @@ export async function notify(input: NotifyInput) {
                 ? `Pesanan ${input.orderNumber} berhasil dibuat dan menunggu pembayaran.`
                 : `Ada pesanan baru ${input.orderNumber} yang perlu diproses.`;
             data = { order_id: input.orderId, order_number: input.orderNumber };
-            emailPromise = input.audience === "buyer"
-                ? sendOrderConfirmationEmail({
+            emailThunk = input.audience === "buyer"
+                ? () => sendOrderConfirmationEmail({
                     orderNumber: input.orderNumber,
                     buyerName: input.recipientName,
                     buyerEmail: input.recipientEmail,
@@ -281,7 +348,7 @@ export async function notify(input: NotifyInput) {
                     shippingCost: input.shippingCost,
                     total: input.total,
                 })
-                : sendNewOrderNotificationToSeller(
+                : () => sendNewOrderNotificationToSeller(
                     input.recipientEmail,
                     input.recipientName,
                     input.orderNumber,
@@ -295,7 +362,7 @@ export async function notify(input: NotifyInput) {
             title = "Pembayaran Berhasil";
             message = `Pembayaran untuk pesanan ${input.orderNumber} telah diterima. Pesanan sedang diproses.`;
             data = { order_id: input.orderId, order_number: input.orderNumber };
-            emailPromise = sendPaymentSuccessEmail({
+            emailThunk = () => sendPaymentSuccessEmail({
                 orderNumber: input.orderNumber,
                 buyerName: input.recipientName,
                 buyerEmail: input.recipientEmail,
@@ -314,7 +381,7 @@ export async function notify(input: NotifyInput) {
                 tracking_number: input.trackingNumber,
                 shipping_provider: input.shippingProvider,
             };
-            emailPromise = sendShippingNotificationEmail({
+            emailThunk = () => sendShippingNotificationEmail({
                 orderNumber: input.orderNumber,
                 buyerName: input.recipientName,
                 buyerEmail: input.recipientEmail,
@@ -330,8 +397,8 @@ export async function notify(input: NotifyInput) {
                 ? `Pesanan ${input.orderNumber} telah dikonfirmasi sampai.`
                 : `Pembeli telah mengkonfirmasi penerimaan pesanan ${input.orderNumber}.`;
             data = { order_id: input.orderId, order_number: input.orderNumber };
-            emailPromise = input.audience === "buyer" && input.recipientEmail && input.recipientName
-                ? sendOrderDeliveredEmail(input.recipientEmail, input.recipientName, input.orderId)
+            emailThunk = input.audience === "buyer" && input.recipientEmail && input.recipientName
+                ? () => sendOrderDeliveredEmail(input.recipientEmail!, input.recipientName!, input.orderId)
                 : null;
             break;
         case "ORDER_COMPLETED":
@@ -486,7 +553,34 @@ export async function notify(input: NotifyInput) {
                 top_products: input.topProducts,
             };
             break;
+        case "NEW_MESSAGE":
+            type = "NEW_MESSAGE";
+            title = `Pesan baru dari ${input.senderName}`;
+            message = input.preview;
+            data = { conversation_id: input.conversationId, message_id: input.messageId };
+            break;
+        case "CHAT_REMINDER":
+            type = "NEW_MESSAGE";
+            title = `Pesan belum dibalas dari ${input.senderName}`;
+            message = `"${input.preview}" — pesan ini sudah menunggu lebih dari 1 jam. Balas sekarang agar transaksi tidak terlewat.`;
+            data = { conversation_id: input.conversationId, message_id: input.messageId, reminder: true };
+            break;
     }
+
+    // Resolve the recipient's per-category preferences. The notification row is
+    // ALWAYS written (idempotency + audit ledger); the in-app toggle only hides
+    // it from the bell via in_app_suppressed, and the email toggle gates the send.
+    const category = categoryForEvent(input.event);
+    const recipient = await db.query.users.findFirst({
+        where: eq(users.id, input.recipientUserId),
+        columns: { email: true, name: true, notification_preferences: true, email_promo_opt_in: true },
+    });
+    const prefs = resolveNotificationPreferences(
+        recipient?.notification_preferences,
+        recipient?.email_promo_opt_in,
+    );
+    const inAppEnabled = prefs[category].inApp;
+    const emailEnabled = prefs[category].email;
 
     const [notification] = await db
         .insert(notifications)
@@ -497,6 +591,7 @@ export async function notify(input: NotifyInput) {
             message,
             idempotency_key: idempotencyKey,
             data,
+            in_app_suppressed: !inAppEnabled,
         })
         .returning();
 
@@ -505,41 +600,44 @@ export async function notify(input: NotifyInput) {
         recipientUserId: input.recipientUserId,
         idempotencyKey,
         notificationId: notification.id,
+        category,
+        inApp: inAppEnabled,
+        email: emailEnabled,
     });
 
-    if (emailPromise) {
-        // TECH-01: route email send through queue so future BullMQ adapter can retry.
-        // Current InProcessQueue runs handlers synchronously so semantics match.
+    // Per-message chat pings are in-app only; the email for chat comes from the
+    // unanswered-1h CHAT_REMINDER instead (so users aren't emailed per message).
+    const emailEligible = input.event !== "NEW_MESSAGE";
+    const toEmail =
+        "recipientEmail" in input && input.recipientEmail
+            ? input.recipientEmail
+            : recipient?.email ?? null;
+    const toName =
+        "recipientName" in input && input.recipientName
+            ? input.recipientName
+            : recipient?.name ?? null;
+
+    if (emailEnabled && emailEligible && toEmail) {
+        // Bespoke template if the event has one; otherwise a generic notification
+        // email (re-engagement styling for promo events) built from title/message.
+        let thunk = emailThunk;
+        if (!thunk) {
+            const cta = ctaForEvent(input);
+            thunk = PROMO_EVENTS.has(input.event)
+                ? () => sendReEngagementEmail({ to: toEmail, name: toName, title, message, ctaUrl: cta?.url, ctaLabel: cta?.label })
+                : () => sendNotificationEmail({ to: toEmail, name: toName, title, message, ctaUrl: cta?.url, ctaLabel: cta?.label });
+        }
+        // Route through the queue so a future BullMQ adapter can retry. The
+        // in-process adapter runs synchronously so semantics are unchanged.
         await enqueue("send-email", {
             event: input.event,
             recipientUserId: input.recipientUserId,
             idempotencyKey,
         });
         try {
-            await emailPromise;
+            await thunk();
         } catch (error) {
             logger.error("notify:email_failed", { event: input.event, error: String(error) });
-        }
-    }
-
-    // Re-engagement email for promo-category events — opt-in gated. These events
-    // only carry recipientUserId, so look up the address + preference here.
-    if (PROMO_EVENTS.has(input.event)) {
-        try {
-            const recipient = await db.query.users.findFirst({
-                where: eq(users.id, input.recipientUserId),
-                columns: { email: true, name: true, email_promo_opt_in: true },
-            });
-            if (recipient?.email && recipient.email_promo_opt_in) {
-                await sendReEngagementEmail({
-                    to: recipient.email,
-                    name: recipient.name,
-                    title,
-                    message,
-                });
-            }
-        } catch (error) {
-            logger.error("notify:promo_email_failed", { event: input.event, error: String(error) });
         }
     }
 

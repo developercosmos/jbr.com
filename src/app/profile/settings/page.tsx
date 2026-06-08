@@ -6,6 +6,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { SettingsForm } from "./SettingsForm";
 import { decryptPdpField } from "@/lib/crypto/pdp-field";
+import { resolveNotificationPreferences } from "@/lib/notification-preferences";
 
 export default async function ProfileSettingsPage() {
     const session = await auth.api.getSession({
@@ -27,6 +28,7 @@ export default async function ProfileSettingsPage() {
                 phone: true,
                 locale: true,
                 email_promo_opt_in: true,
+                notification_preferences: true,
             },
         }),
         db.query.addresses.findFirst({
@@ -79,6 +81,10 @@ export default async function ProfileSettingsPage() {
                     ...user,
                     phone: resolvedPhone,
                     emailPromoOptIn: user.email_promo_opt_in,
+                    notificationPreferences: resolveNotificationPreferences(
+                        user.notification_preferences,
+                        user.email_promo_opt_in,
+                    ),
                 }}
             />
         </div>

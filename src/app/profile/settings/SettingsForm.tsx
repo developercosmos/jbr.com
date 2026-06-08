@@ -1,10 +1,17 @@
 "use client";
 
-import { Save, User, Lock, Bell, Upload, Loader2 } from "lucide-react";
+import { Save, User, Lock, Bell, Upload, Loader2, Mail, Smartphone, AlertTriangle } from "lucide-react";
 import Image from "next/image";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateProfile } from "@/actions/profile";
+import { updateNotificationPreferences } from "@/actions/notification-preferences";
+import {
+    NOTIFICATION_CATEGORY_META,
+    defaultNotificationPreferences,
+    type NotificationPreferences,
+    type NotificationCategory,
+} from "@/lib/notification-preferences";
 
 interface UserData {
     id: string;
@@ -14,6 +21,7 @@ interface UserData {
     phone?: string | null;
     locale?: string | null;
     emailPromoOptIn?: boolean;
+    notificationPreferences?: NotificationPreferences;
 }
 
 interface FormState {
@@ -25,8 +33,6 @@ interface FormState {
     currentPassword: string;
     newPassword: string;
     confirmPassword: string;
-    emailTransactions: boolean;
-    emailPromo: boolean;
 }
 
 export function SettingsForm({ user }: { user: UserData }) {
@@ -52,9 +58,30 @@ export function SettingsForm({ user }: { user: UserData }) {
         currentPassword: "",
         newPassword: "",
         confirmPassword: "",
-        emailTransactions: true,
-        emailPromo: user.emailPromoOptIn ?? true,
     });
+    const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences>(
+        user.notificationPreferences ?? defaultNotificationPreferences()
+    );
+    // When the user tries to disable a CRITICAL email channel (orders/payments)
+    // we ask for confirmation first — risk of missing transaction info / lost sales.
+    const [pendingDisable, setPendingDisable] = useState<{ category: NotificationCategory; label: string } | null>(null);
+
+    const setChannel = (category: NotificationCategory, channel: "email" | "inApp", value: boolean) => {
+        setNotifPrefs((prev) => ({
+            ...prev,
+            [category]: { ...prev[category], [channel]: value },
+        }));
+    };
+
+    const handleToggleChannel = (category: NotificationCategory, channel: "email" | "inApp", critical: boolean, label: string) => {
+        const current = notifPrefs[category][channel];
+        // Turning OFF a critical email → confirm first.
+        if (current && critical && channel === "email") {
+            setPendingDisable({ category, label });
+            return;
+        }
+        setChannel(category, channel, !current);
+    };
 
     const handleSave = (e: React.FormEvent) => {
         e.preventDefault();
@@ -83,7 +110,6 @@ export function SettingsForm({ user }: { user: UserData }) {
                     phone: formData.phone,
                     avatarUrl: formData.avatarUrl,
                     locale: formData.locale,
-                    emailPromoOptIn: formData.emailPromo,
                     currentPassword: formData.currentPassword,
                     newPassword: formData.newPassword,
                 });
@@ -107,6 +133,13 @@ export function SettingsForm({ user }: { user: UserData }) {
                     avatarUrl: result.user.image || "",
                     locale: (result.user.locale as "id-ID" | "en-US") || "id-ID",
                 };
+
+                // Persist notification preferences alongside the profile.
+                try {
+                    await updateNotificationPreferences(notifPrefs);
+                } catch {
+                    /* non-fatal: profile saved; prefs can be retried */
+                }
 
                 setSavedProfile(nextSavedProfile);
                 setFormData((current) => ({
@@ -393,39 +426,89 @@ export function SettingsForm({ user }: { user: UserData }) {
                         Notifikasi
                     </h2>
                 </div>
-                <div className="p-6 space-y-4">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h3 className="text-sm font-medium text-slate-900 dark:text-white">Email Transaksi</h3>
-                            <p className="text-xs text-slate-500">Terima email tentang status pesanan Anda.</p>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={formData.emailTransactions}
-                                onChange={(e) => setFormData({ ...formData, emailTransactions: e.target.checked })}
-                                className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-brand-primary"></div>
-                        </label>
+                <div className="p-6">
+                    <p className="text-xs text-slate-500 mb-4">
+                        Atur jenis notifikasi yang ingin Anda terima per kanal: <span className="font-medium">Email</span> dan
+                        <span className="font-medium"> In-app</span> (lonceng di aplikasi).
+                    </p>
+                    {/* Column header */}
+                    <div className="flex items-center justify-end gap-4 pb-2 mb-1 border-b border-slate-100 dark:border-slate-800">
+                        <span className="w-11 text-center text-[10px] font-bold uppercase tracking-wide text-slate-400 flex flex-col items-center gap-0.5">
+                            <Mail className="w-3.5 h-3.5" /> Email
+                        </span>
+                        <span className="w-11 text-center text-[10px] font-bold uppercase tracking-wide text-slate-400 flex flex-col items-center gap-0.5">
+                            <Smartphone className="w-3.5 h-3.5" /> In-app
+                        </span>
                     </div>
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h3 className="text-sm font-medium text-slate-900 dark:text-white">Promo & Diskon</h3>
-                            <p className="text-xs text-slate-500">Dapatkan info promo terbaru dari JualBeliRaket.</p>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={formData.emailPromo}
-                                onChange={(e) => setFormData({ ...formData, emailPromo: e.target.checked })}
-                                className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-brand-primary"></div>
-                        </label>
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {NOTIFICATION_CATEGORY_META.map((cat) => (
+                            <div key={cat.key} className="flex items-start justify-between gap-4 py-3">
+                                <div className="min-w-0">
+                                    <h3 className="text-sm font-medium text-slate-900 dark:text-white flex items-center gap-1.5">
+                                        {cat.label}
+                                        {cat.critical && (
+                                            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-300 px-1.5 py-0.5 rounded">PENTING</span>
+                                        )}
+                                    </h3>
+                                    <p className="text-xs text-slate-500 mt-0.5">{cat.description}</p>
+                                </div>
+                                <div className="flex items-center gap-4 shrink-0 pt-0.5">
+                                    <ToggleSwitch
+                                        checked={notifPrefs[cat.key].email}
+                                        onClick={() => handleToggleChannel(cat.key, "email", !!cat.critical, cat.label)}
+                                    />
+                                    <ToggleSwitch
+                                        checked={notifPrefs[cat.key].inApp}
+                                        onClick={() => handleToggleChannel(cat.key, "inApp", !!cat.critical, cat.label)}
+                                    />
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </section>
+
+            {/* Lost-sales warning before disabling a critical email channel */}
+            {pendingDisable && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full shadow-xl">
+                        <div className="flex items-start gap-3">
+                            <div className="shrink-0 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                                    Matikan email {pendingDisable.label}?
+                                </h3>
+                                <p className="text-sm text-slate-500 mt-1">
+                                    Email ini berisi informasi penting: konfirmasi pembayaran, status pesanan, dan pengiriman.
+                                    Mematikannya berisiko membuat Anda melewatkan transaksi — <strong>potensi kehilangan penjualan</strong>.
+                                    Anda yakin tetap mematikannya?
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex gap-3 justify-end mt-5">
+                            <button
+                                type="button"
+                                onClick={() => setPendingDisable(null)}
+                                className="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium"
+                            >
+                                Batal (tetap aktif)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setChannel(pendingDisable.category, "email", false);
+                                    setPendingDisable(null);
+                                }}
+                                className="px-4 py-2 rounded-lg bg-amber-600 text-white hover:bg-amber-700 text-sm font-semibold"
+                            >
+                                Ya, matikan
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="flex justify-end pt-4">
                 <button
@@ -438,5 +521,22 @@ export function SettingsForm({ user }: { user: UserData }) {
                 </button>
             </div>
         </form>
+    );
+}
+
+function ToggleSwitch({ checked, onClick, disabled }: { checked: boolean; onClick: () => void; disabled?: boolean }) {
+    return (
+        <button
+            type="button"
+            role="switch"
+            aria-checked={checked}
+            onClick={onClick}
+            disabled={disabled}
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-1 disabled:opacity-50 ${checked ? "bg-brand-primary" : "bg-slate-300 dark:bg-slate-700"}`}
+        >
+            <span
+                className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${checked ? "translate-x-5" : "translate-x-0.5"}`}
+            />
+        </button>
     );
 }
