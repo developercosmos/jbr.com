@@ -8,7 +8,7 @@ import { headers } from "next/headers";
 import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { uploadFile as uploadToStorage } from "@/lib/storage";
+import { uploadFile as uploadToStorage, isS3Configured, storageConfig } from "@/lib/storage";
 
 const reservedStoreSlugs = new Set([
     "admin",
@@ -458,6 +458,45 @@ export async function uploadSellerBanner(formData: FormData) {
 
 export async function uploadSellerLogo(formData: FormData) {
     return uploadSellerImage(formData, "logo");
+}
+
+// Only accept URLs we produced: local /uploads/* or our configured S3 bucket.
+function isAllowedUploadUrl(url: string): boolean {
+    if (url.startsWith("/uploads/")) return true;
+    try {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://jualbeliraket.com";
+        const u = new URL(url);
+        if (u.origin === new URL(appUrl).origin && u.pathname.startsWith("/uploads/")) return true;
+        if (isS3Configured()) {
+            const host = `${storageConfig.s3.bucket}.s3.${storageConfig.s3.region}.amazonaws.com`;
+            if (u.hostname === host) return true;
+        }
+        return false;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Persist a banner/logo URL that the client already uploaded via the /api/upload
+ * ROUTE (the same proven path product images use). This avoids pushing the binary
+ * through a Server Action (subject to bodySizeLimit + RSC multipart encoding),
+ * which is what was hanging for banner/logo uploads.
+ */
+export async function setSellerImageUrl(kind: "banner" | "logo", url: string) {
+    const sessionUser = await getCurrentUser();
+    if (!url || !isAllowedUploadUrl(url)) {
+        return { success: false as const, error: "URL gambar tidak valid" };
+    }
+    if (kind === "banner") {
+        await db.update(users).set({ store_banner_url: url, updated_at: new Date() }).where(eq(users.id, sessionUser.id));
+    } else {
+        await db.update(users).set({ image: url, updated_at: new Date() }).where(eq(users.id, sessionUser.id));
+    }
+    revalidatePath("/seller/settings");
+    revalidatePath("/seller");
+    revalidatePath("/store/[slug]", "page");
+    return { success: true as const, url };
 }
 
 // Clear the store banner or logo.

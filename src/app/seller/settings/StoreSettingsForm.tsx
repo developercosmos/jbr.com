@@ -22,10 +22,24 @@ import {
 import {
     updateSellerProfile,
     resubmitSellerActivationReview,
-    uploadSellerBanner,
-    uploadSellerLogo,
+    setSellerImageUrl,
     removeSellerImage,
 } from "@/actions/seller";
+
+// Upload a seller image through the /api/upload ROUTE (same proven path product
+// images use) — avoids the Server Action multipart/body-limit hang. Returns the
+// stored URL or throws with a real reason.
+async function uploadViaRoute(file: File, folder: string): Promise<string> {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", folder);
+    const res = await fetch("/api/upload", { method: "POST", body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.url) {
+        throw new Error(data?.error || `Upload gagal (HTTP ${res.status})`);
+    }
+    return data.url as string;
+}
 
 type SellerProfile = {
     id: string;
@@ -114,9 +128,8 @@ export default function StoreSettingsForm({
         }
         setBannerUploading(true);
         try {
-            const fd = new FormData();
-            fd.append("file", file);
-            const res = await uploadSellerBanner(fd);
+            const url = await uploadViaRoute(file, "store-banners");
+            const res = await setSellerImageUrl("banner", url);
             if (res.success) {
                 setBannerUrl(res.url);
                 showToast({ type: "success", message: "Banner toko berhasil diunggah" });
@@ -143,9 +156,8 @@ export default function StoreSettingsForm({
         }
         setLogoUploading(true);
         try {
-            const fd = new FormData();
-            fd.append("file", file);
-            const res = await uploadSellerLogo(fd);
+            const url = await uploadViaRoute(file, "store-logos");
+            const res = await setSellerImageUrl("logo", url);
             if (res.success) {
                 setLogoUrl(res.url);
                 showToast({ type: "success", message: "Logo berhasil diunggah" });
