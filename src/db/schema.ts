@@ -1704,6 +1704,9 @@ export const files = pgTable(
         // CACHE-03: per-size variants populated by image-resize worker.
         // Shape: { thumb: "...", card: "...", pdp: "...", zoom: "..." }
         variants: jsonb("variants").$type<Record<string, string>>(),
+        // sha256 of the file bytes — used by KYC screening to detect the same
+        // document reused across different accounts.
+        content_hash: text("content_hash"),
         is_public: boolean("is_public").default(false).notNull(),
         uploaded_by: text("uploaded_by").references(() => users.id, { onDelete: "set null" }),
         created_at: timestamp("created_at").defaultNow().notNull(),
@@ -1713,6 +1716,7 @@ export const files = pgTable(
         folder_idx: index("idx_files_folder").on(table.folder),
         file_type_idx: index("idx_files_file_type").on(table.file_type),
         uploaded_by_idx: index("idx_files_uploaded_by").on(table.uploaded_by),
+        content_hash_idx: index("idx_files_content_hash").on(table.content_hash),
     })
 );
 
@@ -1742,6 +1746,18 @@ export const seller_kyc = pgTable(
         reviewed_at: timestamp("reviewed_at"),
         reviewer_id: text("reviewer_id").references(() => users.id, { onDelete: "set null" }),
         notes: text("notes"),
+        // Seller-entered National ID number (encrypted, PDP) + a deterministic hash
+        // for cross-account duplicate detection.
+        nik: text("nik"),
+        nik_hash: text("nik_hash"),
+        // Result of the in-house preliminary auto-screening.
+        screening: jsonb("screening").$type<{
+            riskLevel: "low" | "medium" | "high";
+            score: number;
+            autoReject: boolean;
+            flags: Array<{ code: string; severity: "low" | "medium" | "high"; message: string }>;
+            ranAt: string;
+        }>(),
         created_at: timestamp("created_at").defaultNow().notNull(),
         updated_at: timestamp("updated_at").defaultNow().notNull(),
     },
@@ -1749,6 +1765,7 @@ export const seller_kyc = pgTable(
         user_id_idx: uniqueIndex("idx_seller_kyc_user_id").on(table.user_id),
         tier_idx: index("idx_seller_kyc_tier").on(table.tier),
         status_idx: index("idx_seller_kyc_status").on(table.status),
+        nik_hash_idx: index("idx_seller_kyc_nik_hash").on(table.nik_hash),
     })
 );
 

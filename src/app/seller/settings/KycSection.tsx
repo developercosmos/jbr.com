@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, type ChangeEvent } from "react";
+import { useRouter } from "next/navigation";
 import { ShieldCheck, Upload, FileCheck2, AlertCircle, Loader2 } from "lucide-react";
 import { submitSellerKycApplication, uploadKycDocument } from "@/actions/kyc";
 
@@ -39,7 +40,9 @@ const STATUS_BADGE: Record<KycStatus, { label: string; className: string }> = {
 };
 
 export default function KycSection({ profile, currentTier }: KycSectionProps) {
+    const router = useRouter();
     const [targetTier, setTargetTier] = useState<"T1" | "T2">("T1");
+    const [nik, setNik] = useState("");
     const [notes, setNotes] = useState(profile?.notes ?? "");
     const [agreedToPdp, setAgreedToPdp] = useState(false);
     const [fileIds, setFileIds] = useState<Record<SlotKey, string | null>>({
@@ -94,6 +97,12 @@ export default function KycSection({ profile, currentTier }: KycSectionProps) {
             return;
         }
 
+        const cleanedNik = nik.replace(/\D/g, "");
+        if (cleanedNik.length !== 16) {
+            setError("NIK harus 16 digit angka sesuai KTP.");
+            return;
+        }
+
         if (!fileIds.ktp || !fileIds.selfie) {
             setError("KTP dan selfie wajib diunggah sebelum mengirim pengajuan.");
             return;
@@ -105,14 +114,26 @@ export default function KycSection({ profile, currentTier }: KycSectionProps) {
 
         startTransition(async () => {
             try {
-                await submitSellerKycApplication({
+                const result = await submitSellerKycApplication({
                     targetTier,
                     ktpFileId: fileIds.ktp!,
                     selfieFileId: fileIds.selfie!,
                     businessDocFileId: fileIds.business || undefined,
+                    nik: cleanedNik,
                     notes: notes.trim() || undefined,
                 });
-                setSuccess("Pengajuan KYC berhasil dikirim. Menunggu review admin.");
+                if (result.autoRejected) {
+                    const reasons = result.screening?.flags
+                        ?.filter((f) => f.severity === "high")
+                        .map((f) => f.message)
+                        .join(" ");
+                    setError(
+                        `Pengajuan tidak lolos pemeriksaan awal otomatis${reasons ? `: ${reasons}` : "."} Silakan perbaiki dokumen/NIK lalu ajukan ulang.`
+                    );
+                } else {
+                    setSuccess("Pengajuan KYC berhasil dikirim. Menunggu review admin.");
+                }
+                router.refresh();
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Gagal mengirim pengajuan KYC.");
             }
@@ -182,6 +203,29 @@ export default function KycSection({ profile, currentTier }: KycSectionProps) {
                             </button>
                         ))}
                     </div>
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Nomor Induk Kependudukan (NIK) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        maxLength={16}
+                        value={nik}
+                        disabled={isLocked}
+                        onChange={(e) => setNik(e.target.value.replace(/\D/g, "").slice(0, 16))}
+                        placeholder="16 digit angka sesuai KTP"
+                        className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary text-sm tracking-widest disabled:opacity-60"
+                    />
+                    <p className="text-xs text-slate-400">
+                        Dipakai untuk verifikasi identitas &amp; deteksi duplikasi akun. Disimpan terenkripsi dan tidak pernah ditampilkan publik.
+                        {nik.length > 0 && nik.length < 16 && (
+                            <span className="text-amber-500"> ({nik.length}/16 digit)</span>
+                        )}
+                    </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

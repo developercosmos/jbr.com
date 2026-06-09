@@ -15,11 +15,21 @@ interface FileRef {
     mime_type: string;
 }
 
+interface ScreeningResult {
+    riskLevel: "low" | "medium" | "high";
+    score: number;
+    autoReject: boolean;
+    flags: Array<{ code: string; severity: "low" | "medium" | "high"; message: string }>;
+    ranAt: string;
+}
+
 interface Submission {
     userId: string;
     tier: KycTier;
     status: KycStatus;
     notes: string | null;
+    nik: string | null;
+    screening: ScreeningResult | null;
     submittedAt: string | null;
     reviewedAt: string | null;
     seller: {
@@ -50,6 +60,14 @@ const STATUS_BADGE: Record<KycStatus, string> = {
     APPROVED: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
     REJECTED: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
 };
+
+const RISK_BADGE: Record<string, string> = {
+    low: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+    medium: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+    high: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300",
+};
+const RISK_LABEL: Record<string, string> = { low: "Risiko Rendah", medium: "Risiko Sedang", high: "Risiko Tinggi" };
+const FLAG_DOT: Record<string, string> = { low: "bg-slate-400", medium: "bg-amber-500", high: "bg-rose-500" };
 
 function formatDate(iso: string | null): string {
     if (!iso) return "-";
@@ -190,6 +208,49 @@ export default function KycReviewClient({ submissions }: Props) {
                                         )}
                                     </div>
                                 ))}
+                            </div>
+
+                            <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3 space-y-2">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                            Pra-screening Otomatis
+                                        </span>
+                                        {submission.screening ? (
+                                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${RISK_BADGE[submission.screening.riskLevel] ?? RISK_BADGE.low}`}>
+                                                {RISK_LABEL[submission.screening.riskLevel] ?? submission.screening.riskLevel} · skor {submission.screening.score}
+                                            </span>
+                                        ) : (
+                                            <span className="text-xs text-slate-400">Belum dijalankan (pengajuan lama)</span>
+                                        )}
+                                        {submission.screening?.autoReject && (
+                                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-600 text-white">
+                                                Ditolak otomatis
+                                            </span>
+                                        )}
+                                    </div>
+                                    {submission.nik && (
+                                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                                            NIK: <span className="font-mono tracking-wider text-slate-900 dark:text-white">{submission.nik}</span>
+                                        </span>
+                                    )}
+                                </div>
+                                {submission.screening && submission.screening.flags.length > 0 ? (
+                                    <ul className="space-y-1">
+                                        {submission.screening.flags.map((flag, i) => (
+                                            <li key={`${flag.code}-${i}`} className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300">
+                                                <span className={`mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full ${FLAG_DOT[flag.severity] ?? "bg-slate-400"}`} />
+                                                <span>
+                                                    <span className="font-mono text-slate-400">{flag.code}</span> — {flag.message}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : submission.screening ? (
+                                    <div className="text-xs text-emerald-600 dark:text-emerald-400">
+                                        Tidak ada temuan otomatis. Tetap lakukan verifikasi manual.
+                                    </div>
+                                ) : null}
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-500 dark:text-slate-400">

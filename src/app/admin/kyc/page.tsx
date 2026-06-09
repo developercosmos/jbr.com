@@ -35,6 +35,8 @@ export default async function AdminKycPage({ searchParams }: PageProps) {
         tier: s.tier,
         status: s.status,
         notes: s.notes,
+        nik: s.nik,
+        screening: s.screening,
         submittedAt: s.submitted_at?.toISOString() ?? null,
         reviewedAt: s.reviewed_at?.toISOString() ?? null,
         seller: s.seller,

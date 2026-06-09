@@ -3,14 +3,20 @@
 import { db } from "@/db";
 import { files, notifications, orders, seller_kyc, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
-import { and, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lt, ne, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { createHash } from "node:crypto";
 import { uploadFile as uploadToStorage } from "@/lib/storage";
 import { getFileTypeFromMime } from "@/lib/file-utils";
 import { decryptPdpField, encryptPdpField } from "@/lib/crypto/pdp-field";
 import { sendSellerKycApprovedEmail, sendSellerKycRejectedEmail } from "@/lib/email";
+import { runKycScreening, validateNik } from "@/lib/kyc-screening";
+
+function sha256Hex(value: Buffer | string): string {
+    return createHash("sha256").update(value).digest("hex");
+}
 
 const sellerTierCaps: Record<"T0" | "T1" | "T2", number> = {
     T0: 10_000_000,
@@ -23,6 +29,11 @@ const submitSellerKycSchema = z.object({
     ktpFileId: z.string().uuid(),
     selfieFileId: z.string().uuid(),
     businessDocFileId: z.string().uuid().optional(),
+    nik: z
+        .string()
+        .trim()
+        .transform((v) => v.replace(/\D/g, ""))
+        .refine((v) => v.length === 16, "NIK harus 16 digit angka."),
     notes: z.string().max(500).optional(),
 });
 
@@ -205,6 +216,9 @@ export async function submitSellerKycApplication(input: z.infer<typeof submitSel
                 id: true,
                 uploaded_by: true,
                 is_public: true,
+                mime_type: true,
+                size: true,
+                content_hash: true,
             },
         })
         : [];
@@ -213,36 +227,93 @@ export async function submitSellerKycApplication(input: z.infer<typeof submitSel
         throw new Error("Dokumen KYC harus berupa file privat milik akun Anda sendiri.");
     }
 
+    const ktpFile = uploadedFiles.find((f) => f.id === validated.ktpFileId)!;
+    const selfieFile = uploadedFiles.find((f) => f.id === validated.selfieFileId)!;
+
+    // ---- Preliminary auto-screening (in-house, no external API) ----
+    const nikHash = sha256Hex(validated.nik);
+    const nikValidation = validateNik(validated.nik);
+
+    // Byte-identical KTP/selfie reused by another account → fraud signal.
+    const docHashes = [ktpFile.content_hash, selfieFile.content_hash].filter(Boolean) as string[];
+    let duplicateDocAccountCount = 0;
+    if (docHashes.length) {
+        const dupDocs = await db.query.files.findMany({
+            where: and(inArray(files.content_hash, docHashes), ne(files.uploaded_by, sessionUser.id), ilike(files.folder, "kyc/%")),
+            columns: { uploaded_by: true },
+        });
+        duplicateDocAccountCount = new Set(dupDocs.map((d) => d.uploaded_by)).size;
+    }
+
+    // Same NIK already submitted by another account.
+    const dupNik = await db.query.seller_kyc.findMany({
+        where: and(eq(seller_kyc.nik_hash, nikHash), ne(seller_kyc.user_id, sessionUser.id)),
+        columns: { user_id: true },
+    });
+
+    const screening = runKycScreening({
+        nikValidation: { valid: nikValidation.valid, reason: nikValidation.reason },
+        ktp: { mime: ktpFile.mime_type, size: ktpFile.size, contentHash: ktpFile.content_hash },
+        selfie: { mime: selfieFile.mime_type, size: selfieFile.size, contentHash: selfieFile.content_hash },
+        duplicateDocAccountCount,
+        duplicateNikAccountCount: dupNik.length,
+    });
+
+    const autoRejected = screening.autoReject;
+    const finalStatus = autoRejected ? ("REJECTED" as const) : ("PENDING_REVIEW" as const);
+    const autoNote = autoRejected
+        ? `Ditolak otomatis oleh pra-screening: ${screening.flags.filter((f) => f.severity === "high").map((f) => f.message).join(" ")}`
+        : validated.notes;
+    const now = new Date();
+
+    const kycValues = {
+        tier: validated.targetTier,
+        status: finalStatus,
+        ktp_file_id: validated.ktpFileId,
+        selfie_file_id: validated.selfieFileId,
+        business_doc_file_id: validated.businessDocFileId,
+        nik: encryptPdpField(validated.nik),
+        nik_hash: nikHash,
+        screening,
+        submitted_at: now,
+        reviewed_at: autoRejected ? now : null,
+        reviewer_id: null,
+        notes: encryptPdpField(autoNote),
+        updated_at: now,
+    };
+
     await db
         .insert(seller_kyc)
-        .values({
-            user_id: sessionUser.id,
-            tier: validated.targetTier,
-            status: "PENDING_REVIEW",
-            ktp_file_id: validated.ktpFileId,
-            selfie_file_id: validated.selfieFileId,
-            business_doc_file_id: validated.businessDocFileId,
-            submitted_at: new Date(),
-            reviewed_at: null,
-            reviewer_id: null,
-            notes: encryptPdpField(validated.notes),
-            updated_at: new Date(),
-        })
-        .onConflictDoUpdate({
-            target: seller_kyc.user_id,
-            set: {
-                tier: validated.targetTier,
-                status: "PENDING_REVIEW",
-                ktp_file_id: validated.ktpFileId,
-                selfie_file_id: validated.selfieFileId,
-                business_doc_file_id: validated.businessDocFileId,
-                submitted_at: new Date(),
-                reviewed_at: null,
-                reviewer_id: null,
-                notes: encryptPdpField(validated.notes),
-                updated_at: new Date(),
-            },
+        .values({ user_id: sessionUser.id, ...kycValues })
+        .onConflictDoUpdate({ target: seller_kyc.user_id, set: kycValues });
+
+    // Auto-rejected: tell the seller why and skip the admin queue (nothing to review).
+    if (autoRejected) {
+        try {
+            await db.insert(notifications).values({
+                user_id: sessionUser.id,
+                type: "SYSTEM",
+                title: "Pengajuan KYC Ditolak Otomatis",
+                message: autoNote || "Pengajuan KYC ditolak oleh sistem. Perbaiki dokumen lalu ajukan ulang.",
+                data: { tier: validated.targetTier, auto: true },
+            });
+        } catch (e) {
+            console.error("[submitKyc] failed to notify seller of auto-reject:", e);
+        }
+        const sellerUser = await db.query.users.findFirst({
+            where: eq(users.id, sessionUser.id),
+            columns: { email: true, name: true },
         });
+        if (sellerUser?.email) {
+            sendSellerKycRejectedEmail(
+                sellerUser.email,
+                sellerUser.name || seller.store_name || "Penjual",
+                autoNote || "Dokumen KYC tidak valid."
+            ).catch((e) => console.error("[submitKyc] auto-reject email failed:", e));
+        }
+        revalidatePath("/seller/settings");
+        return { success: true as const, autoRejected: true as const, screening };
+    }
 
     const admins = await db.query.users.findMany({
         where: eq(users.role, "ADMIN"),
@@ -279,7 +350,7 @@ export async function submitSellerKycApplication(input: z.infer<typeof submitSel
     revalidatePath("/seller/settings");
     revalidatePath("/admin/users");
 
-    return { success: true };
+    return { success: true as const, autoRejected: false as const, screening };
 }
 
 const SLOT_ALLOWED_KYC_MIME: Record<"ktp" | "selfie" | "business", Set<string>> = {
@@ -350,6 +421,7 @@ export async function uploadKycDocument(formData: FormData) {
             storage_type: stored.storageType,
             storage_key: stored.key,
             folder,
+            content_hash: sha256Hex(buffer),
             is_public: false,
             uploaded_by: sessionUser.id,
         })
@@ -394,10 +466,16 @@ export async function listKycSubmissions(filter?: z.infer<typeof kycListFilterSc
         },
     });
 
-    return submissions.map((submission) => ({
-        ...submission,
-        notes: decryptPdpField(submission.notes),
-    }));
+    return submissions.map((submission) => {
+        // Never ship the raw encrypted NIK or the dup-detection hash to the client;
+        // decrypt the NIK for the admin reviewer and drop the hash.
+        const { nik_hash: _nikHash, nik, ...rest } = submission;
+        return {
+            ...rest,
+            notes: decryptPdpField(submission.notes),
+            nik: nik ? decryptPdpField(nik) : null,
+        };
+    });
 }
 
 export async function getKycSubmissionCounts() {
