@@ -143,3 +143,10 @@
     color: var(--foreground);
   }
 }
+
+/* Leaflet custom location pin: no default white/cyan box around the divIcon. */
+.leaflet-div-icon.jbr-map-pin,
+.jbr-map-pin {
+  background: transparent;
+  border: 0;
+}

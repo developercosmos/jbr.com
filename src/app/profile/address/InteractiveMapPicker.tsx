@@ -1,8 +1,9 @@
 "use client";
 
-import { CircleMarker, MapContainer, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
+import L from "leaflet";
 import type { LatLngExpression } from "leaflet";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 
 interface InteractiveMapPickerProps {
     lat: number;
@@ -41,6 +42,22 @@ function RecenterMap({ lat, lon }: { lat: number; lon: number }) {
 export function InteractiveMapPicker({ lat, lon, onPick, showControls = true }: InteractiveMapPickerProps) {
     const center: LatLngExpression = [lat, lon];
 
+    // A single, fully-controlled HTML pin. Using a divIcon (with an EMPTY
+    // className so Leaflet's default `.leaflet-div-icon` white box is not applied)
+    // avoids the SVG vector-overlay artifacts that produced a stray colored box.
+    const pinIcon = useMemo(
+        () =>
+            L.divIcon({
+                className: "jbr-map-pin",
+                html:
+                    '<span style="display:block;width:18px;height:18px;border-radius:9999px;' +
+                    'background:#e11d48;border:2px solid #ffffff;box-shadow:0 0 0 1.5px rgba(0,0,0,0.25)"></span>',
+                iconSize: [18, 18],
+                iconAnchor: [9, 9],
+            }),
+        []
+    );
+
     return (
         <MapContainer
             center={center}
@@ -56,16 +73,7 @@ export function InteractiveMapPicker({ lat, lon, onPick, showControls = true }: 
             />
             <MapClickHandler onPick={onPick} />
             <RecenterMap lat={lat} lon={lon} />
-            <CircleMarker
-                center={center}
-                radius={10}
-                pathOptions={{
-                    color: "#ffffff",
-                    weight: 2,
-                    fillColor: "#e11d48",
-                    fillOpacity: 0.95,
-                }}
-            />
+            <Marker position={center} icon={pinIcon} />
         </MapContainer>
     );
 }

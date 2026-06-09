@@ -54,6 +54,7 @@ export function MapLocationDialog({
     const [resolvingAddress, setResolvingAddress] = useState(false);
     const [addressQuery, setAddressQuery] = useState("");
     const [error, setError] = useState("");
+    const [matchedLabel, setMatchedLabel] = useState("");
 
     const hasCoordinates = lat !== null && lon !== null;
 
@@ -61,6 +62,8 @@ export function MapLocationDialog({
         setLat(nextLat);
         setLon(nextLon);
         setError("");
+        // Cleared here; resolveFromAddress sets it again after a successful geocode.
+        setMatchedLabel("");
     }, []);
 
     const resolveFromAddress = useCallback(async (query?: string) => {
@@ -76,14 +79,18 @@ export function MapLocationDialog({
 
         try {
             const encoded = encodeURIComponent(source);
-            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encoded}`);
+            // Bias to Indonesia + return the matched address so the user can verify
+            // it (and correct by clicking the map if the geocoder guessed wrong).
+            const response = await fetch(
+                `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&countrycodes=id&limit=1&q=${encoded}`
+            );
             if (!response.ok) {
                 throw new Error("Gagal mencari lokasi dari alamat.");
             }
 
-            const data = (await response.json()) as Array<{ lat: string; lon: string }>;
+            const data = (await response.json()) as Array<{ lat: string; lon: string; display_name?: string }>;
             if (!data.length) {
-                throw new Error("Lokasi alamat tidak ditemukan. Coba lengkapi alamat.");
+                throw new Error("Lokasi alamat tidak ditemukan. Coba lengkapi alamat (mis. tambah kecamatan/kota).");
             }
 
             const nextLat = Number(data[0].lat);
@@ -94,6 +101,9 @@ export function MapLocationDialog({
             }
 
             setPickedCoordinates(nextLat, nextLon);
+            if (data[0].display_name) {
+                setMatchedLabel(data[0].display_name);
+            }
         } catch (err) {
             const message = err instanceof Error && err.message.trim()
                 ? err.message
@@ -261,6 +271,15 @@ export function MapLocationDialog({
                     {error && (
                         <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
                             {error}
+                        </div>
+                    )}
+
+                    {matchedLabel && !error && (
+                        <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+                            <span className="font-semibold">Hasil pencarian:</span> {matchedLabel}
+                            <span className="block mt-0.5 text-amber-700/80">
+                                Pencarian alamat bisa kurang presisi. Jika pin tidak tepat, klik langsung pada peta untuk menggesernya.
+                            </span>
                         </div>
                     )}
 
