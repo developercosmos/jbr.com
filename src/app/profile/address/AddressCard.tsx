@@ -417,6 +417,28 @@ export function AddressCard({ address }: { address: Address }) {
                 addressText={address.full_address}
                 initialLatitude={address.latitude || null}
                 initialLongitude={address.longitude || null}
+                onSelect={(coords) => {
+                    // Allow re-pinning straight from the preview: save the new point
+                    // to this address (keeps "Gunakan Titik Ini" visible + working).
+                    startTransition(async () => {
+                        try {
+                            await updateAddress({
+                                id: address.id,
+                                label: address.label,
+                                recipient_name: address.recipient_name,
+                                phone: address.phone,
+                                full_address: address.full_address,
+                                postal_code: address.postal_code || undefined,
+                                latitude: coords.latitude,
+                                longitude: coords.longitude,
+                                is_default_shipping: Boolean(address.is_default_shipping),
+                                is_default_pickup: Boolean(address.is_default_pickup),
+                            });
+                        } catch (err) {
+                            setError(getErrorMessage(err, "Gagal menyimpan titik lokasi"));
+                        }
+                    });
+                }}
             />
 
             <MapLocationDialog
