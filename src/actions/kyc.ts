@@ -13,6 +13,7 @@ import { getFileTypeFromMime } from "@/lib/file-utils";
 import { decryptPdpField, encryptPdpField } from "@/lib/crypto/pdp-field";
 import { sendSellerKycApprovedEmail, sendSellerKycRejectedEmail } from "@/lib/email";
 import { runKycScreening, validateNik } from "@/lib/kyc-screening";
+import { decodeNikRegion } from "@/lib/wilayah";
 
 function sha256Hex(value: Buffer | string): string {
     return createHash("sha256").update(value).digest("hex");
@@ -233,6 +234,9 @@ export async function submitSellerKycApplication(input: z.infer<typeof submitSel
     // ---- Preliminary auto-screening (in-house, no external API) ----
     const nikHash = sha256Hex(validated.nik);
     const nikValidation = validateNik(validated.nik);
+    // Resolve the region encoded in the NIK against the baked-in wilayah dataset
+    // (null = code not found -> flagged by the screener, not auto-rejected).
+    const region = decodeNikRegion(validated.nik);
 
     // Byte-identical KTP/selfie reused by another account → fraud signal.
     const docHashes = [ktpFile.content_hash, selfieFile.content_hash].filter(Boolean) as string[];
@@ -257,6 +261,7 @@ export async function submitSellerKycApplication(input: z.infer<typeof submitSel
         selfie: { mime: selfieFile.mime_type, size: selfieFile.size, contentHash: selfieFile.content_hash },
         duplicateDocAccountCount,
         duplicateNikAccountCount: dupNik.length,
+        region,
     });
 
     const autoRejected = screening.autoReject;

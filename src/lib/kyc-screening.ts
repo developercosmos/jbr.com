@@ -1,7 +1,11 @@
 // In-house preliminary KYC screening. Pure module (no DB/server imports) so it can
 // be unit-reasoned and shared. The server action gathers the inputs (file hashes,
-// duplicate counts) and calls runKycScreening(); the result is stored on
-// seller_kyc.screening and shown to the admin reviewer.
+// duplicate counts, resolved NIK region) and calls runKycScreening(); the result is
+// stored on seller_kyc.screening and shown to the admin reviewer.
+//
+// `NikRegion` is imported as a type only (erased at compile time), so the bundled
+// wilayah dataset is NOT pulled into this pure module.
+import type { NikRegion } from "./wilayah";
 
 export type KycFlagSeverity = "low" | "medium" | "high";
 
@@ -16,18 +20,21 @@ export interface KycScreeningResult {
     score: number; // 0–100, higher = riskier
     autoReject: boolean;
     flags: KycFlag[];
+    region: NikRegion | null; // resolved from the NIK's 6-digit prefix (null = not found / not looked up)
     ranAt: string; // ISO timestamp
 }
 
-// Indonesian province codes (first 2 digits of NIK). 11–92 are assigned; we accept
-// 11–94 as a generous plausibility range rather than a hard registry check.
+// Indonesian province codes (first 2 digits of NIK). Assigned codes run 11–96
+// after the 2022 Papua expansion; we accept 11–96 as a generous plausibility
+// range here. The authoritative existence check is the wilayah region lookup
+// (NIK_REGION_UNKNOWN), passed in via the screening input.
 export function validateNik(raw: string): { valid: boolean; reason?: string; dob?: string } {
     const nik = (raw || "").replace(/\D/g, "");
     if (nik.length !== 16) {
         return { valid: false, reason: "NIK harus 16 digit angka." };
     }
     const province = parseInt(nik.slice(0, 2), 10);
-    if (!(province >= 11 && province <= 94)) {
+    if (!(province >= 11 && province <= 96)) {
         return { valid: false, reason: "Kode provinsi pada NIK tidak valid." };
     }
     const regency = parseInt(nik.slice(2, 4), 10);
@@ -59,6 +66,12 @@ export interface KycScreeningInput {
     duplicateDocAccountCount: number;
     /** OTHER accounts that submitted the same NIK. */
     duplicateNikAccountCount: number;
+    /**
+     * Region resolved from the NIK's 6-digit prefix via the wilayah dataset.
+     * `null` = a lookup was done but the code is not a real district (flagged);
+     * `undefined` = no lookup attempted (no flag).
+     */
+    region?: NikRegion | null;
 }
 
 export function runKycScreening(input: KycScreeningInput): KycScreeningResult {
@@ -92,6 +105,17 @@ export function runKycScreening(input: KycScreeningInput): KycScreeningResult {
         flags.push({ code: "NIK_INVALID", severity: "medium", message: input.nikValidation.reason || "NIK tidak valid." });
     }
 
+    // Region existence: null means a lookup ran and the 6-digit code is not a
+    // real district. Flagged (not auto-rejected) because our wilayah snapshot can
+    // lag a brand-new Kepmendagri decree.
+    if (input.region === null) {
+        flags.push({
+            code: "NIK_REGION_UNKNOWN",
+            severity: "medium",
+            message: "Kode wilayah (6 digit awal NIK) tidak ditemukan di basis data wilayah.",
+        });
+    }
+
     if (input.duplicateNikAccountCount > 0) {
         flags.push({
             code: "DUPLICATE_NIK",
@@ -115,5 +139,5 @@ export function runKycScreening(input: KycScreeningInput): KycScreeningResult {
     const AUTO_REJECT_CODES = new Set(["KTP_NOT_IMAGE", "SELFIE_NOT_IMAGE", "KTP_SELFIE_SAME_IMAGE", "DUPLICATE_DOCUMENT", "DUPLICATE_NIK"]);
     const autoReject = flags.some((f) => AUTO_REJECT_CODES.has(f.code));
 
-    return { riskLevel, score, autoReject, flags, ranAt: new Date().toISOString() };
+    return { riskLevel, score, autoReject, flags, region: input.region ?? null, ranAt: new Date().toISOString() };
 }

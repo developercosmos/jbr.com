@@ -20,6 +20,7 @@ interface ScreeningResult {
     score: number;
     autoReject: boolean;
     flags: Array<{ code: string; severity: "low" | "medium" | "high"; message: string }>;
+    region: { code: string; province: string; regency: string; district: string } | null;
     ranAt: string;
 }
 
@@ -235,6 +236,14 @@ export default function KycReviewClient({ submissions }: Props) {
                                         </span>
                                     )}
                                 </div>
+                                {submission.screening?.region && (
+                                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                                        Wilayah NIK:{" "}
+                                        <span className="text-slate-900 dark:text-white">
+                                            {submission.screening.region.province} · {submission.screening.region.regency} · {submission.screening.region.district}
+                                        </span>
+                                    </div>
+                                )}
                                 {submission.screening && submission.screening.flags.length > 0 ? (
                                     <ul className="space-y-1">
                                         {submission.screening.flags.map((flag, i) => (

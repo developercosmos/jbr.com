@@ -1756,6 +1756,7 @@ export const seller_kyc = pgTable(
             score: number;
             autoReject: boolean;
             flags: Array<{ code: string; severity: "low" | "medium" | "high"; message: string }>;
+            region: { code: string; province: string; regency: string; district: string } | null;
             ranAt: string;
         }>(),
         created_at: timestamp("created_at").defaultNow().notNull(),
