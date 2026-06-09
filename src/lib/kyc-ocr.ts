@@ -17,7 +17,6 @@
 //                        separate reasoning tokens, so leave generous headroom)
 //   KYC_OCR_MAX_DIM      downscale longest image edge to this px before sending
 //                        (default 1400; keeps detail while cutting payload/latency)
-import sharp from "sharp";
 import { logger } from "@/lib/logger";
 
 export interface OcrConfig {
@@ -110,18 +109,24 @@ function asTrimmedString(value: unknown): string | null {
     return t.length ? t : null;
 }
 
-async function preprocessImage(bytes: Buffer, maxDim: number): Promise<{ b64: string; mime: string }> {
+async function preprocessImage(bytes: Buffer, mimeType: string, maxDim: number): Promise<{ b64: string; mime: string }> {
+    // sharp is NOT a declared dependency (it's only present transitively via Next's
+    // image optimizer). Load it lazily and optionally: a top-level import breaks the
+    // server build when Next collects page data for the cron route. When sharp is
+    // available we normalize to a downscaled JPEG (handles webp, big photos, EXIF
+    // rotation); otherwise we send the original bytes untouched.
     try {
-        const out = await sharp(bytes)
+        const sharpMod = (await import("sharp")).default;
+        const out = await sharpMod(bytes)
             .rotate() // honor EXIF orientation
             .resize({ width: maxDim, height: maxDim, fit: "inside", withoutEnlargement: true })
             .jpeg({ quality: 90 })
             .toBuffer();
         return { b64: out.toString("base64"), mime: "image/jpeg" };
     } catch (err) {
-        // If preprocessing fails, fall back to the original bytes as PNG-ish data.
-        logger.warn?.("kyc-ocr:preprocess_failed", { error: err instanceof Error ? err.message : String(err) });
-        return { b64: bytes.toString("base64"), mime: "image/jpeg" };
+        logger.warn?.("kyc-ocr:preprocess_skipped", { error: err instanceof Error ? err.message : String(err) });
+        const safeMime = mimeType && mimeType.startsWith("image/") ? mimeType : "image/jpeg";
+        return { b64: bytes.toString("base64"), mime: safeMime };
     }
 }
 
@@ -129,11 +134,11 @@ async function preprocessImage(bytes: Buffer, maxDim: number): Promise<{ b64: st
  * Send a KYC image to the local LLM and extract KTP fields.
  * Throws on transport/HTTP/timeout/parse failure so the caller can retry.
  */
-export async function extractKtpFromImage(bytes: Buffer, _mimeType: string): Promise<KtpExtraction> {
+export async function extractKtpFromImage(bytes: Buffer, mimeType: string): Promise<KtpExtraction> {
     const config = getOcrConfig();
     if (!config) throw new Error("OCR endpoint not configured");
 
-    const { b64, mime } = await preprocessImage(bytes, config.maxDim);
+    const { b64, mime } = await preprocessImage(bytes, mimeType, config.maxDim);
 
     const body = {
         model: config.model,
