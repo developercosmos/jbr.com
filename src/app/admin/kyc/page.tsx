@@ -2,6 +2,7 @@ import { listKycSubmissions, getKycSubmissionCounts } from "@/actions/kyc";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
+import { isOcrConfigured } from "@/lib/kyc-ocr";
 import KycReviewClient from "./KycReviewClient";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,8 @@ export default async function AdminKycPage({ searchParams }: PageProps) {
             .then((r) => Number(r[0]?.count ?? 0)),
     ]);
 
+    const ocrConfigured = isOcrConfigured();
+
     const serialized = submissions.map((s) => ({
         userId: s.user_id,
         tier: s.tier,
@@ -37,6 +40,8 @@ export default async function AdminKycPage({ searchParams }: PageProps) {
         notes: s.notes,
         nik: s.nik,
         screening: s.screening,
+        ocr: s.ocr,
+        ocrStatus: s.ocr_status,
         submittedAt: s.submitted_at?.toISOString() ?? null,
         reviewedAt: s.reviewed_at?.toISOString() ?? null,
         seller: s.seller,
@@ -88,7 +93,7 @@ export default async function AdminKycPage({ searchParams }: PageProps) {
                     ))}
                 </div>
 
-                <KycReviewClient submissions={serialized} />
+                <KycReviewClient submissions={serialized} ocrConfigured={ocrConfigured} />
             </div>
         </div>
     );

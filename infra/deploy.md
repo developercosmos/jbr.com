@@ -146,6 +146,13 @@ pm2 restart jualbeliraket
 - **Healthcheck cron**: `*/1 * * * * /usr/bin/flock -n /tmp/healthcheck-jualbeliraket.lock /var/www/jbr/scripts/healthcheck-jualbeliraket.sh`
 - **Healthcheck log**: `/var/www/jbr/logs/healthcheck-jualbeliraket.log`
 
+### KYC OCR sweep (optional, feature-flagged)
+Pre-screens KYC KTP images via a local OpenAI-compatible LLM (e.g. llama.cpp + Gemma 4). OFF unless the `kyc.ocr` feature flag is enabled AND `KYC_OCR_LLM_URL`/`KYC_OCR_LLM_MODEL` are set (see `.env.example`). Each call ~30s, so it has its own runner/cadence separate from trust-sweeps.
+- **Script**: `/var/www/jbr/scripts/jbr-kyc-ocr.sh` → `POST /api/cron/kyc-ocr` (auth via `CRON_SECRET`)
+- **Cron**: `*/5 * * * * /usr/bin/flock -n /tmp/jbr-kyc-ocr.lock /var/www/jbr/scripts/jbr-kyc-ocr.sh`
+- **Log**: `/var/www/jbr/logs/kyc-ocr.log`
+- The LLM endpoint must be reachable from the app server (verify: `curl http://<llm-host>/v1/models`).
+
 ### E2E Smoke Test (regression detector)
 
 Endpoint internal: `POST/GET /api/cron/smoke-test` (auth via `CRON_SECRET`).

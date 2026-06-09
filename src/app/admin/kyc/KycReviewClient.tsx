@@ -3,8 +3,9 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ExternalLink, Eye, Loader2, ShieldCheck, ShieldX, X } from "lucide-react";
+import { ExternalLink, Eye, Loader2, ScanText, ShieldCheck, ShieldX, X } from "lucide-react";
 import { reviewSellerKycApplication } from "@/actions/kyc";
+import { runKycOcrForSeller } from "@/actions/kyc-ocr";
 
 type KycStatus = "NOT_SUBMITTED" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
 type KycTier = "T0" | "T1" | "T2";
@@ -24,6 +25,17 @@ interface ScreeningResult {
     ranAt: string;
 }
 
+interface OcrResult {
+    status: "PENDING" | "DONE" | "FAILED" | "SKIPPED";
+    attempts: number;
+    isKtp: boolean | null;
+    extracted: { nik: string | null; nama: string | null; ttl: string | null } | null;
+    checks: { nikVerdict: "match" | "near" | "mismatch" | "unreadable"; nikDistance: number | null } | null;
+    model: string | null;
+    error: string | null;
+    ranAt: string | null;
+}
+
 interface Submission {
     userId: string;
     tier: KycTier;
@@ -31,6 +43,8 @@ interface Submission {
     notes: string | null;
     nik: string | null;
     screening: ScreeningResult | null;
+    ocr: OcrResult | null;
+    ocrStatus: string | null;
     submittedAt: string | null;
     reviewedAt: string | null;
     seller: {
@@ -53,7 +67,15 @@ interface Submission {
 
 interface Props {
     submissions: Submission[];
+    ocrConfigured: boolean;
 }
+
+const OCR_VERDICT: Record<string, { label: string; className: string }> = {
+    match: { label: "NIK cocok dengan kartu", className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" },
+    near: { label: "NIK mirip (kemungkinan noise OCR)", className: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" },
+    mismatch: { label: "NIK BERBEDA dari kartu", className: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300" },
+    unreadable: { label: "NIK tak terbaca dari kartu", className: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300" },
+};
 
 const STATUS_BADGE: Record<KycStatus, string> = {
     NOT_SUBMITTED: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
@@ -76,13 +98,27 @@ function formatDate(iso: string | null): string {
     return new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
-export default function KycReviewClient({ submissions }: Props) {
+export default function KycReviewClient({ submissions, ocrConfigured }: Props) {
     const router = useRouter();
     const [activeId, setActiveId] = useState<string | null>(null);
     const [decisionNotes, setDecisionNotes] = useState<Record<string, string>>({});
     const [error, setError] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
     const [preview, setPreview] = useState<FileRef | null>(null);
+    const [ocrRunningId, setOcrRunningId] = useState<string | null>(null);
+
+    async function handleRunOcr(sellerId: string) {
+        setError(null);
+        setOcrRunningId(sellerId);
+        try {
+            await runKycOcrForSeller(sellerId);
+            router.refresh();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Gagal menjalankan OCR.");
+        } finally {
+            setOcrRunningId(null);
+        }
+    }
 
     // Close the preview modal on Escape.
     useEffect(() => {
@@ -261,6 +297,76 @@ export default function KycReviewClient({ submissions }: Props) {
                                     </div>
                                 ) : null}
                             </div>
+
+                            {(ocrConfigured || submission.ocr) && (
+                                <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3 space-y-2">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 inline-flex items-center gap-1">
+                                                <ScanText className="w-3.5 h-3.5" /> OCR KTP (LLM lokal)
+                                            </span>
+                                            {submission.ocr?.status === "DONE" && submission.ocr.checks && (
+                                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${OCR_VERDICT[submission.ocr.checks.nikVerdict]?.className ?? ""}`}>
+                                                    {OCR_VERDICT[submission.ocr.checks.nikVerdict]?.label ?? submission.ocr.checks.nikVerdict}
+                                                </span>
+                                            )}
+                                            {submission.ocr?.status === "DONE" && submission.ocr.isKtp === false && (
+                                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-rose-600 text-white">Bukan KTP</span>
+                                            )}
+                                            {submission.ocr?.status === "PENDING" && (
+                                                <span className="text-xs text-amber-600 dark:text-amber-400">Menunggu diproses…</span>
+                                            )}
+                                            {submission.ocr?.status === "FAILED" && (
+                                                <span className="text-xs text-rose-600 dark:text-rose-400">Gagal diproses</span>
+                                            )}
+                                            {!submission.ocr && <span className="text-xs text-slate-400">Belum dijalankan</span>}
+                                        </div>
+                                        {ocrConfigured && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRunOcr(submission.userId)}
+                                                disabled={ocrRunningId === submission.userId}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-brand-primary/50 disabled:opacity-60"
+                                            >
+                                                {ocrRunningId === submission.userId ? (
+                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                ) : (
+                                                    <ScanText className="w-3.5 h-3.5" />
+                                                )}
+                                                {submission.ocr?.status === "DONE" || submission.ocr?.status === "FAILED" ? "Jalankan ulang" : "Jalankan OCR"}
+                                            </button>
+                                        )}
+                                    </div>
+                                    {submission.ocr?.status === "DONE" && submission.ocr.extracted && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                                            <div>
+                                                <span className="text-slate-400">NIK (kartu):</span>{" "}
+                                                <span className="font-mono text-slate-900 dark:text-white">{submission.ocr.extracted.nik ?? "—"}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400">Nama (kartu):</span>{" "}
+                                                <span className="text-slate-900 dark:text-white">{submission.ocr.extracted.nama ?? "—"}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400">TTL (kartu):</span>{" "}
+                                                <span className="text-slate-900 dark:text-white">{submission.ocr.extracted.ttl ?? "—"}</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {submission.ocr?.status === "FAILED" && submission.ocr.error && (
+                                        <div className="text-xs text-rose-600 dark:text-rose-400">{submission.ocr.error}</div>
+                                    )}
+                                    {submission.ocr?.model && (
+                                        <div className="text-[11px] text-slate-400">
+                                            Model: {submission.ocr.model}
+                                            {submission.ocr.ranAt ? ` · ${formatDate(submission.ocr.ranAt)}` : ""}
+                                        </div>
+                                    )}
+                                    <div className="text-[11px] text-slate-400">
+                                        OCR bersifat advisory — tidak mengubah status KYC. Verifikasi akhir tetap manual.
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-500 dark:text-slate-400">
                                 <div>Diajukan: {formatDate(submission.submittedAt)}</div>

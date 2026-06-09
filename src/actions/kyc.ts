@@ -14,6 +14,8 @@ import { decryptPdpField, encryptPdpField } from "@/lib/crypto/pdp-field";
 import { sendSellerKycApprovedEmail, sendSellerKycRejectedEmail } from "@/lib/email";
 import { runKycScreening, validateNik } from "@/lib/kyc-screening";
 import { decodeNikRegion } from "@/lib/wilayah";
+import { isOcrConfigured, KYC_OCR_FEATURE_KEY } from "@/lib/kyc-ocr";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 
 function sha256Hex(value: Buffer | string): string {
     return createHash("sha256").update(value).digest("hex");
@@ -271,6 +273,11 @@ export async function submitSellerKycApplication(input: z.infer<typeof submitSel
         : validated.notes;
     const now = new Date();
 
+    // Queue async OCR only for submissions that will actually be reviewed, and
+    // only when the feature is on AND an endpoint is configured. The background
+    // sweep (/api/cron/kyc-ocr) picks up rows with ocr_status = "PENDING".
+    const ocrShouldQueue = !autoRejected && isOcrConfigured() && (await isFeatureEnabled(KYC_OCR_FEATURE_KEY));
+
     const kycValues = {
         tier: validated.targetTier,
         status: finalStatus,
@@ -280,6 +287,19 @@ export async function submitSellerKycApplication(input: z.infer<typeof submitSel
         nik: encryptPdpField(validated.nik),
         nik_hash: nikHash,
         screening,
+        ocr_status: ocrShouldQueue ? ("PENDING" as const) : null,
+        ocr: ocrShouldQueue
+            ? {
+                  status: "PENDING" as const,
+                  attempts: 0,
+                  isKtp: null,
+                  extracted: null,
+                  checks: null,
+                  model: null,
+                  error: null,
+                  ranAt: null,
+              }
+            : null,
         submitted_at: now,
         reviewed_at: autoRejected ? now : null,
         reviewer_id: null,

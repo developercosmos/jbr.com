@@ -1759,6 +1759,21 @@ export const seller_kyc = pgTable(
             region: { code: string; province: string; regency: string; district: string } | null;
             ranAt: string;
         }>(),
+        // Async OCR pre-screening (feature-flagged). ocr_status drives the sweep.
+        ocr_status: text("ocr_status"), // PENDING | DONE | FAILED | SKIPPED | null
+        ocr: jsonb("ocr").$type<{
+            status: "PENDING" | "DONE" | "FAILED" | "SKIPPED";
+            attempts: number;
+            isKtp: boolean | null;
+            extracted: { nik: string | null; nama: string | null; ttl: string | null } | null;
+            checks: {
+                nikVerdict: "match" | "near" | "mismatch" | "unreadable";
+                nikDistance: number | null;
+            } | null;
+            model: string | null;
+            error: string | null;
+            ranAt: string | null;
+        }>(),
         created_at: timestamp("created_at").defaultNow().notNull(),
         updated_at: timestamp("updated_at").defaultNow().notNull(),
     },
@@ -1767,6 +1782,7 @@ export const seller_kyc = pgTable(
         tier_idx: index("idx_seller_kyc_tier").on(table.tier),
         status_idx: index("idx_seller_kyc_status").on(table.status),
         nik_hash_idx: index("idx_seller_kyc_nik_hash").on(table.nik_hash),
+        ocr_status_idx: index("idx_seller_kyc_ocr_status").on(table.ocr_status),
     })
 );
 
