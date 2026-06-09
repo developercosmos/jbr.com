@@ -9,6 +9,7 @@ import {
     Clock, Info, Save, AlertTriangle, Loader2, Upload
 } from "lucide-react";
 import { updateProduct, publishProduct, archiveProduct } from "@/actions/products";
+import { conditionGuidance } from "@/lib/condition-guidance";
 import VariantMatrixEditor, { type ComboVariant } from "@/components/seller/VariantMatrixEditor";
 
 interface Category {
@@ -543,6 +544,8 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
                                     <span className="text-2xl font-black text-brand-primary">{conditionRating}<span className="text-sm font-normal text-slate-500">/10</span></span>
                                 </div>
                                 <input className="w-full h-2 z-20 focus:outline-none accent-brand-primary" max="10" min="1" step="1" type="range" value={conditionRating} onChange={(e) => setConditionRating(parseInt(e.target.value))} />
+
+                                <p className="mt-3 text-xs text-slate-500 leading-relaxed">{conditionGuidance(conditionRating)}</p>
 
                                 <div className="mt-5 space-y-2">
                                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Verified Condition Checklist</p>

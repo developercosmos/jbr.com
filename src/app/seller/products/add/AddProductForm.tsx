@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Home, ChevronRight, X, Image as ImageIcon, ChevronDown, CheckCircle, Clock, Info, Save, AlertTriangle, Loader2 } from "lucide-react";
 import { Upload } from "lucide-react";
 import { createProduct, publishProduct } from "@/actions/products";
+import { conditionGuidance } from "@/lib/condition-guidance";
 import VariantMatrixEditor, { type ComboVariant } from "@/components/seller/VariantMatrixEditor";
 
 interface Category {
@@ -697,9 +698,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                                         <strong className="text-brand-primary block mb-1">
                                             Panduan Transparansi
                                         </strong>
-                                        Untuk kondisi 8/10, barang mungkin memiliki sedikit lecet
-                                        kosmetik tetapi fungsi utama masih sempurna. Pastikan foto
-                                        menunjukkan cacat tersebut.
+                                        {conditionGuidance(conditionRating)}
                                     </p>
                                 </div>
 
