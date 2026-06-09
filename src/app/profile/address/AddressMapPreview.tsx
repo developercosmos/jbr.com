@@ -88,7 +88,10 @@ export function AddressMapPreview({ addressText, latitude, longitude, className 
     const hasCoordinates = useMemo(() => lat !== null && lon !== null, [lat, lon]);
 
     return (
-        <div className={className}>
+        // `isolate` creates a stacking context so Leaflet's internal panes
+        // (z-index up to ~1000) stay scoped to this preview and never paint above
+        // modals/dialogs in the root stacking context.
+        <div className={[className, "isolate"].filter(Boolean).join(" ")}>
             {hasCoordinates ? (
                 <div className="absolute inset-0 pointer-events-none">
                     <InteractiveMapPicker
