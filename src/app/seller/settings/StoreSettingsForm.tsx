@@ -333,7 +333,7 @@ export default function StoreSettingsForm({
                             </div>
                         )}
                         {bannerUrl && (
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <div className="absolute inset-0 bg-black/40 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                 <span className="text-white font-medium flex items-center gap-2">
                                     <Camera className="w-5 h-5" /> Ganti banner
                                 </span>

@@ -376,7 +376,7 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
                             <div className="flex gap-4 mt-6 overflow-x-auto pb-2">
                                 {images.map((url, index) => (
                                     <div key={index} className="relative group shrink-0 size-24 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
-                                        <div className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="absolute top-1 right-1 z-10 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                             <button type="button" onClick={() => removeImage(index)} className="bg-red-500 text-white p-1 rounded-full size-6 flex items-center justify-center hover:bg-red-600">
                                                 <X className="w-3 h-3" />
                                             </button>
