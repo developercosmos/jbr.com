@@ -146,11 +146,14 @@ pm2 restart jualbeliraket
 - **Healthcheck cron**: `*/1 * * * * /usr/bin/flock -n /tmp/healthcheck-jualbeliraket.lock /var/www/jbr/scripts/healthcheck-jualbeliraket.sh`
 - **Healthcheck log**: `/var/www/jbr/logs/healthcheck-jualbeliraket.log`
 
-### KYC OCR sweep (optional, feature-flagged)
-Pre-screens KYC KTP images via a local OpenAI-compatible LLM (e.g. llama.cpp + Gemma 4). OFF unless the `kyc.ocr` feature flag is enabled AND `KYC_OCR_LLM_URL`/`KYC_OCR_LLM_MODEL` are set (see `.env.example`). Each call ~30s, so it has its own runner/cadence separate from trust-sweeps.
-- **Script**: `/var/www/jbr/scripts/jbr-kyc-ocr.sh` → `POST /api/cron/kyc-ocr` (auth via `CRON_SECRET`)
-- **Cron**: `*/5 * * * * /usr/bin/flock -n /tmp/jbr-kyc-ocr.lock /var/www/jbr/scripts/jbr-kyc-ocr.sh`
-- **Log**: `/var/www/jbr/logs/kyc-ocr.log`
+### KYC OCR (optional, feature-flagged)
+Pre-screens KYC KTP images via a local OpenAI-compatible LLM (e.g. llama.cpp + Gemma 4). OFF unless the `kyc.ocr` feature flag is enabled AND `KYC_OCR_LLM_URL`/`KYC_OCR_LLM_MODEL` are set (see `.env.example`).
+- **Primary trigger**: automatic — submitting a KYC application kicks OCR in the background (`after()`, post-response), so no cron is needed for the happy path and the result is usually ready within ~1 minute of submission.
+- **Cron sweep = retry/backstop only**: re-processes rows whose kick died mid-flight (app restart, LLM down). Recommended:
+  - **Script**: `/var/www/jbr/scripts/jbr-kyc-ocr.sh` → `POST /api/cron/kyc-ocr` (auth via `CRON_SECRET`)
+  - **Cron**: `*/5 * * * * /usr/bin/flock -n /tmp/jbr-kyc-ocr.lock /var/www/jbr/scripts/jbr-kyc-ocr.sh`
+  - **Log**: `/var/www/jbr/logs/kyc-ocr.log`
+- The admin KYC page also has a manual "Jalankan OCR / Jalankan ulang" button (re-runs + old submissions).
 - The LLM endpoint must be reachable from the app server (verify: `curl http://<llm-host>/v1/models`).
 
 ### E2E Smoke Test (regression detector)

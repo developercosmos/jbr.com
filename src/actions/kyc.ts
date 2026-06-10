@@ -5,6 +5,7 @@ import { files, notifications, orders, seller_kyc, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { and, desc, eq, gte, ilike, inArray, lt, ne, sql } from "drizzle-orm";
 import { headers } from "next/headers";
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createHash } from "node:crypto";
@@ -15,6 +16,7 @@ import { sendSellerKycApprovedEmail, sendSellerKycRejectedEmail } from "@/lib/em
 import { runKycScreening, validateNik } from "@/lib/kyc-screening";
 import { decodeNikRegion } from "@/lib/wilayah";
 import { isOcrConfigured, KYC_OCR_FEATURE_KEY } from "@/lib/kyc-ocr";
+import { processKycOcrRow } from "@/lib/kyc-ocr-runner";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 
 function sha256Hex(value: Buffer | string): string {
@@ -311,6 +313,25 @@ export async function submitSellerKycApplication(input: z.infer<typeof submitSel
         .insert(seller_kyc)
         .values({ user_id: sessionUser.id, ...kycValues })
         .onConflictDoUpdate({ target: seller_kyc.user_id, set: kycValues });
+
+    // Instant OCR kick: run in the background AFTER the response is sent, so the
+    // seller never waits on the ~30s LLM call and the result is usually ready by
+    // the time an admin opens the review. If this kick dies mid-flight the row
+    // stays PENDING and the cron sweep (/api/cron/kyc-ocr) retries it.
+    if (ocrShouldQueue) {
+        const kycRow = await db.query.seller_kyc.findFirst({
+            where: eq(seller_kyc.user_id, sessionUser.id),
+        });
+        if (kycRow) {
+            after(async () => {
+                try {
+                    await processKycOcrRow(kycRow);
+                } catch (e) {
+                    console.error("[submitKyc] OCR kick failed (cron sweep will retry):", e);
+                }
+            });
+        }
+    }
 
     // Auto-rejected: tell the seller why and skip the admin queue (nothing to review).
     if (autoRejected) {
