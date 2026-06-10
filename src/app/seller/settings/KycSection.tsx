@@ -2,7 +2,7 @@
 
 import { useState, useTransition, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldCheck, Upload, FileCheck2, AlertCircle, Loader2 } from "lucide-react";
+import { ShieldCheck, Upload, FileCheck2, AlertCircle, Loader2, Eye } from "lucide-react";
 import { submitSellerKycApplication, uploadKycDocument } from "@/actions/kyc";
 
 type KycStatus = "NOT_SUBMITTED" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
@@ -329,6 +329,16 @@ export default function KycSection({ profile, currentTier, gmv, t0Gates, account
                                         onChange={(e) => handleUpload(slot, e)}
                                     />
                                 </label>
+                                {stored && (
+                                    <a
+                                        href={`/api/files/${stored}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-xs font-semibold text-brand-primary hover:underline"
+                                    >
+                                        <Eye className="w-3.5 h-3.5" /> Lihat dokumen
+                                    </a>
+                                )}
                             </div>
                         );
                     })}
