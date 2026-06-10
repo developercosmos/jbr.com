@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ShieldCheck, X } from "lucide-react";
+import { CheckCircle2, ShieldCheck, X } from "lucide-react";
+import { SellerBadge } from "@/components/seller/SellerBadges";
 
 /**
  * Detects tier-gate errors thrown by server actions (T0 price gate, company-T2
@@ -12,11 +13,33 @@ export function isTierUpgradeError(message: string): boolean {
     return /naik ke tier T1|wajib melengkapi verifikasi T2|batas transaksi bulanan tier/i.test(message);
 }
 
+/** Keep only the core problem sentence; the how-to/bonus tail becomes bullets. */
+function coreReason(message: string): string {
+    for (const marker of [". Wajib", ". Ajukan", ". Seller dapat"]) {
+        const idx = message.indexOf(marker);
+        if (idx > 0) return message.slice(0, idx + 1);
+    }
+    return message;
+}
+
 /**
  * Popup dialog for "wajib upgrade tier" errors with a one-click path to the
  * KYC application (Pengaturan Toko → Verifikasi KYC Seller).
  */
 export default function TierUpgradeModal({ message, onClose }: { message: string; onClose: () => void }) {
+    const isCompanyT2 = /verifikasi T2/i.test(message);
+    const benefits = isCompanyT2
+        ? [
+              "Toko bisnis aktif penuh — produk dapat diterbitkan",
+              "Limit transaksi bulanan tier T2 (tertinggi)",
+              "Payout tanpa batas tier T0",
+          ]
+        : [
+              "Jual produk dengan harga lebih tinggi",
+              "Limit transaksi bulanan naik (tier T1)",
+              "Payout tanpa batas tier T0",
+          ];
+
     return (
         <div
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
@@ -45,11 +68,36 @@ export default function TierUpgradeModal({ message, onClose }: { message: string
                     </button>
                 </div>
 
-                <p className="text-sm text-slate-600 leading-relaxed">{message}</p>
+                {/* Inti masalah (satu kalimat dari server) */}
+                <p className="text-sm text-slate-700 leading-relaxed rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                    {coreReason(message)}
+                </p>
 
-                <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs text-emerald-700">
-                    Bonus upgrade: lencana <strong>✓ Seller Terverifikasi</strong> tampil di toko & produk Anda —
-                    menambah kepercayaan pembeli.
+                {/* Benefit upgrade */}
+                <div className="space-y-2">
+                    <p className="text-sm font-semibold text-slate-900">
+                        Dengan melengkapi verifikasi {isCompanyT2 ? "T2 (KTP + selfie + dokumen bisnis)" : "T1 (KTP + selfie)"} Anda mendapat:
+                    </p>
+                    <ul className="space-y-1.5">
+                        {benefits.map((b) => (
+                            <li key={b} className="flex items-start gap-2 text-sm text-slate-600">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                                <span>{b}</span>
+                            </li>
+                        ))}
+                        <li className="flex items-start gap-2 text-sm text-slate-600">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                            <span>
+                                Lencana <strong>Seller Terverifikasi</strong> — menambah kepercayaan pembeli
+                            </span>
+                        </li>
+                    </ul>
+                </div>
+
+                {/* Contoh visual lencana (komponen yang sama dengan yang dilihat pembeli) */}
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 flex items-center justify-between gap-3">
+                    <span className="text-xs text-slate-500">Contoh lencana di toko & produk Anda:</span>
+                    <SellerBadge type="verified" size="md" />
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-2 pt-1">
