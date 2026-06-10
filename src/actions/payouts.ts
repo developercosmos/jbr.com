@@ -56,7 +56,8 @@ export async function recordSellerPayout(input: z.infer<typeof recordSellerPayou
                     message:
                         `Payout sebesar Rp ${validated.amount.toLocaleString("id-ID")} melebihi batas tier T0 ` +
                         `(Rp ${maxPayout.toLocaleString("id-ID")}). Lengkapi verifikasi KYC (KTP + selfie) di ` +
-                        "Pengaturan Toko → Verifikasi KYC Seller untuk naik ke T1 agar payout dapat diproses.",
+                        "Pengaturan Toko → Verifikasi KYC Seller untuk naik ke T1 agar payout dapat diproses. " +
+                        "Bonus: toko Anda mendapat lencana ✓ Seller Terverifikasi yang meningkatkan kepercayaan pembeli.",
                     idempotency_key: `T0_PAYOUT_GATE:${seller.id}:${new Date().toISOString().slice(0, 7)}`,
                     data: { amount: validated.amount, max_payout: maxPayout },
                 })

@@ -1,7 +1,7 @@
 import { getCategories } from "@/actions/categories";
 import { getFilteredProducts, getProductCount } from "@/actions/products";
 import Link from "next/link";
-import { Wrench, Package, ChevronRight, Store } from "lucide-react";
+import { Wrench, Package, ChevronRight, Store, Verified } from "lucide-react";
 
 // Icons from react-icons - using verified available icons
 import {
@@ -159,6 +159,9 @@ export default async function EquipmentPage() {
                                             <span className="flex items-center gap-1 text-white text-[11px] font-medium">
                                                 <Store className="w-3 h-3 shrink-0" />
                                                 <span className="truncate">{product.seller.store_name}</span>
+                                                {(product.seller.tier === "T1" || product.seller.tier === "T2") && (
+                                                    <Verified className="w-3 h-3 shrink-0 text-sky-300 fill-sky-300/30" aria-label="Seller Terverifikasi" />
+                                                )}
                                             </span>
                                         </div>
                                     )}

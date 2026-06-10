@@ -443,6 +443,7 @@ export async function getProductBySlug(slug: string) {
                     store_description: true,
                     image: true,
                     email_verified: true,
+                    tier: true,
                     store_status: true,
                     store_reviewed_at: true,
                     created_at: true,
@@ -604,6 +605,7 @@ export async function getFilteredProducts(filters: ProductFilters = {}) {
                     store_name: true,
                     store_slug: true,
                     image: true,
+                    tier: true,
                 },
             },
             category: {

@@ -149,7 +149,8 @@ export async function ensureSellerCanPriceProduct(sellerId: string, prices: Arra
         throw new Error(
             `Seller tier T0 hanya dapat memasang harga hingga Rp ${maxProductPrice.toLocaleString("id-ID")} per produk ` +
             `(harga Anda: Rp ${highest.toLocaleString("id-ID")}). Wajib naik ke tier T1 — lengkapi verifikasi KYC ` +
-            `(KTP + selfie) di Pengaturan Toko → Verifikasi KYC Seller.`
+            `(KTP + selfie) di Pengaturan Toko → Verifikasi KYC Seller. Bonus: toko Anda mendapat lencana ` +
+            `✓ Seller Terverifikasi yang tampil ke pembeli dan meningkatkan kepercayaan.`
         );
     }
 }
@@ -247,7 +248,8 @@ export async function ensureSellerWithinMonthlyGmvCap(sellerId: string, pendingO
     if (nextTotal > cap) {
         throw new Error(
             `${seller.store_name || "Seller"} sudah mencapai batas transaksi bulanan tier ${seller.tier} ` +
-            `(Rp ${cap.toLocaleString("id-ID")}). Seller dapat menaikkan batas dengan melengkapi verifikasi KYC.`
+            `(Rp ${cap.toLocaleString("id-ID")}). Seller dapat menaikkan batas dengan melengkapi verifikasi KYC ` +
+            `sekaligus mendapatkan lencana ✓ Seller Terverifikasi yang meningkatkan kepercayaan pembeli.`
         );
     }
 

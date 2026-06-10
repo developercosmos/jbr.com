@@ -134,7 +134,8 @@ export function SellerRegistrationForm({ addresses, initialName, initialSlugAvai
                         Anda dibatasi <strong>{t0CapLabel ?? "Rp 10.000.000"}</strong> per bulan dan harga
                         maksimal per produk <strong>{t0MaxPriceLabel ?? "Rp 1.000.000"}</strong>. Jika ingin
                         bertransaksi lebih besar, lengkapi verifikasi KYC (KTP + selfie) kapan saja di
-                        Pengaturan Toko. Data pajak (NPWP/NIK & pernyataan omzet) dikelola di menu
+                        Pengaturan Toko — sekaligus mendapatkan lencana <strong>✓ Seller Terverifikasi</strong> yang
+                        tampil ke pembeli dan menambah kepercayaan toko Anda. Data pajak (NPWP/NIK & pernyataan omzet) dikelola di menu
                         Keuangan → Pajak setelah toko aktif.
                     </p>
                 </div>

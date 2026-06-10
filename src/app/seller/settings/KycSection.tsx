@@ -163,8 +163,10 @@ export default function KycSection({ profile, currentTier, gmv, t0Gates }: KycSe
             <div className="p-6 space-y-6">
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                     KYC bersifat opsional untuk mulai berjualan — naikkan tier untuk meningkatkan batas
-                    transaksi bulanan dan mendapat lencana verifikasi pada halaman toko. Dokumen Anda hanya
-                    dapat diakses oleh admin yang melakukan review.
+                    transaksi bulanan dan mendapatkan lencana <strong>✓ Seller Terverifikasi</strong> yang
+                    tampil di halaman toko, kartu produk, dan halaman produk Anda — terbukti menambah
+                    kepercayaan & keyakinan pembeli untuk bertransaksi. Dokumen Anda hanya dapat diakses
+                    oleh admin yang melakukan review.
                 </p>
 
                 {gmv && (
@@ -187,7 +189,7 @@ export default function KycSection({ profile, currentTier, gmv, t0Gates }: KycSe
                             <p className="text-xs text-slate-500 dark:text-slate-400">
                                 Batas T0 lainnya: harga produk maks <strong>Rp {t0Gates.maxProductPrice.toLocaleString("id-ID")}</strong>/item
                                 {" "}&middot; payout maks <strong>Rp {t0Gates.maxPayout.toLocaleString("id-ID")}</strong>.
-                                Naik ke T1 (KYC) untuk membuka batas-batas ini.
+                                Naik ke T1 (KYC) untuk membuka batas-batas ini + lencana ✓ Seller Terverifikasi.
                             </p>
                         )}
                         <p className="text-xs text-slate-500 dark:text-slate-400">

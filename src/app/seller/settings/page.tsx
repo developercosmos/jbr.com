@@ -74,8 +74,9 @@ export default async function SellerSettingsPage({ searchParams }: PageProps) {
                                 Status awal: <strong>{currentTier}</strong> dengan limit transaksi bulanan{" "}
                                 {gmvStatus ? `Rp ${gmvStatus.cap.toLocaleString("id-ID")}` : "sesuai tier Anda"}
                                 . Tanpa KYC Anda sudah bisa berjualan; untuk membuka limit lebih besar dan
-                                lencana verifikasi, ajukan KYC tier 1 (KTP + selfie) atau tier 2 (+ dokumen
-                                bisnis) di bagian bawah halaman ini.
+                                lencana ✓ Seller Terverifikasi (tampil ke pembeli, menambah kepercayaan),
+                                ajukan KYC tier 1 (KTP + selfie) atau tier 2 (+ dokumen bisnis) di bagian
+                                bawah halaman ini.
                             </p>
                         </div>
                     </div>

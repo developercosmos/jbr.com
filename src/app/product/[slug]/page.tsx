@@ -166,7 +166,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                             initialOfferAmount={offerDraft?.amount ?? null}
                             sellerJoinedAt={sellerJoinedAt}
                             sellerJoinedLabel={sellerJoinedLabel}
-                            sellerVerified={Boolean(product.seller?.email_verified && product.seller?.store_status === "ACTIVE")}
+                            sellerVerified={product.seller?.tier === "T1" || product.seller?.tier === "T2"}
                             matchScore={matchScore?.score ?? null}
                         />
                     </FeatureFlagProvider>
