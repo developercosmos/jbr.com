@@ -113,6 +113,8 @@ export interface SendEmailOptions {
     to: string;
     subject: string;
     html: string;
+    /** Email type for log lines (e.g. "seller-kyc-approved") — derived from the sender function. */
+    kind?: string;
 }
 
 /**
@@ -143,6 +145,7 @@ export async function sendReEngagementEmail(params: {
         </p>
     `;
     return sendEmail({
+        kind: "re-engagement",
         to: params.to,
         subject: params.title,
         html: getBaseTemplate(content),
@@ -180,6 +183,7 @@ export async function sendNotificationEmail(params: {
         </p>
     `;
     return sendEmail({
+        kind: "notification",
         to: params.to,
         subject: params.title,
         html: getBaseTemplate(content),
@@ -188,6 +192,7 @@ export async function sendNotificationEmail(params: {
 
 async function sendEmail(options: SendEmailOptions): Promise<boolean> {
     const from = `"${APP_NAME}" <${FROM_EMAIL}>`;
+    const kind = options.kind ?? "generic";
 
     // Preferred path: Resend API (best deliverability; no SMTP port needed).
     if (resend) {
@@ -199,13 +204,13 @@ async function sendEmail(options: SendEmailOptions): Promise<boolean> {
                 html: options.html,
             });
             if (error) {
-                console.error("Resend send failed:", error);
+                console.error(`[Email] ${kind} \u2192 ${options.to} FAILED (resend):`, error);
                 return false;
             }
-            console.log(`Email sent via Resend to ${options.to}`);
+            console.log(`[Email] ${kind} \u2192 ${options.to} sent via Resend`);
             return true;
         } catch (error) {
-            console.error("Resend send threw:", error);
+            console.error(`[Email] ${kind} \u2192 ${options.to} THREW (resend):`, error);
             return false;
         }
     }
@@ -218,10 +223,10 @@ async function sendEmail(options: SendEmailOptions): Promise<boolean> {
             subject: options.subject,
             html: options.html,
         });
-        console.log(`Email sent successfully to ${options.to}`);
+        console.log(`[Email] ${kind} \u2192 ${options.to} sent via sendmail`);
         return true;
     } catch (error) {
-        console.error("Failed to send email:", error);
+        console.error(`[Email] ${kind} \u2192 ${options.to} FAILED (sendmail):`, error);
         return false;
     }
 }
@@ -259,6 +264,7 @@ export async function sendPasswordResetEmail(
     `;
 
     return sendEmail({
+        kind: "password-reset",
         to: email,
         subject: `Reset Password - ${appName}`,
         html: getBaseTemplate(content, appName, appUrl),
@@ -298,6 +304,7 @@ export async function sendWelcomeEmail(
     `;
 
     return sendEmail({
+        kind: "welcome",
         to: email,
         subject: `Selamat Datang di ${appName}! 🏸`,
         html: getBaseTemplate(content, appName, appUrl),
@@ -335,6 +342,7 @@ export async function sendVerificationEmail(
     `;
 
     return sendEmail({
+        kind: "verification",
         to: email,
         subject: `Verifikasi Email - ${appName}`,
         html: getBaseTemplate(content, appName, appUrl),
@@ -441,6 +449,7 @@ export async function sendOrderConfirmationEmail(params: OrderConfirmationParams
     `;
 
     return sendEmail({
+        kind: "order-confirmation",
         to: params.buyerEmail,
         subject: `Pesanan #${params.orderNumber} Dikonfirmasi - ${APP_NAME}`,
         html: getBaseTemplate(content),
@@ -475,6 +484,7 @@ export async function sendOrderShippedEmail(
     `;
 
     return sendEmail({
+        kind: "order-shipped",
         to: email,
         subject: `Pesanan #${orderId} Dikirim - ${APP_NAME}`,
         html: getBaseTemplate(content),
@@ -504,6 +514,7 @@ export async function sendOrderDeliveredEmail(
     `;
 
     return sendEmail({
+        kind: "order-delivered",
         to: email,
         subject: `Pesanan #${orderId} Sudah Sampai - ${APP_NAME}`,
         html: getBaseTemplate(content),
@@ -551,6 +562,7 @@ export async function sendNewOrderNotificationToSeller(
     `;
 
     return sendEmail({
+        kind: "new-order-notification-to-seller",
         to: email,
         subject: `🛎️ Pesanan Baru #${orderId} - ${APP_NAME}`,
         html: getBaseTemplate(content),
@@ -578,6 +590,7 @@ export async function sendSellerActivationApprovedEmail(
     `;
 
     return sendEmail({
+        kind: "seller-activation-approved",
         to: email,
         subject: `Seller Disetujui - ${APP_NAME}`,
         html: getBaseTemplate(content),
@@ -608,6 +621,7 @@ export async function sendSellerActivationRejectedEmail(
     `;
 
     return sendEmail({
+        kind: "seller-activation-rejected",
         to: email,
         subject: `Aktivasi Seller Perlu Revisi - ${APP_NAME}`,
         html: getBaseTemplate(content),
@@ -634,6 +648,7 @@ export async function sendSellerKycApprovedEmail(
     `;
 
     return sendEmail({
+        kind: "seller-kyc-approved",
         to: email,
         subject: `KYC Seller Disetujui - ${APP_NAME}`,
         html: getBaseTemplate(content),
@@ -663,6 +678,7 @@ export async function sendSellerKycRejectedEmail(
     `;
 
     return sendEmail({
+        kind: "seller-kyc-rejected",
         to: email,
         subject: `KYC Seller Perlu Revisi - ${APP_NAME}`,
         html: getBaseTemplate(content),
@@ -689,6 +705,7 @@ export async function sendAffiliateApprovedEmail(
     `;
 
     return sendEmail({
+        kind: "affiliate-approved",
         to: email,
         subject: `Affiliate Disetujui - ${APP_NAME}`,
         html: getBaseTemplate(content),
@@ -718,6 +735,7 @@ export async function sendAffiliateRejectedEmail(
     `;
 
     return sendEmail({
+        kind: "affiliate-rejected",
         to: email,
         subject: `Affiliate Perlu Revisi - ${APP_NAME}`,
         html: getBaseTemplate(content),
@@ -749,6 +767,7 @@ export async function sendProductApprovedEmail(
     `;
 
     return sendEmail({
+        kind: "product-approved",
         to: email,
         subject: `Produk "${esc(productName)}" Disetujui - ${APP_NAME}`,
         html: getBaseTemplate(content),
@@ -779,6 +798,7 @@ export async function sendProductRejectedEmail(
     `;
 
     return sendEmail({
+        kind: "product-rejected",
         to: email,
         subject: `Produk "${esc(productName)}" Perlu Perbaikan - ${APP_NAME}`,
         html: getBaseTemplate(content),
@@ -819,6 +839,7 @@ export async function sendPaymentSuccessEmail(params: PaymentSuccessParams): Pro
     `;
 
     return sendEmail({
+        kind: "payment-success",
         to: params.buyerEmail,
         subject: `Pembayaran Berhasil #${params.orderNumber} - ${APP_NAME}`,
         html: getBaseTemplate(content),
@@ -854,6 +875,7 @@ export async function sendPaymentReminderEmail(
     `;
 
     return sendEmail({
+        kind: "payment-reminder",
         to: email,
         subject: `⏰ Segera Bayar Pesanan #${orderId} - ${APP_NAME}`,
         html: getBaseTemplate(content),
@@ -895,6 +917,7 @@ export async function sendShippingNotificationEmail(params: ShippingNotification
     `;
 
     return sendEmail({
+        kind: "shipping-notification",
         to: params.buyerEmail,
         subject: `Pesanan #${params.orderNumber} Dikirim - ${APP_NAME}`,
         html: getBaseTemplate(content),
