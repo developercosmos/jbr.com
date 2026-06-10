@@ -163,7 +163,7 @@ export default function RegisterPage() {
                         <div className="grid grid-cols-2 gap-3">
                             {([
                                 { value: "PERSONAL", label: "Pribadi", desc: "Belanja & jualan perorangan" },
-                                { value: "COMPANY", label: "Perusahaan", desc: "Toko bisnis (PT/CV) — wajib verifikasi T2" },
+                                { value: "COMPANY", label: "Perusahaan", desc: "Toko bisnis (PT/CV)" },
                             ] as const).map((opt) => (
                                 <button
                                     key={opt.value}
@@ -182,8 +182,8 @@ export default function RegisterPage() {
                         </div>
                         {accountType === "COMPANY" && (
                             <p className="text-[11px] text-amber-600">
-                                Akun perusahaan diwajibkan melengkapi verifikasi KYC Tier 2 (KTP penanggung jawab +
-                                selfie + dokumen bisnis NIB/SIUP) sebelum dapat menerbitkan produk.
+                                Akun perusahaan, siapkan dokumen pendukung (KTP penanggung jawab + selfie +
+                                dokumen bisnis NIB/SIUP).
                             </p>
                         )}
                     </div>
