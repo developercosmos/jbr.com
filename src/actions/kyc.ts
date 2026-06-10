@@ -112,6 +112,48 @@ async function getSellerTierCap(tier: "T0" | "T1" | "T2") {
     return caps[tier];
 }
 
+// Gating tambahan khusus T0 (configurable via accounting_settings):
+// 1. Harga maksimal per produk yang boleh dipublikasikan.
+// 2. Nilai maksimal sekali payout.
+// Melewati salah satunya mewajibkan seller naik ke T1 (lengkapi KYC).
+export async function getT0Gates(): Promise<{ maxProductPrice: number; maxPayout: number }> {
+    const { getSetting } = await import("@/actions/accounting/settings");
+    const [maxPrice, maxPayout] = await Promise.all([
+        getSetting<number>("kyc.t0_max_product_price", { defaultValue: 1_000_000 }),
+        getSetting<number>("kyc.t0_max_payout", { defaultValue: 10_000_000 }),
+    ]);
+    return {
+        maxProductPrice: Number(maxPrice ?? 1_000_000) || 1_000_000,
+        maxPayout: Number(maxPayout ?? 10_000_000) || 10_000_000,
+    };
+}
+
+/**
+ * Gate 1 — harga produk. No-op untuk T1/T2. Untuk T0, harga tertinggi di antara
+ * harga dasar + semua varian tidak boleh melewati batas; melebihi = error yang
+ * mengarahkan seller mengajukan KYC T1.
+ */
+export async function ensureSellerCanPriceProduct(sellerId: string, prices: Array<number | null | undefined>) {
+    const seller = await db.query.users.findFirst({
+        where: eq(users.id, sellerId),
+        columns: { tier: true },
+    });
+    if (!seller || seller.tier !== "T0") return;
+
+    const numeric = prices.filter((p): p is number => typeof p === "number" && Number.isFinite(p) && p > 0);
+    if (numeric.length === 0) return;
+    const highest = Math.max(...numeric);
+
+    const { maxProductPrice } = await getT0Gates();
+    if (highest > maxProductPrice) {
+        throw new Error(
+            `Seller tier T0 hanya dapat memasang harga hingga Rp ${maxProductPrice.toLocaleString("id-ID")} per produk ` +
+            `(harga Anda: Rp ${highest.toLocaleString("id-ID")}). Wajib naik ke tier T1 — lengkapi verifikasi KYC ` +
+            `(KTP + selfie) di Pengaturan Toko → Verifikasi KYC Seller.`
+        );
+    }
+}
+
 export async function seedSellerKycProfile(userId: string) {
     const existing = await db.query.seller_kyc.findFirst({
         where: eq(seller_kyc.user_id, userId),

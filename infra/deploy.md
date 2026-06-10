@@ -165,7 +165,7 @@ Two independent options under Admin → Settings → Shipping (`integration_sett
 - **Sandbox**: use a Biteship TEST api key — orders are processed but no courier physically picks up.
 
 ### Tier caps & pajak PMK 37/2025 (configurable via accounting_settings)
-- Batas GMV bulanan per tier KYC: `kyc.tier_cap_t0` (default 10jt), `kyc.tier_cap_t1` (50jt), `kyc.tier_cap_t2` (250jt) — enforced at order creation; seller melihat meter pemakaian di Pengaturan → KYC. Ubah via `setSetting(key, value)` (accounting_settings, versioned).
+- Batas GMV bulanan per tier KYC: `kyc.tier_cap_t0` (default 10jt), `kyc.tier_cap_t1` (50jt), `kyc.tier_cap_t2` (250jt). Gating tambahan T0: `kyc.t0_max_product_price` (default 1jt — harga maksimal per produk saat create/update) dan `kyc.t0_max_payout` (default 10jt — payout di atasnya diblok + seller dinotifikasi wajib naik T1) — enforced at order creation; seller melihat meter pemakaian di Pengaturan → KYC. Ubah via `setSetting(key, value)` (accounting_settings, versioned).
 - PPh 22 marketplace: `tax.pph22_enabled` (default **false** — set true HANYA setelah JBR ditunjuk DJP), `tax.pph22_rate` (0.005), `tax.pph22_omzet_threshold` (500000000). Saat aktif, pemungutan terjadi di escrow release (`postOrderRelease`): CR akun slot `wht_pph22` (default 24700) + catatan per-order di `tax_withholdings` (bukti pungut). Orang pribadi dgn pernyataan omzet ≤ ambang tidak dipungut; crossing → pungut mulai awal bulan berikutnya. Seller mengelola NPWP/NIK + alamat korespondensi + pernyataan di Keuangan → Pajak.
 
 ### Private identity documents (PII) — serving rules + legacy migration

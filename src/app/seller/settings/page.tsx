@@ -2,7 +2,7 @@ import { PartyPopper } from "lucide-react";
 import { getSellerProfileByUserId } from "@/actions/seller";
 import { getUserAddresses } from "@/actions/address";
 import { canAccessSellerCenter } from "@/lib/seller";
-import { getCurrentSellerKyc, getSellerMonthlyGmvStatus } from "@/actions/kyc";
+import { getCurrentSellerKyc, getSellerMonthlyGmvStatus, getT0Gates } from "@/actions/kyc";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -32,10 +32,11 @@ export default async function SellerSettingsPage({ searchParams }: PageProps) {
         redirect("/seller/register");
     }
 
-    const [kycProfile, addressList, gmvStatus] = await Promise.all([
+    const [kycProfile, addressList, gmvStatus, t0Gates] = await Promise.all([
         getCurrentSellerKyc(),
         getUserAddresses(),
         getSellerMonthlyGmvStatus(sellerProfile.id).catch(() => null),
+        getT0Gates().catch(() => null),
     ]);
 
     const currentTier = (sellerProfile.tier ?? "T0") as "T0" | "T1" | "T2";
@@ -115,6 +116,7 @@ export default async function SellerSettingsPage({ searchParams }: PageProps) {
                     } : null}
                     currentTier={currentTier}
                     gmv={gmvStatus ? { cap: gmvStatus.cap, used: gmvStatus.used, remaining: gmvStatus.remaining } : null}
+                    t0Gates={currentTier === "T0" && t0Gates ? t0Gates : null}
                 />
             </div>
         </div>

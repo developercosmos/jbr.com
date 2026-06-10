@@ -1,5 +1,5 @@
 import { getUserAddresses } from "@/actions/address";
-import { getSellerTierCaps } from "@/actions/kyc";
+import { getSellerTierCaps, getT0Gates } from "@/actions/kyc";
 import { checkStoreSlugAvailability, getSellerProfileByUserId } from "@/actions/seller";
 import { normalizeStoreSlug } from "@/lib/seller";
 import { auth } from "@/lib/auth";
@@ -23,6 +23,7 @@ export default async function SellerRegisterPage() {
 
     const addresses = await getUserAddresses();
     const tierCaps = await getSellerTierCaps().catch(() => null);
+    const t0Gates = await getT0Gates().catch(() => null);
     const initialName = session.user.name || "";
     const initialSlug = initialName ? normalizeStoreSlug(`${initialName} Store`) : "";
     const initialSlugAvailability = initialSlug.length >= 3
@@ -42,6 +43,7 @@ export default async function SellerRegisterPage() {
             initialName={initialName}
             initialSlugAvailability={initialSlugAvailability}
             t0CapLabel={tierCaps ? `Rp ${tierCaps.T0.toLocaleString("id-ID")}` : "Rp 10.000.000"}
+            t0MaxPriceLabel={t0Gates ? `Rp ${t0Gates.maxProductPrice.toLocaleString("id-ID")}` : "Rp 1.000.000"}
         />
     );
 }

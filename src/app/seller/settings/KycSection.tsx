@@ -24,6 +24,8 @@ interface KycSectionProps {
     currentTier: KycTier;
     /** Monthly GMV usage vs the configurable tier cap (null when unavailable). */
     gmv?: { cap: number; used: number; remaining: number } | null;
+    /** T0-only gates (max product price + max payout); null for T1/T2. */
+    t0Gates?: { maxProductPrice: number; maxPayout: number } | null;
 }
 
 type SlotKey = "ktp" | "selfie" | "business";
@@ -41,7 +43,7 @@ const STATUS_BADGE: Record<KycStatus, { label: string; className: string }> = {
     REJECTED: { label: "Ditolak", className: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300" },
 };
 
-export default function KycSection({ profile, currentTier, gmv }: KycSectionProps) {
+export default function KycSection({ profile, currentTier, gmv, t0Gates }: KycSectionProps) {
     const router = useRouter();
     const [targetTier, setTargetTier] = useState<"T1" | "T2">("T1");
     const [nik, setNik] = useState("");
@@ -181,6 +183,13 @@ export default function KycSection({ profile, currentTier, gmv }: KycSectionProp
                                 style={{ width: `${Math.min(100, Math.round((gmv.used / Math.max(gmv.cap, 1)) * 100))}%` }}
                             />
                         </div>
+                        {t0Gates && (
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                Batas T0 lainnya: harga produk maks <strong>Rp {t0Gates.maxProductPrice.toLocaleString("id-ID")}</strong>/item
+                                {" "}&middot; payout maks <strong>Rp {t0Gates.maxPayout.toLocaleString("id-ID")}</strong>.
+                                Naik ke T1 (KYC) untuk membuka batas-batas ini.
+                            </p>
+                        )}
                         <p className="text-xs text-slate-500 dark:text-slate-400">
                             Sisa bulan ini: Rp {gmv.remaining.toLocaleString("id-ID")}.
                             {gmv.used / gmv.cap >= 0.7 && currentTier !== "T2" && (

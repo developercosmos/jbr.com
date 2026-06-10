@@ -3,6 +3,7 @@
 import { db } from "@/db";
 import { categories, products, product_variants, order_items, users } from "@/db/schema";
 import { ensureCurrentUserCanSell } from "@/actions/seller";
+import { ensureSellerCanPriceProduct } from "@/actions/kyc";
 import { auth } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { headers } from "next/headers";
@@ -183,6 +184,11 @@ export async function createProduct(input: z.infer<typeof createProductSchema>) 
         const user = await getCurrentUser();
         await ensureCurrentUserCanSell();
         const validated = createProductSchema.parse(input);
+        // Gate T0: harga (dasar + semua varian) dibatasi sampai seller naik tier.
+        await ensureSellerCanPriceProduct(user.id, [
+            validated.price,
+            ...(validated.variants ?? []).map((v) => v.price ?? null),
+        ]);
         const checklistPolicy = validatePrelovedChecklist({
             condition: validated.condition,
             checklist: validated.condition_checklist,
@@ -254,6 +260,12 @@ export async function updateProduct(input: z.infer<typeof updateProductSchema>) 
     if (!existing) {
         throw new Error("Product not found or unauthorized");
     }
+
+    // Gate T0: berlaku juga saat edit (harga baru ATAU harga lama yang dipertahankan).
+    await ensureSellerCanPriceProduct(user.id, [
+        updateData.price ?? Number(existing.price),
+        ...(variantInputs ?? []).map((v) => v.price ?? null),
+    ]);
 
     const finalCondition = (updateData.condition ?? existing.condition) as "NEW" | "PRELOVED";
     const checklistPolicy = validatePrelovedChecklist({

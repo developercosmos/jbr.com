@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { notifications, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -9,6 +9,7 @@ import { randomUUID } from "crypto";
 import { requireAdminFinanceSession } from "@/lib/admin-finance";
 import { postPayout } from "@/actions/accounting/posting";
 import { getSetting } from "@/actions/accounting/settings";
+import { getT0Gates } from "@/actions/kyc";
 
 const recordSellerPayoutSchema = z.object({
     sellerId: z.string().min(1),
@@ -37,9 +38,36 @@ export async function recordSellerPayout(input: z.infer<typeof recordSellerPayou
 
     const seller = await db.query.users.findFirst({
         where: eq(users.id, validated.sellerId),
-        columns: { id: true, name: true, store_name: true },
+        columns: { id: true, name: true, store_name: true, tier: true },
     });
     if (!seller) throw new Error("Penjual tidak ditemukan");
+
+    // Gate T0: payout di atas batas (configurable) wajib upgrade tier ke T1 dulu.
+    // Seller ikut dinotifikasi (idempoten) supaya tahu langkah yang harus diambil.
+    if (seller.tier === "T0") {
+        const { maxPayout } = await getT0Gates();
+        if (validated.amount > maxPayout) {
+            await db
+                .insert(notifications)
+                .values({
+                    user_id: seller.id,
+                    type: "SYSTEM",
+                    title: "Payout Ditahan — Perlu Upgrade ke Tier T1",
+                    message:
+                        `Payout sebesar Rp ${validated.amount.toLocaleString("id-ID")} melebihi batas tier T0 ` +
+                        `(Rp ${maxPayout.toLocaleString("id-ID")}). Lengkapi verifikasi KYC (KTP + selfie) di ` +
+                        "Pengaturan Toko → Verifikasi KYC Seller untuk naik ke T1 agar payout dapat diproses.",
+                    idempotency_key: `T0_PAYOUT_GATE:${seller.id}:${new Date().toISOString().slice(0, 7)}`,
+                    data: { amount: validated.amount, max_payout: maxPayout },
+                })
+                .onConflictDoNothing();
+            throw new Error(
+                `Payout Rp ${validated.amount.toLocaleString("id-ID")} melebihi batas tier T0 ` +
+                `(Rp ${maxPayout.toLocaleString("id-ID")}). Seller wajib naik ke T1 (KYC) sebelum payout ini ` +
+                "dicatat — seller sudah dinotifikasi."
+            );
+        }
+    }
 
     const payoutId = validated.reference?.trim() || randomUUID();
 
