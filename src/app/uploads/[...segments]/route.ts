@@ -49,6 +49,16 @@ export async function GET(
             return new NextResponse("Not Found", { status: 404 });
         }
 
+        // Identity/PII documents are NEVER served from this unauthenticated route.
+        // - kyc/        : seller-KYC + new affiliate docs (private files rows)
+        // - ktp/        : legacy affiliate KTP uploads (pre-migration location)
+        // - statements/ : legacy affiliate Surat Pernyataan uploads
+        // They are accessed via /api/files/[id], which enforces owner-or-admin.
+        const PRIVATE_PREFIXES = new Set(["kyc", "ktp", "statements"]);
+        if (PRIVATE_PREFIXES.has(segments[0])) {
+            return new NextResponse("Forbidden", { status: 403 });
+        }
+
         const safeSegments = segments.map((segment) => path.basename(segment));
         const baseDir = resolveUploadBaseDir();
         const filePath = path.join(baseDir, ...safeSegments);

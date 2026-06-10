@@ -768,6 +768,7 @@ export const affiliate_accounts = pgTable("affiliate_accounts", {
     ktp_url: text("ktp_url"),
     ktp_file_id: uuid("ktp_file_id").references(() => files.id, { onDelete: "set null" }),
     statement_url: text("statement_url"),
+    statement_file_id: uuid("statement_file_id").references(() => files.id, { onDelete: "set null" }),
     bank_name: text("bank_name"),
     bank_account_number: text("bank_account_number"),
     bank_account_name: text("bank_account_name"),

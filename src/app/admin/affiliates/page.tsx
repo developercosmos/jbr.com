@@ -21,6 +21,8 @@ export default async function AdminAffiliatesPage() {
         nik: a.nik,
         ktpFileId: a.ktp_file_id,
         ktpUrl: a.ktp_url,
+        statementFileId: a.statement_file_id,
+        statementUrl: a.statement_url,
         ocr: a.ocr,
     }));
 

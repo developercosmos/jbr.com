@@ -399,10 +399,12 @@ export async function submitSellerKycApplication(input: z.infer<typeof submitSel
     return { success: true as const, autoRejected: false as const, screening };
 }
 
-const SLOT_ALLOWED_KYC_MIME: Record<"ktp" | "selfie" | "business", Set<string>> = {
+const SLOT_ALLOWED_KYC_MIME: Record<"ktp" | "selfie" | "business" | "statement", Set<string>> = {
     ktp: new Set(["image/jpeg", "image/png", "image/webp"]),
     selfie: new Set(["image/jpeg", "image/png", "image/webp"]),
     business: new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]),
+    // Surat Pernyataan affiliate (private, same pipeline as the KYC docs).
+    statement: new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]),
 };
 
 const MIME_EXTENSION: Record<string, string> = {
@@ -412,7 +414,7 @@ const MIME_EXTENSION: Record<string, string> = {
     "application/pdf": "pdf",
 };
 
-function buildSafeKycFilename(slot: "ktp" | "selfie" | "business", mimeType: string): string {
+function buildSafeKycFilename(slot: "ktp" | "selfie" | "business" | "statement", mimeType: string): string {
     const extension = MIME_EXTENSION[mimeType] ?? "bin";
     const token = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
     return `${slot}-${token}.${extension}`;
@@ -428,16 +430,16 @@ export async function uploadKycDocument(formData: FormData) {
         throw new Error("Berkas wajib diunggah.");
     }
 
-    if (!slot || !["ktp", "selfie", "business"].includes(slot)) {
+    if (!slot || !["ktp", "selfie", "business", "statement"].includes(slot)) {
         throw new Error("Slot dokumen tidak valid.");
     }
 
-    const typedSlot = slot as "ktp" | "selfie" | "business";
+    const typedSlot = slot as "ktp" | "selfie" | "business" | "statement";
     const allowedMime = SLOT_ALLOWED_KYC_MIME[typedSlot];
 
     if (!allowedMime.has(file.type)) {
-        if (typedSlot === "business") {
-            throw new Error("Format dokumen bisnis harus JPG, PNG, WEBP, atau PDF.");
+        if (typedSlot === "business" || typedSlot === "statement") {
+            throw new Error("Format dokumen harus JPG, PNG, WEBP, atau PDF.");
         }
         throw new Error("Format KTP/selfie harus berupa gambar JPG, PNG, atau WEBP (PDF tidak diperbolehkan).");
     }

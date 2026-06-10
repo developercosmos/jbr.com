@@ -38,6 +38,8 @@ interface Account {
     nik: string | null;
     ktpFileId: string | null;
     ktpUrl: string | null;
+    statementFileId: string | null;
+    statementUrl: string | null;
     ocr: OcrResult | null;
 }
 
@@ -297,6 +299,26 @@ export default function AffiliatesAdminClient({ initial, ocrConfigured }: Props)
                                             ) : (
                                                 <span className="text-slate-400">KTP belum diunggah</span>
                                             )}
+                                            {a.statementFileId ? (
+                                                <a
+                                                    href={`/api/files/${a.statementFileId}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1 text-brand-primary hover:underline"
+                                                >
+                                                    Surat Pernyataan <ExternalLink className="w-3 h-3" />
+                                                </a>
+                                            ) : a.statementUrl ? (
+                                                <a
+                                                    href={a.statementUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1 text-amber-600 hover:underline"
+                                                    title="Upload lama: tersimpan sebagai URL publik"
+                                                >
+                                                    Surat Pernyataan (lama) <ExternalLink className="w-3 h-3" />
+                                                </a>
+                                            ) : null}
                                             {a.nik && (
                                                 <span className="text-slate-500">
                                                     NIK diketik: <span className="font-mono tracking-wider text-slate-900 dark:text-white">{a.nik}</span>

@@ -31,6 +31,7 @@ interface DashboardData {
         ktpUrl: string | null;
         ktpFileId: string | null;
         statementUrl: string | null;
+        statementFileId: string | null;
         bankName: string | null;
         bankAccountNumber: string | null;
         bankAccountName: string | null;
@@ -80,11 +81,12 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
     );
     const [instagram, setInstagram] = useState(account?.instagramHandle ?? "");
     const [referralCode, setReferralCode] = useState(account?.code ?? prefill.suggestedCode);
-    // Legacy public URL (old applications) — still counts as "uploaded" on re-apply.
+    // Legacy public URLs (old applications) — still count as "uploaded" on re-apply.
     const [ktpUrl] = useState(account?.ktpUrl ?? "");
-    // New flow: private files-row id (uploadKycDocument), required for OCR screening.
+    const [statementUrl] = useState(account?.statementUrl ?? "");
+    // New flow: private files-row ids (uploadKycDocument), required for OCR screening.
     const [ktpFileId, setKtpFileId] = useState<string | null>(account?.ktpFileId ?? null);
-    const [statementUrl, setStatementUrl] = useState(account?.statementUrl ?? "");
+    const [statementFileId, setStatementFileId] = useState<string | null>(account?.statementFileId ?? null);
     const [bankModal, setBankModal] = useState<BankModal>({
         bankName: account?.bankName ?? "",
         bankAccountNumber: account?.bankAccountNumber ?? "",
@@ -110,56 +112,37 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
     const kycVerified = prefill.kycStatus === "APPROVED";
 
     // ── upload helper ──────────────────────────────────────────────────────
-    const handleFileUpload = useCallback(
+    // Identity documents (KTP + Surat Pernyataan) go through the PRIVATE
+    // document path (same as seller KYC): stored non-public, served only via
+    // /api/files/[id] to the owner/admin, and eligible for the automatic OCR
+    // screening after submit. Never /api/upload (that path is public-read).
+    const handlePrivateDocUpload = useCallback(
         async (
             file: File,
-            folder: string,
-            setUrl: (u: string) => void,
-            setLoading: (v: boolean) => void,
-            setPreFillFields?: (url: string) => void
+            slot: "ktp" | "statement",
+            setFileId: (id: string) => void,
+            setLoading: (v: boolean) => void
         ) => {
+            setError(null);
+            if (file.size > 8 * 1024 * 1024) {
+                setError(`Ukuran dokumen maksimal 8 MB. File Anda: ${(file.size / 1024 / 1024).toFixed(1)} MB`);
+                return;
+            }
             setLoading(true);
             try {
                 const fd = new FormData();
                 fd.append("file", file);
-                fd.append("folder", folder);
-                const res = await fetch("/api/upload", { method: "POST", body: fd });
-                const json = await res.json();
-                if (!res.ok || json.error) throw new Error(json.error || "Upload gagal");
-                setUrl(json.payload?.url ?? json.url ?? "");
-                setPreFillFields?.(json.payload?.url ?? json.url ?? "");
+                fd.append("slot", slot);
+                const result = await uploadKycDocument(fd);
+                setFileId(result.fileId);
             } catch (e) {
-                setError(e instanceof Error ? e.message : "Upload gagal");
+                setError(e instanceof Error ? e.message : "Upload dokumen gagal");
             } finally {
                 setLoading(false);
             }
         },
         []
     );
-
-    // KTP goes through the PRIVATE document path (same as seller KYC): stored
-    // non-public, served only via /api/files/[id] to the owner/admin, and
-    // eligible for the automatic OCR screening after submit. Never /api/upload
-    // (that path is public-read).
-    const handleKtpUpload = useCallback(async (file: File) => {
-        setError(null);
-        if (file.size > 8 * 1024 * 1024) {
-            setError(`Ukuran KTP maksimal 8 MB. File Anda: ${(file.size / 1024 / 1024).toFixed(1)} MB`);
-            return;
-        }
-        setIsUploadingKtp(true);
-        try {
-            const fd = new FormData();
-            fd.append("file", file);
-            fd.append("slot", "ktp");
-            const result = await uploadKycDocument(fd);
-            setKtpFileId(result.fileId);
-        } catch (e) {
-            setError(e instanceof Error ? e.message : "Upload KTP gagal");
-        } finally {
-            setIsUploadingKtp(false);
-        }
-    }, []);
 
     // ── referral code helpers ──────────────────────────────────────────────
     function refreshCode() {
@@ -205,6 +188,7 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
                     ktpUrl: ktpUrl || undefined,
                     ktpFileId: ktpFileId || undefined,
                     statementUrl: statementUrl || undefined,
+                    statementFileId: statementFileId || undefined,
                     bankName: bankModal.bankName,
                     bankAccountNumber: bankModal.bankAccountNumber,
                     bankAccountName: bankModal.bankAccountName,
@@ -282,7 +266,7 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
                                 onChange={(e) => {
                                     const f = e.target.files?.[0];
                                     if (!f) return;
-                                    handleKtpUpload(f);
+                                    handlePrivateDocUpload(f, "ktp", setKtpFileId, setIsUploadingKtp);
                                     e.target.value = "";
                                 }}
                             />
@@ -458,7 +442,8 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
                                 onChange={(e) => {
                                     const f = e.target.files?.[0];
                                     if (!f) return;
-                                    handleFileUpload(f, "statements", setStatementUrl, setIsUploadingStatement);
+                                    handlePrivateDocUpload(f, "statement", setStatementFileId, setIsUploadingStatement);
+                                    e.target.value = "";
                                 }}
                             />
                             <button
@@ -468,9 +453,9 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
                                 className="inline-flex items-center gap-2 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-black/20 hover:bg-slate-50 disabled:opacity-60"
                             >
                                 {isUploadingStatement ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                                {statementUrl ? "Ganti File" : "Choose File"}
+                                {statementFileId || statementUrl ? "Ganti File" : "Choose File"}
                             </button>
-                            <span className="text-sm text-slate-500">{statementUrl ? "✓ Surat terupload" : "No file chosen"}</span>
+                            <span className="text-sm text-slate-500">{statementFileId || statementUrl ? "✓ Surat terupload" : "No file chosen"}</span>
                         </div>
                         <p className="mt-1 text-xs text-brand-primary">
                             Upload surat pernyataan jika nama pendaftar affiliate berbeda dengan nama asli di KTP / NPWP / Nama Pemilik Rekening Bank.

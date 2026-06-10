@@ -157,6 +157,16 @@ Pre-screens KYC KTP images via a local OpenAI-compatible LLM (e.g. llama.cpp + G
 - Affiliate enrollments use the same pipeline behind their own flag `affiliate.ocr` (env override `FEATURE_AFFILIATE_OCR`); the same cron route sweeps both queues and the admin Affiliates page has its own manual-run button.
 - The LLM endpoint must be reachable from the app server (verify: `curl http://<llm-host>/v1/models`).
 
+### Private identity documents (PII) — serving rules + legacy migration
+- Identity docs (seller-KYC + affiliate KTP/Surat Pernyataan) are PRIVATE `files` rows under `uploads/kyc/<user_id>/...`, served ONLY via `/api/files/[id]` (owner-or-admin).
+- They must never be reachable through the public static path. Two layers enforce this and BOTH must be active:
+  1. Next route `/uploads/[...segments]` returns 403 for `kyc/`, `ktp/`, `statements/` (ships with the app).
+  2. **nginx** (`infra/nginx/jualbeliraket.com.conf`): regex location returning 403 for `^/uploads/(kyc|ktp|statements)(/|$)` ABOVE the `/uploads/` alias. nginx serves `/uploads/` straight from disk, so without this rule the app-level guard is bypassed. Apply on server:
+     `sudo cp /var/www/jbr/infra/nginx/jualbeliraket.com.conf /etc/nginx/sites-available/jualbeliraket.com && sudo nginx -t && sudo systemctl reload nginx`
+- **Legacy migration** (one-time): affiliates who enrolled before the private flow have KTP/Surat Pernyataan as PUBLIC files (`uploads/ktp/...`, `uploads/statements/...`) referenced by `ktp_url`/`statement_url`. Move them with:
+  `cd /var/www/jbr && set -a && . .env.local && set +a && node scripts/migrate-affiliate-private-docs.mjs` (dry run) then add `--execute`.
+  The script copies each file into `uploads/kyc/<user_id>/...`, inserts a private `files` row (sha256 `content_hash`), sets `ktp_file_id`/`statement_file_id`, NULLs the legacy URL, and deletes the public copy. Idempotent; safe to re-run.
+
 ### E2E Smoke Test (regression detector)
 
 Endpoint internal: `POST/GET /api/cron/smoke-test` (auth via `CRON_SECRET`).

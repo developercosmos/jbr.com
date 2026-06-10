@@ -101,7 +101,10 @@ const enrollSchema = z.object({
     ktpUrl: z.string().max(512).optional(),
     /** Private files-row id from uploadKycDocument (slot "ktp"). */
     ktpFileId: z.string().uuid().optional(),
+    /** Legacy public-URL Surat Pernyataan (old uploads only). */
     statementUrl: z.string().max(512).optional(),
+    /** Private files-row id from uploadKycDocument (slot "statement"). */
+    statementFileId: z.string().uuid().optional(),
     bankName: z.string().max(60).optional(),
     bankAccountNumber: z.string().max(40).optional(),
     bankAccountName: z.string().max(120).optional(),
@@ -126,21 +129,26 @@ export async function enrollAffiliate(input: z.infer<typeof enrollSchema>) {
 
     const code = await resolveAffiliateCode(validated.referralCode, user.name, existing?.user_id);
 
-    // New flow: the KTP is a PRIVATE files row (uploaded via uploadKycDocument).
-    // Verify ownership + privacy before linking it to the application.
-    if (validated.ktpFileId) {
-        const ktpFile = await db.query.files.findFirst({
-            where: eq(files.id, validated.ktpFileId),
+    // New flow: identity docs are PRIVATE files rows (uploaded via
+    // uploadKycDocument). Verify ownership + privacy before linking them.
+    const assertOwnPrivateFile = async (fileId: string, label: string, allowPdf: boolean) => {
+        const fileRow = await db.query.files.findFirst({
+            where: eq(files.id, fileId),
             columns: { id: true, uploaded_by: true, is_public: true, mime_type: true },
         });
-        if (!ktpFile || ktpFile.uploaded_by !== user.id || ktpFile.is_public) {
-            throw new Error("Berkas KTP harus berupa file privat milik akun Anda sendiri.");
+        if (!fileRow || fileRow.uploaded_by !== user.id || fileRow.is_public) {
+            throw new Error(`Berkas ${label} harus berupa file privat milik akun Anda sendiri.`);
         }
-        if (!ktpFile.mime_type.startsWith("image/")) {
-            throw new Error("Berkas KTP harus berupa gambar (JPG/PNG/WEBP).");
+        const okMime = fileRow.mime_type.startsWith("image/") || (allowPdf && fileRow.mime_type === "application/pdf");
+        if (!okMime) {
+            throw new Error(`Format berkas ${label} tidak didukung.`);
         }
-    }
+    };
+    if (validated.ktpFileId) await assertOwnPrivateFile(validated.ktpFileId, "KTP", false);
+    if (validated.statementFileId) await assertOwnPrivateFile(validated.statementFileId, "Surat Pernyataan", true);
+
     const effectiveKtpFileId = validated.ktpFileId ?? existing?.ktp_file_id ?? null;
+    const effectiveStatementFileId = validated.statementFileId ?? existing?.statement_file_id ?? null;
 
     // Queue async OCR (advisory) when there's a private KTP + typed NIK and the
     // feature is on + endpoint configured. The after() kick below processes it
@@ -160,7 +168,8 @@ export async function enrollAffiliate(input: z.infer<typeof enrollSchema>) {
         // Once a private file exists, stop carrying the legacy public URL.
         ktp_url: effectiveKtpFileId ? null : validated.ktpUrl,
         ktp_file_id: effectiveKtpFileId,
-        statement_url: validated.statementUrl,
+        statement_url: effectiveStatementFileId ? null : validated.statementUrl,
+        statement_file_id: effectiveStatementFileId,
         bank_name: validated.bankName,
         bank_account_number: encryptPdpField(validated.bankAccountNumber),
         bank_account_name: validated.bankAccountName,
@@ -429,6 +438,7 @@ export async function getAffiliateDashboard() {
                 ktpUrl: string | null;
                 ktpFileId: string | null;
                 statementUrl: string | null;
+                statementFileId: string | null;
                 bankName: string | null;
                 bankAccountNumber: string | null;
                 bankAccountName: string | null;
@@ -495,6 +505,7 @@ export async function getAffiliateDashboard() {
             ktpUrl: account.ktp_url,
             ktpFileId: account.ktp_file_id,
             statementUrl: account.statement_url,
+            statementFileId: account.statement_file_id,
             bankName: account.bank_name,
             bankAccountNumber: decryptPdpField(account.bank_account_number),
             bankAccountName: account.bank_account_name,
