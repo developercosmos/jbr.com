@@ -4,7 +4,7 @@
 // pernyataan omzet <= Rp500jt, dan pelaporan saat omzet melewati ambang.
 
 import { db } from "@/db";
-import { seller_kyc, seller_tax_profiles, tax_withholdings } from "@/db/schema";
+import { seller_kyc, seller_tax_profiles, tax_withholdings, users } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -23,7 +23,7 @@ export async function getMySellerTaxStatus() {
     const user = await getCurrentUser();
     const year = new Date().getFullYear();
 
-    const [profile, kyc, config, ytdGross, withheldRow] = await Promise.all([
+    const [profile, kyc, config, ytdGross, withheldRow, sellerRow] = await Promise.all([
         db.query.seller_tax_profiles.findFirst({ where: eq(seller_tax_profiles.user_id, user.id) }),
         db.query.seller_kyc.findFirst({
             where: eq(seller_kyc.user_id, user.id),
@@ -35,6 +35,7 @@ export async function getMySellerTaxStatus() {
             .select({ total: sql<string>`coalesce(sum(${tax_withholdings.amount}), '0')` })
             .from(tax_withholdings)
             .where(and(eq(tax_withholdings.seller_id, user.id), eq(tax_withholdings.tax_year, year))),
+        db.query.users.findFirst({ where: eq(users.id, user.id), columns: { tier: true } }),
     ]);
 
     const kycNik = kyc?.nik ? decryptPdpField(kyc.nik) : null;
@@ -43,6 +44,7 @@ export async function getMySellerTaxStatus() {
 
     return {
         year,
+        sellerTier: (sellerRow?.tier ?? "T0") as "T0" | "T1" | "T2",
         pph22Enabled: config.enabled,
         pph22Rate: config.rate,
         threshold: config.threshold,

@@ -185,7 +185,10 @@ export default async function SellerKeuanganPage(props: {
                     </div>
                 </div>
 
-                {taxStatus && <TaxPmk37Card status={taxStatus} />}
+                {/* Pajak PMK 37/2025 hanya relevan untuk seller terverifikasi (T1/T2).
+                    Seller kasual T0 (jual barang pribadi, cap bulanan kecil) tidak
+                    dibebani urusan NPWP/pernyataan omzet. */}
+                {taxStatus && taxStatus.sellerTier !== "T0" && <TaxPmk37Card status={taxStatus} />}
             </div>
         </div>
     );
