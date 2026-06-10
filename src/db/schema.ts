@@ -674,6 +674,9 @@ export const orders = pgTable(
         shipped_at: timestamp("shipped_at"),
         estimated_delivery: timestamp("estimated_delivery"),
         release_due_at: timestamp("release_due_at"),
+        // Biteship order id (when pickup was booked via Biteship); webhook events
+        // are matched to our orders through it.
+        biteship_order_id: text("biteship_order_id"),
         created_at: timestamp("created_at").defaultNow().notNull(),
         updated_at: timestamp("updated_at").defaultNow().notNull(),
     },
@@ -682,6 +685,7 @@ export const orders = pgTable(
         seller_id_idx: index("idx_orders_seller_id").on(table.seller_id),
         status_idx: index("idx_orders_status").on(table.status),
         release_due_at_idx: index("idx_orders_release_due_at").on(table.release_due_at),
+        biteship_order_id_idx: index("idx_orders_biteship_order_id").on(table.biteship_order_id),
     })
 );
 

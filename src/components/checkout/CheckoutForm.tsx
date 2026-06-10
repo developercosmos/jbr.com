@@ -11,7 +11,7 @@ type PaymentMethod = "BANK_TRANSFER" | "EWALLET" | "COD";
 interface CheckoutFormProps {
     selectedAddressId: string | null;
     paymentMethod: PaymentMethod;
-    shippingCourier: "jne" | "pos" | "tiki";
+    shippingCourier: string;
     canCheckout: boolean;
 }
 

@@ -239,6 +239,29 @@ export async function seedDefaultIntegrations() {
                     fallback_cost: 20000,
                 },
             },
+            {
+                key: "biteship",
+                name: "Biteship",
+                description:
+                    "Agregator pengiriman: cek tarif 30+ kurir, booking pickup, dan tracking real-time via webhook. Jika RajaOngkir juga aktif, Biteship yang dipakai.",
+                category: "shipping",
+                enabled: false,
+                credentials: {
+                    api_key: "",
+                    webhook_token: "",
+                },
+                config: {
+                    base_url: "https://api.biteship.com",
+                    couriers: "jne,jnt,sicepat,anteraja",
+                    origin_postal_code: "",
+                    origin_latitude: "",
+                    origin_longitude: "",
+                    origin_contact_name: "",
+                    origin_contact_phone: "",
+                    origin_address: "",
+                    fallback_cost: 20000,
+                },
+            },
         ];
 
     for (const integration of defaultIntegrations) {

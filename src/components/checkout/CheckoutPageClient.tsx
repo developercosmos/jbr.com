@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Lock, Home, Verified, MapPin, CreditCard, ClipboardCheck } from "lucide-react";
 import { CheckoutForm } from "@/components/checkout/CheckoutForm";
-import { getCheckoutShippingQuote } from "@/actions/shipping";
+import { getAvailableShippingCouriers, getCheckoutShippingQuote } from "@/actions/shipping";
 
 type CheckoutAddress = {
     id: string;
@@ -47,7 +47,7 @@ type PaymentMethod = "BANK_TRANSFER" | "EWALLET" | "COD";
 
 type CheckoutShippingQuote = {
     success: boolean;
-    courier: "jne" | "pos" | "tiki";
+    courier: string;
     totalCost: number;
     quotesBySeller: Array<{
         sellerId: string;
@@ -97,10 +97,33 @@ export function CheckoutPageClient({
 
     const [selectedAddressId, setSelectedAddressId] = useState<string | null>(defaultAddress?.id ?? null);
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("BANK_TRANSFER");
-    const [selectedCourier, setSelectedCourier] = useState<"jne" | "pos" | "tiki">("jne");
+    // Courier options depend on the active shipping provider (RajaOngkir trio or
+    // the admin-configured Biteship list); loaded once on mount.
+    const [courierOptions, setCourierOptions] = useState<Array<{ value: string; label: string }>>([
+        { value: "jne", label: "JNE" },
+        { value: "pos", label: "POS" },
+        { value: "tiki", label: "TIKI" },
+    ]);
+    const [selectedCourier, setSelectedCourier] = useState<string>("jne");
     const [shippingQuote, setShippingQuote] = useState<CheckoutShippingQuote | null>(initialShippingQuote);
     const [shippingError, setShippingError] = useState<string>("");
     const [isShippingPending, startShippingTransition] = useTransition();
+
+    useEffect(() => {
+        let cancelled = false;
+        getAvailableShippingCouriers()
+            .then((options) => {
+                if (cancelled || options.length === 0) return;
+                setCourierOptions(options);
+                setSelectedCourier((current) =>
+                    options.some((o) => o.value === current) ? current : options[0].value
+                );
+            })
+            .catch(() => { /* keep the default trio */ });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     const selectedAddress = useMemo(
         () => addresses.find((addr) => addr.id === selectedAddressId) ?? null,
@@ -291,18 +314,14 @@ export function CheckoutPageClient({
                             Pengiriman
                         </h2>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            {[
-                                { value: "jne", label: "JNE" },
-                                { value: "pos", label: "POS" },
-                                { value: "tiki", label: "TIKI" },
-                            ].map((courier) => (
+                            {courierOptions.map((courier) => (
                                 <label key={courier.value} className="cursor-pointer group">
                                     <input
                                         className="peer sr-only"
                                         name="courier"
                                         type="radio"
                                         checked={selectedCourier === courier.value}
-                                        onChange={() => setSelectedCourier(courier.value as "jne" | "pos" | "tiki")}
+                                        onChange={() => setSelectedCourier(courier.value)}
                                     />
                                     <div className="h-full rounded-xl border-2 border-slate-200 peer-checked:border-brand-primary peer-checked:bg-brand-primary/5 p-4 flex flex-col gap-2 transition-all">
                                         <span className="text-slate-900 font-medium text-sm">{courier.label}</span>

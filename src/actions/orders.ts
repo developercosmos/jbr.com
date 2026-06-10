@@ -71,7 +71,9 @@ function generateOrderNumber(): string {
 
 const createOrderSchema = z.object({
     shipping_address_id: z.string().uuid().optional(),
-    shipping_courier: z.enum(["jne", "pos", "tiki"]),
+    // Provider-dependent courier code (RajaOngkir trio or Biteship config list);
+    // membership is validated inside getCheckoutShippingQuoteForUser.
+    shipping_courier: z.string().trim().toLowerCase().regex(/^[a-z&_-]{2,24}$/),
     notes: z.string().optional(),
     voucher_code: z.string().trim().min(3).max(40).optional(),
 });
@@ -413,7 +415,9 @@ export async function createOrderFromCart(input: z.infer<typeof createOrderSchem
 const createOrderFromOfferSchema = z.object({
     token: z.string().min(8),
     shipping_address_id: z.string().uuid(),
-    shipping_courier: z.enum(["jne", "pos", "tiki"]),
+    // Provider-dependent courier code; validated against the active provider
+    // inside getCheckoutShippingQuoteForUser.
+    shipping_courier: z.string().trim().toLowerCase().regex(/^[a-z&_-]{2,24}$/),
     notes: z.string().max(500).optional(),
 });
 

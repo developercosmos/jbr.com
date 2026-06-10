@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { createOrderFromOffer } from "@/actions/orders";
+import { getAvailableShippingCouriers } from "@/actions/shipping";
 
 interface Address {
     id: string;
@@ -24,7 +25,27 @@ interface Props {
 export default function OfferCheckoutClient({ token, amount, listing, expiresAt, addresses }: Props) {
     const router = useRouter();
     const [addressId, setAddressId] = useState<string>(addresses[0]?.id ?? "");
-    const [courier, setCourier] = useState<"jne" | "pos" | "tiki">("jne");
+    // Provider-dependent courier list (RajaOngkir trio or Biteship config).
+    const [courierOptions, setCourierOptions] = useState<Array<{ value: string; label: string }>>([
+        { value: "jne", label: "JNE" },
+        { value: "pos", label: "POS Indonesia" },
+        { value: "tiki", label: "TIKI" },
+    ]);
+    const [courier, setCourier] = useState<string>("jne");
+
+    useEffect(() => {
+        let cancelled = false;
+        getAvailableShippingCouriers()
+            .then((options) => {
+                if (cancelled || options.length === 0) return;
+                setCourierOptions(options);
+                setCourier((current) => (options.some((o) => o.value === current) ? current : options[0].value));
+            })
+            .catch(() => { /* keep defaults */ });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
     const [error, setError] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
     const savings = listing.listPrice - amount;
@@ -101,12 +122,12 @@ export default function OfferCheckoutClient({ token, amount, listing, expiresAt,
                             <label className="block text-xs font-medium text-slate-600 mb-1">Kurir</label>
                             <select
                                 value={courier}
-                                onChange={(e) => setCourier(e.target.value as "jne" | "pos" | "tiki")}
+                                onChange={(e) => setCourier(e.target.value)}
                                 className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20"
                             >
-                                <option value="jne">JNE</option>
-                                <option value="pos">POS Indonesia</option>
-                                <option value="tiki">TIKI</option>
+                                {courierOptions.map((o) => (
+                                    <option key={o.value} value={o.value}>{o.label}</option>
+                                ))}
                             </select>
                         </div>
                     </>

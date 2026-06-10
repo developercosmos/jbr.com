@@ -157,6 +157,13 @@ Pre-screens KYC KTP images via a local OpenAI-compatible LLM (e.g. llama.cpp + G
 - Affiliate enrollments use the same pipeline behind their own flag `affiliate.ocr` (env override `FEATURE_AFFILIATE_OCR`); the same cron route sweeps both queues and the admin Affiliates page has its own manual-run button.
 - The LLM endpoint must be reachable from the app server (verify: `curl http://<llm-host>/v1/models`).
 
+### Shipping providers (RajaOngkir / Biteship)
+Two independent options under Admin → Settings → Shipping (`integration_settings`); enable one. If both are enabled, **Biteship wins**. Env overrides: `BITESHIP_API_KEY`, `BITESHIP_API_URL`, `BITESHIP_COURIERS`, `BITESHIP_WEBHOOK_TOKEN` (see `.env.example`).
+- **Biteship rates**: checkout quotes per seller using the seller's default-pickup address (map coordinates → postal code fallback); buyer address uses coordinates/postal too — no RajaOngkir `city_id` needed.
+- **Pickup booking**: seller order page → "Request Pickup (Biteship)" (requires the platform Biteship balance + seller default-pickup address). Waybill/resi fills automatically.
+- **Webhook**: register `https://jualbeliraket.com/api/webhooks/biteship?token=<webhook_token>` in the Biteship dashboard. Status `picked` → order SHIPPED (buyer notified), `delivered` → DELIVERED + escrow timer armed; failures notify the seller and free the order for rebooking. Fail-closed: requests without the exact token get 401.
+- **Sandbox**: use a Biteship TEST api key — orders are processed but no courier physically picks up.
+
 ### Private identity documents (PII) — serving rules + legacy migration
 - Identity docs (seller-KYC + affiliate KTP/Surat Pernyataan) are PRIVATE `files` rows under `uploads/kyc/<user_id>/...`, served ONLY via `/api/files/[id]` (owner-or-admin).
 - They must never be reachable through the public static path. Two layers enforce this and BOTH must be active:

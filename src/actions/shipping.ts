@@ -8,8 +8,10 @@ import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { notify } from "@/lib/notify";
+import { BITESHIP_COURIER_LABELS, biteshipRates, getBiteshipSettings } from "@/lib/biteship";
 
-const SHIPPING_COURIERS = ["jne", "pos", "tiki"] as const;
+// RajaOngkir supports a fixed trio; Biteship couriers come from admin config.
+const RAJAONGKIR_COURIERS = ["jne", "pos", "tiki"] as const;
 const SHIPPING_QUOTE_TTL_MS = 10 * 60 * 1000;
 const quoteCache = new Map<string, { expiresAt: number; value: CheckoutShippingQuoteResult }>();
 
@@ -31,15 +33,24 @@ const getShippingCostSchema = z.object({
     origin: z.string(), // City ID
     destination: z.string(), // City ID
     weight: z.number().min(1), // in grams
-    courier: z.enum(SHIPPING_COURIERS),
+    courier: z.enum(RAJAONGKIR_COURIERS),
 });
+
+// Courier is provider-dependent (RajaOngkir trio vs Biteship config list), so the
+// schema only normalizes the shape; the quote function validates membership
+// against the ACTIVE provider's list.
+const courierCodeSchema = z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z&_-]{2,24}$/, "Kode kurir tidak valid");
 
 const getCheckoutShippingQuoteSchema = z.object({
     addressId: z.string().uuid(),
-    courier: z.enum(SHIPPING_COURIERS),
+    courier: courierCodeSchema,
 });
 
-type ShippingCourier = z.infer<typeof getShippingCostSchema>["courier"];
+type ShippingCourier = string;
 
 type ShippingOption = {
     service: string;
@@ -93,6 +104,125 @@ function getFallbackOptions(fallbackCost: number): ShippingOption[] {
             etd: "3-5",
         },
     ];
+}
+
+// ============================================
+// SHIPPING PROVIDER RESOLUTION
+// ============================================
+// Biteship and RajaOngkir are independent admin options (integration_settings
+// toggles). If both are enabled, Biteship wins — documented in both settings'
+// descriptions. Neither enabled => flat fallback estimates.
+export type ActiveShippingProvider = "biteship" | "rajaongkir" | "none";
+
+async function resolveActiveShippingProvider(): Promise<ActiveShippingProvider> {
+    const biteship = await getBiteshipSettings();
+    if (biteship.enabled && biteship.apiKey) return "biteship";
+    const rajaongkir = await getRajaOngkirSettings();
+    if (rajaongkir.enabled && rajaongkir.apiKey) return "rajaongkir";
+    return "none";
+}
+
+export async function getActiveShippingProvider(): Promise<ActiveShippingProvider> {
+    return resolveActiveShippingProvider();
+}
+
+/** Courier choices for the checkout UI, based on the active provider. */
+export async function getAvailableShippingCouriers(): Promise<Array<{ value: string; label: string }>> {
+    const provider = await resolveActiveShippingProvider();
+    if (provider === "biteship") {
+        const settings = await getBiteshipSettings();
+        return settings.couriers.map((code) => ({
+            value: code,
+            label: BITESHIP_COURIER_LABELS[code] ?? code.toUpperCase(),
+        }));
+    }
+    // RajaOngkir (and the no-provider fallback UI) keeps the classic trio.
+    return RAJAONGKIR_COURIERS.map((code) => ({ value: code, label: code.toUpperCase() }));
+}
+
+/** Resolve a location (coordinates preferred, else postal code) from an address row. */
+function addressToBiteshipLocation(addr: {
+    latitude: string | null;
+    longitude: string | null;
+    postal_code: string | null;
+}): { latitude?: string; longitude?: string; postalCode?: string } | null {
+    if (addr.latitude && addr.longitude) {
+        return { latitude: String(addr.latitude), longitude: String(addr.longitude) };
+    }
+    if (addr.postal_code) {
+        return { postalCode: addr.postal_code };
+    }
+    return null;
+}
+
+/**
+ * Per-seller Biteship quote. Origin = the seller's default-pickup address
+ * (coordinates/postal), else the platform-level origin from admin config.
+ */
+async function fetchBiteshipOptionsForSeller(params: {
+    sellerId: string;
+    destination: { latitude?: string; longitude?: string; postalCode?: string } | null;
+    courier: string;
+    items: Array<{ name: string; value: number; weight: number; quantity: number }>;
+}): Promise<{ options: ShippingOption[]; usedFallback: boolean; warning?: string; providerLabel?: string }> {
+    const settings = await getBiteshipSettings();
+
+    if (!params.destination) {
+        return {
+            options: getFallbackOptions(settings.fallbackCost),
+            usedFallback: true,
+            warning: "Alamat belum memiliki titik lokasi/kode pos. Ongkir masih estimasi — lengkapi alamat untuk tarif akurat.",
+        };
+    }
+
+    const pickupAddress = await db.query.addresses.findFirst({
+        where: and(eq(addresses.user_id, params.sellerId), eq(addresses.is_default_pickup, true)),
+        columns: { latitude: true, longitude: true, postal_code: true },
+    });
+    const origin =
+        (pickupAddress ? addressToBiteshipLocation(pickupAddress) : null) ??
+        (settings.origin.latitude && settings.origin.longitude
+            ? { latitude: settings.origin.latitude, longitude: settings.origin.longitude }
+            : settings.origin.postalCode
+                ? { postalCode: settings.origin.postalCode }
+                : null);
+
+    if (!origin) {
+        return {
+            options: getFallbackOptions(settings.fallbackCost),
+            usedFallback: true,
+            warning: "Seller belum memiliki alamat pickup. Ongkir masih estimasi.",
+        };
+    }
+
+    try {
+        const pricing = await biteshipRates(settings, {
+            origin,
+            destination: params.destination,
+            couriers: [params.courier],
+            items: params.items,
+        });
+        if (pricing.length === 0) {
+            throw new Error("Tidak ada layanan tersedia untuk rute ini");
+        }
+        return {
+            options: pricing.map((p) => ({
+                service: p.serviceCode || p.serviceName,
+                description: p.serviceName,
+                cost: p.price,
+                etd: p.duration,
+            })),
+            usedFallback: false,
+            providerLabel: pricing[0].courierName,
+        };
+    } catch (error) {
+        console.error("Biteship rates error:", error);
+        return {
+            options: getFallbackOptions(settings.fallbackCost),
+            usedFallback: true,
+            warning: "Gagal mengambil ongkir live. Menggunakan ongkir fallback sementara.",
+        };
+    }
 }
 
 async function fetchShippingOptions(input: z.infer<typeof getShippingCostSchema>): Promise<{ options: ShippingOption[]; usedFallback: boolean; warning?: string }> {
@@ -154,17 +284,26 @@ async function fetchShippingOptions(input: z.infer<typeof getShippingCostSchema>
     }
 }
 
-function buildQuoteCacheKey(userId: string, addressId: string, courier: ShippingCourier, sellerId: string, items: Array<{ productId: string; variantId: string | null; quantity: number }>) {
+function buildQuoteCacheKey(provider: string, userId: string, addressId: string, courier: ShippingCourier, sellerId: string, items: Array<{ productId: string; variantId: string | null; quantity: number }>) {
     const signature = items
         .map((item) => `${item.productId}:${item.variantId ?? "base"}:${item.quantity}`)
         .sort()
         .join("|");
 
-    return `${userId}:${addressId}:${courier}:${sellerId}:${signature}`;
+    return `${provider}:${userId}:${addressId}:${courier}:${sellerId}:${signature}`;
 }
 
 export async function getCheckoutShippingQuoteForUser(userId: string, addressId: string, courier: ShippingCourier): Promise<CheckoutShippingQuoteResult> {
     const validated = getCheckoutShippingQuoteSchema.parse({ addressId, courier });
+    const provider = await resolveActiveShippingProvider();
+
+    // The courier must belong to the ACTIVE provider's offering (RajaOngkir trio
+    // or the admin-configured Biteship list).
+    const availableCouriers = await getAvailableShippingCouriers();
+    if (!availableCouriers.some((c) => c.value === validated.courier)) {
+        throw new Error("Kurir tidak tersedia pada penyedia pengiriman yang aktif.");
+    }
+
     const settings = await getRajaOngkirSettings();
 
     const shippingAddress = await db.query.addresses.findFirst({
@@ -178,6 +317,9 @@ export async function getCheckoutShippingQuoteForUser(userId: string, addressId:
     const destinationCityId = shippingAddress?.city_id ? String(shippingAddress.city_id) : null;
     const missingCityWarning =
         "Alamat belum memiliki kota tujuan. Ongkir masih estimasi — lengkapi kota pada alamat untuk tarif akurat.";
+
+    // Biteship destination: coordinates from the map picker, else postal code.
+    const biteshipDestination = shippingAddress ? addressToBiteshipLocation(shippingAddress) : null;
 
     const cartItems = await db.query.carts.findMany({
         where: eq(carts.user_id, userId),
@@ -211,6 +353,7 @@ export async function getCheckoutShippingQuoteForUser(userId: string, addressId:
         }, 0);
 
         const cacheKey = buildQuoteCacheKey(
+            provider,
             userId,
             validated.addressId,
             validated.courier,
@@ -233,14 +376,36 @@ export async function getCheckoutShippingQuoteForUser(userId: string, addressId:
             continue;
         }
 
-        const { options, usedFallback: sellerUsedFallback, warning } = destinationCityId
-            ? await fetchShippingOptions({
-                origin: settings.originCityId,
-                destination: destinationCityId,
-                weight,
+        let fetched: { options: ShippingOption[]; usedFallback: boolean; warning?: string; providerLabel?: string };
+        if (provider === "biteship") {
+            fetched = await fetchBiteshipOptionsForSeller({
+                sellerId,
+                destination: biteshipDestination,
                 courier: validated.courier,
-            })
-            : { options: getFallbackOptions(settings.fallbackCost), usedFallback: true, warning: missingCityWarning };
+                items: sellerItems.map((item) => ({
+                    name: item.product.title ?? "Produk",
+                    value: Number(item.product.price ?? 0),
+                    weight: Math.max(item.product.weight_grams ?? 1000, 1),
+                    quantity: item.quantity,
+                })),
+            });
+        } else if (provider === "rajaongkir") {
+            fetched = destinationCityId
+                ? await fetchShippingOptions({
+                    origin: settings.originCityId,
+                    destination: destinationCityId,
+                    weight,
+                    courier: validated.courier as (typeof RAJAONGKIR_COURIERS)[number],
+                })
+                : { options: getFallbackOptions(settings.fallbackCost), usedFallback: true, warning: missingCityWarning };
+        } else {
+            fetched = {
+                options: getFallbackOptions(settings.fallbackCost),
+                usedFallback: true,
+                warning: "Belum ada penyedia pengiriman aktif. Menggunakan ongkir estimasi.",
+            };
+        }
+        const { options, usedFallback: sellerUsedFallback, warning, providerLabel } = fetched;
 
         const selectedOption = options.reduce((lowest, option) => (option.cost < lowest.cost ? option : lowest), options[0]);
         const sellerQuote: CheckoutShippingQuoteResult = {
@@ -250,7 +415,7 @@ export async function getCheckoutShippingQuoteForUser(userId: string, addressId:
             quotesBySeller: [
                 {
                     sellerId,
-                    shippingProvider: `${validated.courier.toUpperCase()} ${selectedOption.service}`,
+                    shippingProvider: `${providerLabel ?? validated.courier.toUpperCase()} ${selectedOption.service}`.trim(),
                     service: selectedOption.service,
                     description: selectedOption.description,
                     cost: selectedOption.cost,

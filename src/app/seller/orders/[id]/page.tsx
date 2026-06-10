@@ -5,10 +5,11 @@ import { getSellerProfileByUserId } from "@/actions/seller";
 import { canAccessSellerCenter } from "@/lib/seller";
 import { getOrderById, updateOrderStatus } from "@/actions/orders";
 import { updateShippingInfo } from "@/actions/shipping";
+import { getBiteshipRatesForOrder, requestBiteshipPickup, syncBiteshipOrderStatus } from "@/actions/shipping-biteship";
 import { getSellerInteractionRatingForContext } from "@/actions/reputation";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Package, MapPin, User, Clock } from "lucide-react";
+import { ArrowLeft, Package, MapPin, User, Clock, Truck } from "lucide-react";
 import { revalidatePath } from "next/cache";
 import BuyerInteractionRatingCard from "./BuyerInteractionRatingCard";
 
@@ -50,8 +51,15 @@ const NEXT_STATUSES: Record<string, { value: string; label: string; className: s
     SHIPPED: [],
 };
 
-export default async function SellerOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function SellerOrderDetailPage({
+    params,
+    searchParams,
+}: {
+    params: Promise<{ id: string }>;
+    searchParams: Promise<{ bsError?: string }>;
+}) {
     const { id } = await params;
+    const { bsError } = await searchParams;
 
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session?.user) redirect("/auth/login");
@@ -82,6 +90,13 @@ export default async function SellerOrderDetailPage({ params }: { params: Promis
         ? await getSellerInteractionRatingForContext("ORDER", order.id, order.buyer_id).catch(() => null)
         : null;
 
+    // Biteship booking context: live rate options when the order is bookable.
+    // Null when the integration is off, already booked, or not in a shippable state.
+    const biteshipRates =
+        (order.status === "PAID" || order.status === "PROCESSING") && !order.biteship_order_id
+            ? await getBiteshipRatesForOrder(order.id).catch(() => null)
+            : null;
+
     async function handleUpdateStatus(formData: FormData) {
         "use server";
         const newStatus = formData.get("status") as string;
@@ -104,6 +119,38 @@ export default async function SellerOrderDetailPage({ params }: { params: Promis
         } catch { /* validation/ownership errors surface on refresh */ }
         revalidatePath(`/seller/orders/${id}`);
         revalidatePath("/seller/orders");
+    }
+
+    async function handleBiteshipBook(formData: FormData) {
+        "use server";
+        const choice = String(formData.get("courierChoice") || "");
+        const [courierCompany, courierType] = choice.split("|");
+        if (!courierCompany || !courierType) return;
+        let errMsg: string | null = null;
+        try {
+            await requestBiteshipPickup({ orderId: id, courierCompany, courierType });
+        } catch (e) {
+            errMsg = e instanceof Error ? e.message : "Gagal booking pickup Biteship.";
+        }
+        revalidatePath(`/seller/orders/${id}`);
+        revalidatePath("/seller/orders");
+        if (errMsg) {
+            redirect(`/seller/orders/${id}?bsError=${encodeURIComponent(errMsg.slice(0, 180))}`);
+        }
+    }
+
+    async function handleBiteshipSync() {
+        "use server";
+        let errMsg: string | null = null;
+        try {
+            await syncBiteshipOrderStatus(id);
+        } catch (e) {
+            errMsg = e instanceof Error ? e.message : "Gagal memperbarui status.";
+        }
+        revalidatePath(`/seller/orders/${id}`);
+        if (errMsg) {
+            redirect(`/seller/orders/${id}?bsError=${encodeURIComponent(errMsg.slice(0, 180))}`);
+        }
     }
 
     return (
@@ -181,6 +228,75 @@ export default async function SellerOrderDetailPage({ params }: { params: Promis
                                 </div>
                             </div>
                         )}
+                        {bsError && (
+                            <div className="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-xl p-4 text-sm text-rose-700 dark:text-rose-300">
+                                {bsError}
+                            </div>
+                        )}
+
+                        {/* Biteship: booked-pickup status card */}
+                        {order.biteship_order_id && (
+                            <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
+                                <h2 className="font-bold text-slate-900 dark:text-white mb-1 flex items-center gap-2">
+                                    <Truck className="w-4 h-4" /> Pickup Biteship
+                                </h2>
+                                <div className="text-sm text-slate-600 dark:text-slate-300 space-y-1 mb-4">
+                                    <p>Kurir: <span className="font-medium text-slate-900 dark:text-white">{order.shipping_provider ?? "-"}</span></p>
+                                    <p>No. Resi: <span className="font-mono text-slate-900 dark:text-white">{order.tracking_number ?? "menunggu kurir"}</span></p>
+                                    <p className="text-xs text-slate-400">ID Biteship: {order.biteship_order_id}</p>
+                                    <p className="text-xs text-slate-500">
+                                        Status pesanan diperbarui otomatis dari kurir (pickup → Dikirim, sampai → Diterima).
+                                    </p>
+                                </div>
+                                <form action={handleBiteshipSync}>
+                                    <button type="submit" className="px-4 py-2 rounded-xl font-semibold text-sm border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-brand-primary/50 transition-colors">
+                                        Perbarui Status dari Biteship
+                                    </button>
+                                </form>
+                            </div>
+                        )}
+
+                        {/* Biteship: book-a-pickup panel (only when integration is configured) */}
+                        {!order.biteship_order_id && biteshipRates?.configured && (order.status === "PAID" || order.status === "PROCESSING") && (
+                            <div className="bg-white dark:bg-surface-dark rounded-xl border border-emerald-200 dark:border-emerald-900/50 shadow-sm p-6">
+                                <h2 className="font-bold text-slate-900 dark:text-white mb-1 flex items-center gap-2">
+                                    <Truck className="w-4 h-4 text-emerald-600" /> Request Pickup (Biteship)
+                                </h2>
+                                <p className="text-xs text-slate-500 mb-4">
+                                    Kurir menjemput paket ke alamat pickup Anda. Resi terisi otomatis dan status pesanan
+                                    mengikuti tracking kurir — tanpa input manual.
+                                </p>
+                                {biteshipRates.available ? (
+                                    <form action={handleBiteshipBook} className="space-y-3">
+                                        <div>
+                                            <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Layanan kurir</label>
+                                            <select
+                                                name="courierChoice"
+                                                required
+                                                defaultValue=""
+                                                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-black/20 px-3 py-2 text-sm text-slate-900 dark:text-white"
+                                            >
+                                                <option value="" disabled>Pilih layanan</option>
+                                                {biteshipRates.options.map((opt) => (
+                                                    <option key={`${opt.courierCompany}|${opt.serviceCode}`} value={`${opt.courierCompany}|${opt.serviceCode}`}>
+                                                        {opt.courierName} {opt.serviceName} — {formatPrice(opt.price)} ({opt.duration})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <button type="submit" className="px-5 py-2.5 rounded-xl font-bold text-sm bg-emerald-600 hover:bg-emerald-700 text-white transition-colors">
+                                            Booking Pickup
+                                        </button>
+                                        <p className="text-[11px] text-slate-400">
+                                            Biaya pickup memakai saldo Biteship platform. Alternatif: kirim sendiri lalu isi resi manual di bawah.
+                                        </p>
+                                    </form>
+                                ) : (
+                                    <p className="text-sm text-amber-600">{biteshipRates.reason}</p>
+                                )}
+                            </div>
+                        )}
+
                         {/* Ship form — captures courier + resi, sets SHIPPED, and notifies the buyer */}
                         {(order.status === "PAID" || order.status === "PROCESSING") && (
                             <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
