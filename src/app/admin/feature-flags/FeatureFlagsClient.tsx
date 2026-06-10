@@ -162,66 +162,76 @@ export function FeatureFlagsClient({
         }));
     }
 
-    function handleToggle(flag: FlagRow) {
-        const draft = drafts[flag.key];
-        const cleanReason = (draft.reason ?? "").trim();
-        if (cleanReason.length < 3) {
-            setMessage({ type: "error", text: `Isi alasan dulu untuk "${flag.key}" (minimal 3 karakter).` });
-            return;
-        }
-        if (flag.category === "trust" && draft.confirmationPhrase.toUpperCase() !== "SAYA YAKIN") {
-            setMessage({ type: "error", text: `Flag trust "${flag.key}" wajib konfirmasi: ketik SAYA YAKIN.` });
-            return;
-        }
-        const nextEnabled = !flag.enabled;
+    // Every change (toggle ATAU simpan konfigurasi) goes through a confirmation
+    // modal that collects the audit reason (+ frasa konfirmasi untuk flag trust)
+    // — never an inline error after the fact.
+    const [pendingChange, setPendingChange] = useState<{ kind: "toggle" | "save"; flag: FlagRow } | null>(null);
+    const [modalReason, setModalReason] = useState("");
+    const [modalPhrase, setModalPhrase] = useState("");
+
+    function openChangeModal(kind: "toggle" | "save", flag: FlagRow) {
         setMessage(null);
-        startTransition(async () => {
-            try {
-                await toggleFeatureFlag(flag.key, nextEnabled, cleanReason, {
-                    confirmationPhrase: draft.confirmationPhrase || undefined,
-                });
-                setMessage({
-                    type: "success",
-                    text: `${flag.key} → ${nextEnabled ? "ENABLED" : "DISABLED"}.`,
-                });
-                router.refresh();
-            } catch (error) {
-                setMessage({ type: "error", text: error instanceof Error ? error.message : "Gagal toggle flag." });
-            }
-        });
+        setModalReason("");
+        setModalPhrase("");
+        setPendingChange({ kind, flag });
     }
 
-    function handleSave(flag: FlagRow) {
+    function closeChangeModal() {
+        if (isPending) return;
+        setPendingChange(null);
+    }
+
+    const modalNeedsPhrase = pendingChange?.flag.category === "trust";
+    const modalReasonValid = modalReason.trim().length >= 3;
+    const modalPhraseValid = !modalNeedsPhrase || modalPhrase.trim().toUpperCase() === "SAYA YAKIN";
+    const modalCanConfirm = modalReasonValid && modalPhraseValid && !isPending;
+
+    function confirmPendingChange() {
+        if (!pendingChange || !modalCanConfirm) return;
+        const { kind, flag } = pendingChange;
         const draft = drafts[flag.key];
-        const cleanReason = (draft.reason ?? "").trim();
-        if (cleanReason.length < 3) {
-            setMessage({ type: "error", text: `Isi alasan dulu untuk "${flag.key}" (minimal 3 karakter).` });
-            return;
-        }
-        setMessage(null);
+        const cleanReason = modalReason.trim();
+        const phrase = modalPhrase.trim() || undefined;
+
         startTransition(async () => {
             try {
-                await updateFeatureFlag({
-                    key: flag.key,
-                    reason: cleanReason,
-                    rolloutPct: Number(draft.rolloutPct || 0),
-                    owner: draft.owner,
-                    notes: draft.notes,
-                    parentKey: draft.parentKey || null,
-                    scheduledEnableAt: draft.scheduledEnableAt || null,
-                    scheduledDisableAt: draft.scheduledDisableAt || null,
-                    audience: {
-                        roles: parseCsv(draft.roles),
-                        userIds: parseCsv(draft.userIds),
-                        cohorts: parseCsv(draft.cohorts),
-                    },
-                    variants: parseVariants(draft.variants),
-                    confirmationPhrase: draft.confirmationPhrase || undefined,
-                });
-                setMessage({ type: "success", text: `Konfigurasi ${flag.key} tersimpan.` });
+                if (kind === "toggle") {
+                    const nextEnabled = !flag.enabled;
+                    await toggleFeatureFlag(flag.key, nextEnabled, cleanReason, {
+                        confirmationPhrase: phrase,
+                    });
+                    setMessage({
+                        type: "success",
+                        text: `${flag.key} → ${nextEnabled ? "ENABLED" : "DISABLED"}.`,
+                    });
+                } else {
+                    await updateFeatureFlag({
+                        key: flag.key,
+                        reason: cleanReason,
+                        rolloutPct: Number(draft.rolloutPct || 0),
+                        owner: draft.owner,
+                        notes: draft.notes,
+                        parentKey: draft.parentKey || null,
+                        scheduledEnableAt: draft.scheduledEnableAt || null,
+                        scheduledDisableAt: draft.scheduledDisableAt || null,
+                        audience: {
+                            roles: parseCsv(draft.roles),
+                            userIds: parseCsv(draft.userIds),
+                            cohorts: parseCsv(draft.cohorts),
+                        },
+                        variants: parseVariants(draft.variants),
+                        confirmationPhrase: phrase,
+                    });
+                    setMessage({ type: "success", text: `Konfigurasi ${flag.key} tersimpan.` });
+                }
+                setPendingChange(null);
                 router.refresh();
             } catch (error) {
-                setMessage({ type: "error", text: error instanceof Error ? error.message : "Gagal menyimpan flag." });
+                setMessage({
+                    type: "error",
+                    text: error instanceof Error ? error.message : "Gagal menyimpan perubahan flag.",
+                });
+                setPendingChange(null);
             }
         });
     }
@@ -362,8 +372,8 @@ export function FeatureFlagsClient({
                                         allFlagKeys={allFlagKeys}
                                         draft={drafts[flag.key]}
                                         onDraftChange={(field, value) => setDraftField(flag.key, field, value)}
-                                        onToggle={() => handleToggle(flag)}
-                                        onSave={() => handleSave(flag)}
+                                        onToggle={() => openChangeModal("toggle", flag)}
+                                        onSave={() => openChangeModal("save", flag)}
                                         isPending={isPending}
                                     />
                                 ))}
@@ -371,6 +381,104 @@ export function FeatureFlagsClient({
                         </div>
                     );
                 })
+            )}
+
+            {/* Confirmation modal — every flag change passes through here */}
+            {pendingChange && (
+                <div
+                    className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+                    role="dialog"
+                    aria-modal="true"
+                    onClick={closeChangeModal}
+                >
+                    <div
+                        className="w-full max-w-md rounded-2xl bg-white shadow-2xl p-6 space-y-4"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="space-y-1">
+                            <h3 className="text-lg font-bold text-slate-900">
+                                {pendingChange.kind === "toggle"
+                                    ? pendingChange.flag.enabled
+                                        ? "Nonaktifkan fitur ini?"
+                                        : "Aktifkan fitur ini?"
+                                    : "Simpan perubahan konfigurasi?"}
+                            </h3>
+                            <p className="text-sm text-slate-600">
+                                {FEATURE_FLAG_META[pendingChange.flag.key]?.friendlyName ?? pendingChange.flag.key}
+                                <span className="ml-2 font-mono text-xs text-slate-400">{pendingChange.flag.key}</span>
+                            </p>
+                            <span
+                                className={`inline-block text-xs font-bold px-2 py-0.5 rounded-full ${
+                                    pendingChange.kind === "save"
+                                        ? "bg-slate-100 text-slate-700"
+                                        : pendingChange.flag.enabled
+                                            ? "bg-rose-100 text-rose-700"
+                                            : "bg-emerald-100 text-emerald-700"
+                                }`}
+                            >
+                                {pendingChange.kind === "save" ? "UPDATE KONFIGURASI" : pendingChange.flag.enabled ? "DISABLE" : "ENABLE"}
+                            </span>
+                        </div>
+
+                        <label className="block text-sm space-y-1">
+                            <span className="font-medium text-slate-700">
+                                Alasan perubahan <span className="text-rose-600">*</span>
+                            </span>
+                            <span className="block text-[11px] text-slate-500">
+                                Minimal 3 karakter — tercatat di audit log.
+                            </span>
+                            <textarea
+                                autoFocus
+                                rows={2}
+                                value={modalReason}
+                                onChange={(e) => setModalReason(e.target.value)}
+                                placeholder="Mis: rollout bertahap fase 2, insiden #123, dst."
+                                className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50 text-sm resize-none"
+                            />
+                        </label>
+
+                        {modalNeedsPhrase && (
+                            <label className="block text-sm space-y-1">
+                                <span className="font-medium text-rose-700">
+                                    Konfirmasi Trust <span className="text-rose-600">*</span>
+                                </span>
+                                <span className="block text-[11px] text-slate-500">
+                                    Flag kategori Trust & Safety — ketik <strong>SAYA YAKIN</strong> untuk melanjutkan.
+                                </span>
+                                <input
+                                    type="text"
+                                    value={modalPhrase}
+                                    onChange={(e) => setModalPhrase(e.target.value)}
+                                    placeholder="SAYA YAKIN"
+                                    className="w-full rounded-lg border border-rose-300 px-3 py-2 bg-rose-50 font-mono text-xs"
+                                />
+                            </label>
+                        )}
+
+                        <div className="flex justify-end gap-2 pt-1">
+                            <button
+                                type="button"
+                                onClick={closeChangeModal}
+                                disabled={isPending}
+                                className="px-4 py-2 rounded-lg border border-slate-200 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmPendingChange}
+                                disabled={!modalCanConfirm}
+                                className={`px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 ${
+                                    pendingChange.kind === "toggle" && pendingChange.flag.enabled
+                                        ? "bg-rose-600 hover:bg-rose-700"
+                                        : "bg-slate-900 hover:bg-slate-800"
+                                }`}
+                            >
+                                {isPending ? "Memproses..." : "Konfirmasi"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

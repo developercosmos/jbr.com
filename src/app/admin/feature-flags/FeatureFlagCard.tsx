@@ -365,39 +365,10 @@ export function FeatureFlagCard({
 
                     {/* Save bar (always visible when expanded) */}
                     <div className="rounded-lg bg-white border border-slate-200 p-4 space-y-3">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                            <label className="block text-sm space-y-1">
-                                <span className="font-medium text-slate-700">
-                                    Alasan perubahan <span className="text-rose-600">*</span>
-                                </span>
-                                <span className="block text-[11px] text-slate-500">
-                                    Wajib diisi (≥ 3 karakter). Tercatat di audit log.
-                                </span>
-                                <input
-                                    type="text"
-                                    value={draft.reason}
-                                    onChange={(e) => onDraftChange("reason", e.target.value)}
-                                    placeholder="Mis: rollout bertahap fase 2, target naik ke 50%"
-                                    className="w-full rounded-lg border border-slate-200 px-3 py-2 bg-slate-50"
-                                />
-                            </label>
-                            {isTrust && (
-                                <label className="block text-sm space-y-1">
-                                    <span className="font-medium text-rose-700 flex items-center gap-1">
-                                        <Lock className="w-3.5 h-3.5" />
-                                        Konfirmasi Trust <span className="text-rose-600">*</span>
-                                    </span>
-                                    <span className="block text-[11px] text-slate-500">Ketik: SAYA YAKIN</span>
-                                    <input
-                                        type="text"
-                                        value={draft.confirmationPhrase}
-                                        onChange={(e) => onDraftChange("confirmationPhrase", e.target.value)}
-                                        placeholder="SAYA YAKIN"
-                                        className="w-full rounded-lg border border-rose-300 px-3 py-2 bg-rose-50 font-mono text-xs"
-                                    />
-                                </label>
-                            )}
-                        </div>
+                        <p className="text-[11px] text-slate-500">
+                            Saat menyimpan atau toggle, dialog konfirmasi akan meminta <strong>alasan perubahan</strong>
+                            (tercatat di audit log){isTrust ? <> dan frasa konfirmasi <strong>SAYA YAKIN</strong> (flag trust)</> : null}.
+                        </p>
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <Link
                                 href={`/admin/feature-flags/${encodeURIComponent(flag.key)}/impact`}
