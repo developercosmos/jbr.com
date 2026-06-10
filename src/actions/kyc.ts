@@ -631,6 +631,9 @@ export async function getCurrentSellerKyc() {
 const kycListFilterSchema = z
     .object({
         status: z.enum(["NOT_SUBMITTED", "PENDING_REVIEW", "APPROVED", "REJECTED"]).optional(),
+        // Per-seller lookup (from Admin -> Users): shows that seller's submission
+        // regardless of status, so approved documents stay reachable.
+        sellerId: z.string().optional(),
     })
     .optional();
 
@@ -639,7 +642,11 @@ export async function listKycSubmissions(filter?: z.infer<typeof kycListFilterSc
     const validated = kycListFilterSchema.parse(filter);
 
     const submissions = await db.query.seller_kyc.findMany({
-        where: validated?.status ? eq(seller_kyc.status, validated.status) : undefined,
+        where: validated?.sellerId
+            ? eq(seller_kyc.user_id, validated.sellerId)
+            : validated?.status
+                ? eq(seller_kyc.status, validated.status)
+                : undefined,
         orderBy: [desc(seller_kyc.submitted_at), desc(seller_kyc.updated_at)],
         with: {
             seller: {

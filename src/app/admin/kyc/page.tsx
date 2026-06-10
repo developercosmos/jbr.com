@@ -8,7 +8,7 @@ import KycReviewClient from "./KycReviewClient";
 export const dynamic = "force-dynamic";
 
 interface PageProps {
-    searchParams: Promise<{ status?: string }>;
+    searchParams: Promise<{ status?: string; seller?: string }>;
 }
 
 const STATUS_FILTERS = ["PENDING_REVIEW", "APPROVED", "REJECTED", "NOT_SUBMITTED"] as const;
@@ -21,9 +21,10 @@ function isStatusFilter(value: string | undefined): value is StatusFilter {
 export default async function AdminKycPage({ searchParams }: PageProps) {
     const params = await searchParams;
     const statusFilter: StatusFilter = isStatusFilter(params.status) ? params.status : "PENDING_REVIEW";
+    const sellerFilter = params.seller?.trim() || undefined;
 
     const [submissions, counts, pendingSellerActivation] = await Promise.all([
-        listKycSubmissions({ status: statusFilter }),
+        listKycSubmissions(sellerFilter ? { sellerId: sellerFilter } : { status: statusFilter }),
         getKycSubmissionCounts(),
         db.select({ count: sql<number>`count(*)` })
             .from(users)
@@ -71,6 +72,17 @@ export default async function AdminKycPage({ searchParams }: PageProps) {
                             halaman Users
                         </a>
                         .
+                    </div>
+                )}
+
+                {sellerFilter && (
+                    <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 flex flex-wrap items-center justify-between gap-2">
+                        <span>
+                            Menampilkan pengajuan KYC untuk <strong>1 seller</strong> (apa pun statusnya).
+                        </span>
+                        <a href="/admin/kyc" className="font-semibold underline hover:no-underline">
+                            Tampilkan semua
+                        </a>
                     </div>
                 )}
 

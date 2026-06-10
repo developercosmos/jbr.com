@@ -293,6 +293,13 @@ export default async function UserManagementPage() {
                                                 <div className="mt-1 flex items-center gap-1 text-[11px] text-orange-600 dark:text-orange-400">
                                                     <Store className="w-3 h-3" />
                                                     <span className="font-medium truncate max-w-[130px]">{user.store_name}</span>
+                                                    <a
+                                                        href={`/admin/kyc?seller=${encodeURIComponent(user.id)}`}
+                                                        className="ml-1 text-brand-primary hover:underline font-semibold"
+                                                        title="Lihat pengajuan & dokumen KYC seller ini (status apa pun)"
+                                                    >
+                                                        KYC
+                                                    </a>
                                                 </div>
                                             )}
                                         </td>
