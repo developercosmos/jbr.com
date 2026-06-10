@@ -37,6 +37,10 @@ CREATE TABLE IF NOT EXISTS "tax_withholdings" (
 );
 CREATE INDEX IF NOT EXISTS "idx_tax_withholdings_seller_year" ON "tax_withholdings" ("seller_id", "tax_year");
 
+-- Nilai enum baru untuk tag pajak PPh 22 (psql menjalankan tiap statement pada
+-- transaksi terpisah, jadi ADD VALUE lalu memakainya di INSERT berikut aman).
+ALTER TYPE "tax_kind" ADD VALUE IF NOT EXISTS 'PPH_22';
+
 INSERT INTO "coa_accounts" ("code","name","class","normal_balance","is_postable","tax_kind","description") VALUES
   ('24700','PPh 22 Terutang (Marketplace PMK 37/2025)','LIABILITY','CREDIT', true, 'PPH_22', 'Pungutan 0,5% peredaran bruto seller')
 ON CONFLICT ("book","code") DO NOTHING;
