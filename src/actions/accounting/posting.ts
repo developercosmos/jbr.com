@@ -16,11 +16,12 @@
  */
 
 import { db } from "@/db";
-import { sales_register } from "@/db/schema";
+import { sales_register, tax_withholdings } from "@/db/schema";
 import { postJournal, type PostJournalResult, type JournalLineInput } from "./journals";
 import { getSetting } from "./settings";
 import { resolveAccount } from "./account-map";
 import { r2, deriveFeeTax } from "./posting-internal";
+import { decidePph22ForRelease } from "./pph22-internal";
 
 // ---------------------------------------------------------------------------
 // Internal helpers (pure r2/deriveFeeTax live in ./posting-internal so this
@@ -183,7 +184,29 @@ export async function postOrderRelease(
     totalFeeGross = r2(totalFeeGross);
     totalFeeDpp = r2(totalFeeDpp);
     totalFeePpn = r2(totalFeePpn);
-    const sellerNetTotal = r2(grossPaid - totalFeeGross);
+
+    // PPh 22 marketplace (PMK 37/2025): 0,5% dari peredaran bruto, dipungut dari
+    // bagian seller saat pelepasan escrow — hanya bila platform ditunjuk DJP
+    // (tax.pph22_enabled) dan seller tidak dikecualikan (deklarasi <= Rp500jt).
+    // Kegagalan menghitung TIDAK boleh memblokir pelepasan dana: fallback 0.
+    let pph22Amount = 0;
+    let pph22Rate = 0;
+    let pph22TaxYear = (input.completedAt ?? new Date()).getFullYear();
+    try {
+        const pph22 = await decidePph22ForRelease({
+            sellerId: input.sellerId,
+            grossPaid,
+            completedAt: input.completedAt,
+        });
+        if (pph22.subject) {
+            pph22Amount = r2(pph22.amount);
+            pph22Rate = pph22.rate;
+            pph22TaxYear = pph22.taxYear;
+        }
+    } catch (e) {
+        console.error(`[postOrderRelease] PPh22 decision failed for order=${input.orderId}:`, e instanceof Error ? e.message : e);
+    }
+    const sellerNetTotal = r2(grossPaid - totalFeeGross - pph22Amount);
 
     const lines: JournalLineInput[] = [
         {
@@ -213,6 +236,15 @@ export async function postOrderRelease(
             memo: "PPN Keluaran atas komisi",
         });
     }
+    if (pph22Amount > 0) {
+        lines.push({
+            accountCode: await resolveAccount("wht_pph22", input.completedAt),
+            credit: pph22Amount,
+            memo: `PPh 22 (PMK 37/2025) ${pph22Rate * 100}% atas peredaran bruto`,
+            partnerUserId: input.sellerId,
+            partnerRole: "SELLER",
+        });
+    }
 
     const result = await postJournal({
         source: "AUTO_ORDER",
@@ -223,6 +255,27 @@ export async function postOrderRelease(
         postedAt: input.completedAt,
         lines,
     });
+
+    // Bukti pungut PPh 22 per order (dokumen tagihan marketplace dipersamakan
+    // dengan bukti pemungutan). Idempotent via unique(order_id).
+    if (!result.alreadyExisted && pph22Amount > 0) {
+        try {
+            await db
+                .insert(tax_withholdings)
+                .values({
+                    order_id: input.orderId,
+                    seller_id: input.sellerId,
+                    tax_year: pph22TaxYear,
+                    base_gross: grossPaid.toFixed(2),
+                    rate: pph22Rate.toFixed(4),
+                    amount: pph22Amount.toFixed(2),
+                    journal_id: result.journalId,
+                })
+                .onConflictDoNothing();
+        } catch (e) {
+            console.error(`[postOrderRelease] tax_withholdings write failed for order=${input.orderId}:`, e);
+        }
+    }
 
     // Sales register write (idempotent via unique(order_item_id, event)).
     if (!result.alreadyExisted) {

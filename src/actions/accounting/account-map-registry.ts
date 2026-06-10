@@ -41,6 +41,7 @@ export const ACCOUNT_SLOTS: readonly AccountSlot[] = [
     // Affiliate
     { slot: "affiliate_commission_expense", label: "Beban Komisi Affiliate", group: "Affiliate", defaultCode: "66000" },
     { slot: "affiliate_payable", label: "Utang Komisi Affiliate", group: "Affiliate", defaultCode: "22200" },
+    { slot: "wht_pph22", label: "Utang PPh 22 (marketplace PMK 37/2025)", group: "Pajak", defaultCode: "24700" },
     { slot: "wht_pph23", label: "Utang PPh 23 (withholding)", group: "Pajak", defaultCode: "24200" },
     { slot: "wht_pph21", label: "Utang PPh 21 (withholding)", group: "Pajak", defaultCode: "24300" },
     { slot: "wht_pph42", label: "Utang PPh 4(2) (withholding)", group: "Pajak", defaultCode: "24400" },

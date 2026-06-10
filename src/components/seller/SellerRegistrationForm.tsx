@@ -23,9 +23,11 @@ interface SellerRegistrationFormProps {
         normalized: string;
         reason: string | null;
     };
+    /** Formatted monthly cap for tier T0 (configurable by admin), e.g. "Rp 10.000.000". */
+    t0CapLabel?: string;
 }
 
-export function SellerRegistrationForm({ addresses, initialName, initialSlugAvailability }: SellerRegistrationFormProps) {
+export function SellerRegistrationForm({ addresses, initialName, initialSlugAvailability, t0CapLabel }: SellerRegistrationFormProps) {
     const [isPending, startTransition] = useTransition();
     const [slugStatus, setSlugStatus] = useState<{ checking: boolean; available: boolean | null; message: string }>({
         checking: false,
@@ -120,6 +122,17 @@ export function SellerRegistrationForm({ addresses, initialName, initialSlugAvai
                     <ShieldCheck className="mt-0.5 h-5 w-5 text-brand-primary" />
                     <p>
                         Aktivasi ini membuat toko Anda aktif di Seller Center. Review admin tetap berjalan di belakang layar untuk kontrol kualitas.
+                    </p>
+                </div>
+
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-slate-700 space-y-1">
+                    <p className="font-semibold text-emerald-900">Tanpa KTP, langsung bisa jualan</p>
+                    <p>
+                        Anda tidak perlu mengunggah KTP sekarang. Sebagai seller baru (tier T0), total transaksi
+                        Anda dibatasi <strong>{t0CapLabel ?? "Rp 10.000.000"}</strong> per bulan. Jika ingin
+                        bertransaksi lebih besar, lengkapi verifikasi KYC (KTP + selfie) kapan saja di
+                        Pengaturan Toko. Data pajak (NPWP/NIK & pernyataan omzet) dikelola di menu
+                        Keuangan → Pajak setelah toko aktif.
                     </p>
                 </div>
 

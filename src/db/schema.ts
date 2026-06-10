@@ -690,6 +690,46 @@ export const orders = pgTable(
 );
 
 // ============================================
+// SELLER TAX (PMK 37/2025)
+// ============================================
+// Data pedagang dalam negeri + pernyataan omzet untuk pemungutan PPh 22 oleh
+// marketplace. NPWP terenkripsi (PDP); NIK bersumber dari seller_kyc.nik.
+export const seller_tax_profiles = pgTable("seller_tax_profiles", {
+    user_id: text("user_id")
+        .primaryKey()
+        .references(() => users.id, { onDelete: "cascade" }),
+    tax_id_kind: text("tax_id_kind"), // 'NPWP' | 'NIK'
+    npwp: text("npwp"), // encrypted
+    correspondence_address: text("correspondence_address"),
+    pkp: boolean("pkp").default(false).notNull(),
+    omzet_declared_year: integer("omzet_declared_year"),
+    omzet_declared_at: timestamp("omzet_declared_at"),
+    crossed_declared_year: integer("crossed_declared_year"),
+    crossed_declared_at: timestamp("crossed_declared_at"),
+    created_at: timestamp("created_at").defaultNow().notNull(),
+    updated_at: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Catatan pungutan PPh 22 per order selesai (dasar bukti pungut).
+export const tax_withholdings = pgTable(
+    "tax_withholdings",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        order_id: uuid("order_id").notNull().unique().references(() => orders.id),
+        seller_id: text("seller_id").notNull().references(() => users.id),
+        tax_year: integer("tax_year").notNull(),
+        base_gross: decimal("base_gross", { precision: 14, scale: 2 }).notNull(),
+        rate: decimal("rate", { precision: 6, scale: 4 }).notNull(),
+        amount: decimal("amount", { precision: 14, scale: 2 }).notNull(),
+        journal_id: uuid("journal_id"),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        seller_year_idx: index("idx_tax_withholdings_seller_year").on(table.seller_id, table.tax_year),
+    })
+);
+
+// ============================================
 // ORDER_ITEMS TABLE
 // ============================================
 export const order_items = pgTable("order_items", {

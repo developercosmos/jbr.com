@@ -23,11 +23,34 @@ function sha256Hex(value: Buffer | string): string {
     return createHash("sha256").update(value).digest("hex");
 }
 
-const sellerTierCaps: Record<"T0" | "T1" | "T2", number> = {
+// Default monthly GMV caps per KYC tier. Admin-configurable via the versioned
+// accounting_settings store (keys below) without redeploying — these literals
+// are only the fallback when no setting row exists.
+const DEFAULT_TIER_CAPS: Record<"T0" | "T1" | "T2", number> = {
     T0: 10_000_000,
     T1: 50_000_000,
     T2: 250_000_000,
 };
+
+const TIER_CAP_SETTING_KEYS: Record<"T0" | "T1" | "T2", string> = {
+    T0: "kyc.tier_cap_t0",
+    T1: "kyc.tier_cap_t1",
+    T2: "kyc.tier_cap_t2",
+};
+
+export async function getSellerTierCaps(): Promise<Record<"T0" | "T1" | "T2", number>> {
+    const { getSetting } = await import("@/actions/accounting/settings");
+    const [t0, t1, t2] = await Promise.all([
+        getSetting<number>(TIER_CAP_SETTING_KEYS.T0, { defaultValue: DEFAULT_TIER_CAPS.T0 }),
+        getSetting<number>(TIER_CAP_SETTING_KEYS.T1, { defaultValue: DEFAULT_TIER_CAPS.T1 }),
+        getSetting<number>(TIER_CAP_SETTING_KEYS.T2, { defaultValue: DEFAULT_TIER_CAPS.T2 }),
+    ]);
+    return {
+        T0: Number(t0 ?? DEFAULT_TIER_CAPS.T0) || DEFAULT_TIER_CAPS.T0,
+        T1: Number(t1 ?? DEFAULT_TIER_CAPS.T1) || DEFAULT_TIER_CAPS.T1,
+        T2: Number(t2 ?? DEFAULT_TIER_CAPS.T2) || DEFAULT_TIER_CAPS.T2,
+    };
+}
 
 const submitSellerKycSchema = z.object({
     targetTier: z.enum(["T1", "T2"]),
@@ -84,8 +107,9 @@ function getMonthRange(referenceDate = new Date()) {
     return { start, end };
 }
 
-function getSellerTierCap(tier: "T0" | "T1" | "T2") {
-    return sellerTierCaps[tier];
+async function getSellerTierCap(tier: "T0" | "T1" | "T2") {
+    const caps = await getSellerTierCaps();
+    return caps[tier];
 }
 
 export async function seedSellerKycProfile(userId: string) {
@@ -176,11 +200,12 @@ export async function ensureSellerWithinMonthlyGmvCap(sellerId: string, pendingO
 
     const currentMonthTotal = Number(result?.total || 0);
     const nextTotal = currentMonthTotal + pendingOrderTotal;
-    const cap = getSellerTierCap(seller.tier);
+    const cap = await getSellerTierCap(seller.tier);
 
     if (nextTotal > cap) {
         throw new Error(
-            `${seller.store_name || "Seller"} sudah mencapai batas transaksi bulanan tier ${seller.tier}.`
+            `${seller.store_name || "Seller"} sudah mencapai batas transaksi bulanan tier ${seller.tier} ` +
+            `(Rp ${cap.toLocaleString("id-ID")}). Seller dapat menaikkan batas dengan melengkapi verifikasi KYC.`
         );
     }
 
@@ -189,6 +214,41 @@ export async function ensureSellerWithinMonthlyGmvCap(sellerId: string, pendingO
         cap,
         currentMonthTotal,
         remaining: Math.max(cap - currentMonthTotal, 0),
+    };
+}
+
+/**
+ * Read-only monthly GMV status for display (never throws on over-cap). Used by
+ * the seller settings cap meter and the registration info banner.
+ */
+export async function getSellerMonthlyGmvStatus(sellerId: string) {
+    const seller = await db.query.users.findFirst({
+        where: eq(users.id, sellerId),
+        columns: { id: true, tier: true },
+    });
+    if (!seller) return null;
+
+    const { start, end } = getMonthRange();
+    const [result] = await db
+        .select({ total: sql<string>`coalesce(sum(${orders.total}), '0')` })
+        .from(orders)
+        .where(
+            and(
+                eq(orders.seller_id, sellerId),
+                gte(orders.created_at, start),
+                lt(orders.created_at, end),
+                ne(orders.status, "CANCELLED"),
+                ne(orders.status, "REFUNDED")
+            )
+        );
+
+    const used = Number(result?.total || 0);
+    const cap = await getSellerTierCap(seller.tier);
+    return {
+        tier: seller.tier,
+        cap,
+        used,
+        remaining: Math.max(cap - used, 0),
     };
 }
 

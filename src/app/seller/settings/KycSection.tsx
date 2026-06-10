@@ -22,6 +22,8 @@ interface KycProfile {
 interface KycSectionProps {
     profile: KycProfile | null;
     currentTier: KycTier;
+    /** Monthly GMV usage vs the configurable tier cap (null when unavailable). */
+    gmv?: { cap: number; used: number; remaining: number } | null;
 }
 
 type SlotKey = "ktp" | "selfie" | "business";
@@ -39,7 +41,7 @@ const STATUS_BADGE: Record<KycStatus, { label: string; className: string }> = {
     REJECTED: { label: "Ditolak", className: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300" },
 };
 
-export default function KycSection({ profile, currentTier }: KycSectionProps) {
+export default function KycSection({ profile, currentTier, gmv }: KycSectionProps) {
     const router = useRouter();
     const [targetTier, setTargetTier] = useState<"T1" | "T2">("T1");
     const [nik, setNik] = useState("");
@@ -158,9 +160,35 @@ export default function KycSection({ profile, currentTier }: KycSectionProps) {
             </div>
             <div className="p-6 space-y-6">
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                    Naikkan tier akun Anda untuk meningkatkan batas transaksi bulanan dan mendapat lencana
-                    verifikasi pada halaman toko. Dokumen Anda hanya dapat diakses oleh admin yang melakukan review.
+                    KYC bersifat opsional untuk mulai berjualan — naikkan tier untuk meningkatkan batas
+                    transaksi bulanan dan mendapat lencana verifikasi pada halaman toko. Dokumen Anda hanya
+                    dapat diakses oleh admin yang melakukan review.
                 </p>
+
+                {gmv && (
+                    <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-4 space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                            <span className="font-semibold text-slate-900 dark:text-white">
+                                Pemakaian batas transaksi bulan ini ({currentTier})
+                            </span>
+                            <span className="text-slate-500 dark:text-slate-400">
+                                Rp {gmv.used.toLocaleString("id-ID")} / Rp {gmv.cap.toLocaleString("id-ID")}
+                            </span>
+                        </div>
+                        <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                            <div
+                                className={`h-full rounded-full ${gmv.used / gmv.cap >= 0.9 ? "bg-rose-500" : gmv.used / gmv.cap >= 0.7 ? "bg-amber-500" : "bg-emerald-500"}`}
+                                style={{ width: `${Math.min(100, Math.round((gmv.used / Math.max(gmv.cap, 1)) * 100))}%` }}
+                            />
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Sisa bulan ini: Rp {gmv.remaining.toLocaleString("id-ID")}.
+                            {gmv.used / gmv.cap >= 0.7 && currentTier !== "T2" && (
+                                <span className="text-amber-600"> Hampir penuh — lengkapi KYC di bawah untuk menaikkan batas.</span>
+                            )}
+                        </p>
+                    </div>
+                )}
 
                 <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-slate-700 space-y-2">
                     <p className="font-semibold text-slate-900">Perlindungan Data Pribadi (PDP)</p>

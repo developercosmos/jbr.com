@@ -2,7 +2,7 @@ import { PartyPopper } from "lucide-react";
 import { getSellerProfileByUserId } from "@/actions/seller";
 import { getUserAddresses } from "@/actions/address";
 import { canAccessSellerCenter } from "@/lib/seller";
-import { getCurrentSellerKyc } from "@/actions/kyc";
+import { getCurrentSellerKyc, getSellerMonthlyGmvStatus } from "@/actions/kyc";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -32,9 +32,10 @@ export default async function SellerSettingsPage({ searchParams }: PageProps) {
         redirect("/seller/register");
     }
 
-    const [kycProfile, addressList] = await Promise.all([
+    const [kycProfile, addressList, gmvStatus] = await Promise.all([
         getCurrentSellerKyc(),
         getUserAddresses(),
+        getSellerMonthlyGmvStatus(sellerProfile.id).catch(() => null),
     ]);
 
     const currentTier = (sellerProfile.tier ?? "T0") as "T0" | "T1" | "T2";
@@ -70,13 +71,10 @@ export default async function SellerSettingsPage({ searchParams }: PageProps) {
                             </h3>
                             <p className="text-sm text-emerald-700">
                                 Status awal: <strong>{currentTier}</strong> dengan limit transaksi bulanan{" "}
-                                {currentTier === "T0"
-                                    ? "Rp 10.000.000"
-                                    : currentTier === "T1"
-                                      ? "Rp 50.000.000"
-                                      : "Rp 250.000.000"}
-                                . Untuk membuka limit lebih besar dan lencana verifikasi, ajukan KYC tier 1
-                                (KTP + selfie) atau tier 2 (+ dokumen bisnis) di bagian bawah halaman ini.
+                                {gmvStatus ? `Rp ${gmvStatus.cap.toLocaleString("id-ID")}` : "sesuai tier Anda"}
+                                . Tanpa KYC Anda sudah bisa berjualan; untuk membuka limit lebih besar dan
+                                lencana verifikasi, ajukan KYC tier 1 (KTP + selfie) atau tier 2 (+ dokumen
+                                bisnis) di bagian bawah halaman ini.
                             </p>
                         </div>
                     </div>
@@ -116,6 +114,7 @@ export default async function SellerSettingsPage({ searchParams }: PageProps) {
                         business_doc_file_id: kycProfile.business_doc_file_id,
                     } : null}
                     currentTier={currentTier}
+                    gmv={gmvStatus ? { cap: gmvStatus.cap, used: gmvStatus.used, remaining: gmvStatus.remaining } : null}
                 />
             </div>
         </div>

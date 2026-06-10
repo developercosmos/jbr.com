@@ -2,7 +2,9 @@ import Link from "next/link";
 import { Download, TrendingUp, ShoppingBag, RefreshCcw, Wallet, Printer } from "lucide-react";
 import { requireSellerFinanceSession } from "@/lib/seller-finance";
 import { getSellerSalesSummary, getSellerSalesDetail } from "@/actions/accounting/reports";
+import { getMySellerTaxStatus } from "@/actions/tax-profile";
 import { formatIdr } from "@/lib/format-idr";
+import TaxPmk37Card from "./TaxPmk37Card";
 
 export const dynamic = "force-dynamic";
 
@@ -32,9 +34,10 @@ export default async function SellerKeuanganPage(props: {
     const from = parseDate(fromStr);
     const to = parseDate(toStr, true);
 
-    const [summary, detail] = await Promise.all([
+    const [summary, detail, taxStatus] = await Promise.all([
         getSellerSalesSummary({ sellerId: session.sellerId, from, to }),
         getSellerSalesDetail({ sellerId: session.sellerId, from, to, limit: 50 }),
+        getMySellerTaxStatus().catch(() => null),
     ]);
 
     const exportHref = `/api/seller/keuangan/export/sales?from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}`;
@@ -181,6 +184,8 @@ export default async function SellerKeuanganPage(props: {
                         </div>
                     </div>
                 </div>
+
+                {taxStatus && <TaxPmk37Card status={taxStatus} />}
             </div>
         </div>
     );

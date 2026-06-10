@@ -164,6 +164,10 @@ Two independent options under Admin → Settings → Shipping (`integration_sett
 - **Webhook**: register `https://jualbeliraket.com/api/webhooks/biteship?token=<webhook_token>` in the Biteship dashboard. Status `picked` → order SHIPPED (buyer notified), `delivered` → DELIVERED + escrow timer armed; failures notify the seller and free the order for rebooking. Fail-closed: requests without the exact token get 401.
 - **Sandbox**: use a Biteship TEST api key — orders are processed but no courier physically picks up.
 
+### Tier caps & pajak PMK 37/2025 (configurable via accounting_settings)
+- Batas GMV bulanan per tier KYC: `kyc.tier_cap_t0` (default 10jt), `kyc.tier_cap_t1` (50jt), `kyc.tier_cap_t2` (250jt) — enforced at order creation; seller melihat meter pemakaian di Pengaturan → KYC. Ubah via `setSetting(key, value)` (accounting_settings, versioned).
+- PPh 22 marketplace: `tax.pph22_enabled` (default **false** — set true HANYA setelah JBR ditunjuk DJP), `tax.pph22_rate` (0.005), `tax.pph22_omzet_threshold` (500000000). Saat aktif, pemungutan terjadi di escrow release (`postOrderRelease`): CR akun slot `wht_pph22` (default 24700) + catatan per-order di `tax_withholdings` (bukti pungut). Orang pribadi dgn pernyataan omzet ≤ ambang tidak dipungut; crossing → pungut mulai awal bulan berikutnya. Seller mengelola NPWP/NIK + alamat korespondensi + pernyataan di Keuangan → Pajak.
+
 ### Private identity documents (PII) — serving rules + legacy migration
 - Identity docs (seller-KYC + affiliate KTP/Surat Pernyataan) are PRIVATE `files` rows under `uploads/kyc/<user_id>/...`, served ONLY via `/api/files/[id]` (owner-or-admin).
 - They must never be reachable through the public static path. Two layers enforce this and BOTH must be active:
