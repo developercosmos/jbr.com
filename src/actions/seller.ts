@@ -58,6 +58,7 @@ export async function getSellerProfileByUserId(userId: string) {
             name: true,
             email: true,
             image: true,
+            account_type: true,
             store_name: true,
             store_slug: true,
             store_description: true,

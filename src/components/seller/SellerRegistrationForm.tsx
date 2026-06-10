@@ -27,9 +27,11 @@ interface SellerRegistrationFormProps {
     t0CapLabel?: string;
     /** Formatted max product price for tier T0, e.g. "Rp 1.000.000". */
     t0MaxPriceLabel?: string;
+    /** PERSONAL | COMPANY — COMPANY gets the mandatory-T2 banner instead. */
+    accountType?: "PERSONAL" | "COMPANY";
 }
 
-export function SellerRegistrationForm({ addresses, initialName, initialSlugAvailability, t0CapLabel, t0MaxPriceLabel }: SellerRegistrationFormProps) {
+export function SellerRegistrationForm({ addresses, initialName, initialSlugAvailability, t0CapLabel, t0MaxPriceLabel, accountType }: SellerRegistrationFormProps) {
     const [isPending, startTransition] = useTransition();
     const [slugStatus, setSlugStatus] = useState<{ checking: boolean; available: boolean | null; message: string }>({
         checking: false,
@@ -127,6 +129,16 @@ export function SellerRegistrationForm({ addresses, initialName, initialSlugAvai
                     </p>
                 </div>
 
+                {accountType === "COMPANY" ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-slate-700 space-y-1">
+                        <p className="font-semibold text-amber-900">Akun Perusahaan — verifikasi T2 wajib</p>
+                        <p>
+                            Setelah toko aktif, lengkapi verifikasi <strong>T2</strong> (KTP penanggung jawab + selfie +
+                            dokumen bisnis NIB/SIUP) di Pengaturan Toko sebelum menerbitkan produk. Toko Anda akan
+                            mendapat lencana <strong>✓ Seller Terverifikasi</strong> dan limit transaksi tier T2.
+                        </p>
+                    </div>
+                ) : (
                 <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-slate-700 space-y-1">
                     <p className="font-semibold text-emerald-900">Tanpa KTP, langsung bisa jualan</p>
                     <p>
@@ -139,6 +151,7 @@ export function SellerRegistrationForm({ addresses, initialName, initialSlugAvai
                         Keuangan → Pajak setelah toko aktif.
                     </p>
                 </div>
+                )}
 
                 {message && (
                     <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

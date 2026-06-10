@@ -26,6 +26,8 @@ interface KycSectionProps {
     gmv?: { cap: number; used: number; remaining: number } | null;
     /** T0-only gates (max product price + max payout); null for T1/T2. */
     t0Gates?: { maxProductPrice: number; maxPayout: number } | null;
+    /** PERSONAL | COMPANY \u2014 COMPANY dikunci ke pengajuan T2. */
+    accountType?: "PERSONAL" | "COMPANY";
 }
 
 type SlotKey = "ktp" | "selfie" | "business";
@@ -43,9 +45,10 @@ const STATUS_BADGE: Record<KycStatus, { label: string; className: string }> = {
     REJECTED: { label: "Ditolak", className: "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300" },
 };
 
-export default function KycSection({ profile, currentTier, gmv, t0Gates }: KycSectionProps) {
+export default function KycSection({ profile, currentTier, gmv, t0Gates, accountType }: KycSectionProps) {
+    const isCompany = accountType === "COMPANY";
     const router = useRouter();
-    const [targetTier, setTargetTier] = useState<"T1" | "T2">("T1");
+    const [targetTier, setTargetTier] = useState<"T1" | "T2">(isCompany ? "T2" : "T1");
     const [nik, setNik] = useState("");
     const [notes, setNotes] = useState(profile?.notes ?? "");
     const [agreedToPdp, setAgreedToPdp] = useState(false);
@@ -230,7 +233,7 @@ export default function KycSection({ profile, currentTier, gmv, t0Gates }: KycSe
                             <button
                                 key={tier}
                                 type="button"
-                                disabled={isLocked}
+                                disabled={isLocked || (isCompany && tier === "T1")}
                                 onClick={() => setTargetTier(tier)}
                                 className={`flex-1 px-4 py-3 rounded-lg border text-sm font-semibold transition ${
                                     targetTier === tier
@@ -242,6 +245,12 @@ export default function KycSection({ profile, currentTier, gmv, t0Gates }: KycSe
                             </button>
                         ))}
                     </div>
+                    {isCompany && (
+                        <p className="text-xs text-amber-600">
+                            Akun perusahaan diwajibkan verifikasi <strong>T2</strong> (dokumen bisnis NIB/SIUP).
+                            Produk baru tidak dapat diterbitkan sebelum pengajuan T2 dikirim.
+                        </p>
+                    )}
                 </div>
 
                 <div className="space-y-2">

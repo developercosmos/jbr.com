@@ -82,6 +82,8 @@ export const users = pgTable(
         phone: text("phone"),
         locale: text("locale").default("id-ID"),
         role: userRoleEnum("role").default("USER").notNull(),
+        // PERSONAL | COMPANY — COMPANY wajib melengkapi KYC T2 sebelum publish produk.
+        account_type: text("account_type").default("PERSONAL").notNull(),
         tier: sellerTierEnum("tier").default("T0").notNull(),
         // Seller-specific fields
         store_name: text("store_name"),

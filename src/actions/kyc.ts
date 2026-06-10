@@ -155,6 +155,33 @@ export async function ensureSellerCanPriceProduct(sellerId: string, prices: Arra
     }
 }
 
+/**
+ * Enforcement akun COMPANY: wajib punya pengajuan KYC T2 (terkirim atau sudah
+ * disetujui) sebelum boleh menerbitkan produk. No-op untuk akun PERSONAL.
+ */
+export async function ensureCompanyHasT2Application(userId: string) {
+    const user = await db.query.users.findFirst({
+        where: eq(users.id, userId),
+        columns: { account_type: true, tier: true },
+    });
+    if (!user || user.account_type !== "COMPANY") return;
+    if (user.tier === "T2") return;
+
+    const kycRow = await db.query.seller_kyc.findFirst({
+        where: eq(seller_kyc.user_id, userId),
+        columns: { tier: true, status: true },
+    });
+    const hasT2Application =
+        kycRow?.tier === "T2" && (kycRow.status === "PENDING_REVIEW" || kycRow.status === "APPROVED");
+    if (!hasT2Application) {
+        throw new Error(
+            "Akun perusahaan wajib melengkapi verifikasi T2 (KTP penanggung jawab + selfie + dokumen bisnis " +
+            "NIB/SIUP) sebelum menerbitkan produk. Ajukan di Pengaturan Toko \u2192 Verifikasi KYC Seller dengan " +
+            "memilih tier T2 \u2014 sekaligus mendapatkan lencana \u2713 Seller Terverifikasi."
+        );
+    }
+}
+
 export async function seedSellerKycProfile(userId: string) {
     const existing = await db.query.seller_kyc.findFirst({
         where: eq(seller_kyc.user_id, userId),

@@ -73,7 +73,9 @@ export default async function SellerSettingsPage({ searchParams }: PageProps) {
                             <p className="text-sm text-emerald-700">
                                 Status awal: <strong>{currentTier}</strong> dengan limit transaksi bulanan{" "}
                                 {gmvStatus ? `Rp ${gmvStatus.cap.toLocaleString("id-ID")}` : "sesuai tier Anda"}
-                                . Tanpa KYC Anda sudah bisa berjualan; untuk membuka limit lebih besar dan
+                                . {(sellerProfile.account_type ?? "PERSONAL") === "COMPANY"
+                                    ? "Sebagai akun perusahaan, Anda WAJIB melengkapi verifikasi T2 (dokumen bisnis) sebelum menerbitkan produk \u2014 lihat bagian KYC di bawah. "
+                                    : "Tanpa KYC Anda sudah bisa berjualan; "}untuk membuka limit lebih besar dan
                                 lencana ✓ Seller Terverifikasi (tampil ke pembeli, menambah kepercayaan),
                                 ajukan KYC tier 1 (KTP + selfie) atau tier 2 (+ dokumen bisnis) di bagian
                                 bawah halaman ini.
@@ -118,6 +120,7 @@ export default async function SellerSettingsPage({ searchParams }: PageProps) {
                     currentTier={currentTier}
                     gmv={gmvStatus ? { cap: gmvStatus.cap, used: gmvStatus.used, remaining: gmvStatus.remaining } : null}
                     t0Gates={currentTier === "T0" && t0Gates ? t0Gates : null}
+                    accountType={(sellerProfile.account_type ?? "PERSONAL") as "PERSONAL" | "COMPANY"}
                 />
             </div>
         </div>

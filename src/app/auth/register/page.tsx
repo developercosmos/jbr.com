@@ -3,10 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Zap, ArrowRight, Lock, Mail, User, Loader2, CheckCircle, MailCheck } from "lucide-react";
-import { signUp } from "@/lib/auth-client";
+import { registerAccount } from "@/actions/auth-register";
 
 export default function RegisterPage() {
     const [name, setName] = useState("");
+    const [accountType, setAccountType] = useState<"PERSONAL" | "COMPANY">("PERSONAL");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -31,14 +32,15 @@ export default function RegisterPage() {
         setLoading(true);
 
         try {
-            const result = await signUp.email({
+            const result = await registerAccount({
                 name,
                 email,
                 password,
+                accountType,
             });
 
-            if (result.error) {
-                setError(result.error.message || "Pendaftaran gagal. Silakan coba lagi.");
+            if (!result.success) {
+                setError(result.error || "Pendaftaran gagal. Silakan coba lagi.");
             } else {
                 // Show success popup instead of redirect
                 setShowSuccess(true);
@@ -82,6 +84,16 @@ export default function RegisterPage() {
                         </p>
                     </div>
 
+                    {accountType === "COMPANY" && (
+                        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 mb-4 text-left">
+                            <p className="text-amber-800 dark:text-amber-300 text-sm font-semibold mb-1">Langkah akun perusahaan:</p>
+                            <ol className="text-amber-700 dark:text-amber-400 text-sm list-decimal pl-5 space-y-0.5">
+                                <li>Verifikasi email lalu login</li>
+                                <li>Aktivasi toko di menu <strong>Sell Item</strong></li>
+                                <li>Lengkapi <strong>verifikasi T2</strong> (KTP penanggung jawab + selfie + dokumen bisnis) di Pengaturan Toko</li>
+                            </ol>
+                        </div>
+                    )}
                     <p className="text-slate-500 dark:text-slate-400 mb-6">
                         Silakan cek <strong>inbox email</strong> Anda dan klik tombol <strong>"Verifikasi Email"</strong> untuk mengaktifkan akun.
                         <br /><br />
@@ -146,7 +158,39 @@ export default function RegisterPage() {
                 <form onSubmit={handleRegister} className="space-y-6">
                     <div className="space-y-2">
                         <label className="text-sm font-bold text-slate-900 dark:text-white">
-                            Nama Lengkap
+                            Daftar Sebagai
+                        </label>
+                        <div className="grid grid-cols-2 gap-3">
+                            {([
+                                { value: "PERSONAL", label: "Pribadi", desc: "Belanja & jualan perorangan" },
+                                { value: "COMPANY", label: "Perusahaan", desc: "Toko bisnis (PT/CV) — wajib verifikasi T2" },
+                            ] as const).map((opt) => (
+                                <button
+                                    key={opt.value}
+                                    type="button"
+                                    onClick={() => setAccountType(opt.value)}
+                                    className={`rounded-xl border-2 px-3 py-2.5 text-left transition-all ${
+                                        accountType === opt.value
+                                            ? "border-brand-primary bg-brand-primary/5"
+                                            : "border-slate-200 dark:border-slate-700 hover:border-brand-primary/40"
+                                    }`}
+                                >
+                                    <span className="block text-sm font-bold text-slate-900 dark:text-white">{opt.label}</span>
+                                    <span className="block text-[11px] text-slate-500">{opt.desc}</span>
+                                </button>
+                            ))}
+                        </div>
+                        {accountType === "COMPANY" && (
+                            <p className="text-[11px] text-amber-600">
+                                Akun perusahaan diwajibkan melengkapi verifikasi KYC Tier 2 (KTP penanggung jawab +
+                                selfie + dokumen bisnis NIB/SIUP) sebelum dapat menerbitkan produk.
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-900 dark:text-white">
+                            {accountType === "COMPANY" ? "Nama Perusahaan" : "Nama Lengkap"}
                         </label>
                         <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -156,7 +200,7 @@ export default function RegisterPage() {
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                placeholder="Budi Santoso"
+                                placeholder={accountType === "COMPANY" ? "PT Raket Jaya Indonesia" : "Budi Santoso"}
                                 required
                                 className="block w-full pl-10 pr-3 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary transition-all"
                             />

@@ -44,6 +44,7 @@ export default async function SellerRegisterPage() {
             initialSlugAvailability={initialSlugAvailability}
             t0CapLabel={tierCaps ? `Rp ${tierCaps.T0.toLocaleString("id-ID")}` : "Rp 10.000.000"}
             t0MaxPriceLabel={t0Gates ? `Rp ${t0Gates.maxProductPrice.toLocaleString("id-ID")}` : "Rp 1.000.000"}
+            accountType={(sellerProfile?.account_type ?? "PERSONAL") as "PERSONAL" | "COMPANY"}
         />
     );
 }

@@ -3,7 +3,7 @@
 import { db } from "@/db";
 import { categories, products, product_variants, order_items, users } from "@/db/schema";
 import { ensureCurrentUserCanSell } from "@/actions/seller";
-import { ensureSellerCanPriceProduct } from "@/actions/kyc";
+import { ensureCompanyHasT2Application, ensureSellerCanPriceProduct } from "@/actions/kyc";
 import { auth } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { headers } from "next/headers";
@@ -184,6 +184,8 @@ export async function createProduct(input: z.infer<typeof createProductSchema>) 
         const user = await getCurrentUser();
         await ensureCurrentUserCanSell();
         const validated = createProductSchema.parse(input);
+        // Akun COMPANY wajib sudah mengajukan KYC T2 sebelum menerbitkan produk.
+        await ensureCompanyHasT2Application(user.id);
         // Gate T0: harga (dasar + semua varian) dibatasi sampai seller naik tier.
         await ensureSellerCanPriceProduct(user.id, [
             validated.price,
