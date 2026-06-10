@@ -30,11 +30,13 @@ function periodRange(input: { from?: string; to?: string; year?: string; month?:
         };
     }
     if (input.from && input.to) {
-        return {
-            from: parseDate(input.from)!,
-            to: parseDate(input.to, true)!,
-            label: `${input.from} → ${input.to}`,
-        };
+        const from = parseDate(input.from);
+        const to = parseDate(input.to, true);
+        // Invalid date strings fall through to the current-month default instead
+        // of passing undefined (which would silently report ALL history).
+        if (from && to) {
+            return { from, to, label: `${input.from} → ${input.to}` };
+        }
     }
     // default: current month
     const now = new Date();

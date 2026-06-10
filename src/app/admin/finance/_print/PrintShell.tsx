@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import AutoPrint from "./AutoPrint";
+import PrintButton from "./PrintButton";
 
 const PRINT_STYLES = `
 @page { size: A4; margin: 18mm 14mm 18mm 14mm; }
@@ -41,13 +42,7 @@ export default function PrintShell({
                     Tampilan cetak — gunakan tombol di bawah atau <kbd className="rounded border border-slate-300 bg-white px-1">Ctrl/⌘+P</kbd>{" "}
                     untuk menyimpan sebagai PDF.
                 </span>
-                <button
-                    type="button"
-                    onClick={() => window.print()}
-                    className="rounded-md bg-brand-primary px-3 py-1.5 text-sm font-semibold text-white hover:opacity-90"
-                >
-                    Cetak / Simpan PDF
-                </button>
+                <PrintButton />
             </div>
             <header className="mb-6 border-b-2 border-slate-900 pb-4">
                 <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">

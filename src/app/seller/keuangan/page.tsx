@@ -41,7 +41,7 @@ export default async function SellerKeuanganPage(props: {
     ]);
 
     const exportHref = `/api/seller/keuangan/export/sales?from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}`;
-    const printHref = `/seller/keuangan/statement/print?from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}`;
+    const printHref = `/seller/keuangan/statement/print?from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}&auto=1`;
 
     const stats = [
         {
