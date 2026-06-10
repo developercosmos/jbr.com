@@ -9,6 +9,7 @@ import {
     Clock, Info, Save, AlertTriangle, Loader2, Upload
 } from "lucide-react";
 import { updateProduct, publishProduct, archiveProduct } from "@/actions/products";
+import TierUpgradeModal, { isTierUpgradeError } from "@/components/seller/TierUpgradeModal";
 import { conditionGuidance } from "@/lib/condition-guidance";
 import VariantMatrixEditor, { type ComboVariant } from "@/components/seller/VariantMatrixEditor";
 
@@ -81,6 +82,11 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null);
+    const failSubmit = (message: string) => {
+        if (isTierUpgradeError(message)) setUpgradeMsg(message);
+        else setError(message);
+    };
     const [success, setSuccess] = useState("");
 
     // Form state initialized from product
@@ -265,7 +271,7 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
             setSuccess("Produk berhasil diperbarui!");
             setTimeout(() => { router.push("/seller/products"); router.refresh(); }, 1000);
         } catch (err) {
-            setError(getErrorMessage(err, "Gagal menyimpan perubahan."));
+            failSubmit(getErrorMessage(err, "Gagal menyimpan perubahan."));
         } finally {
             setLoading(false);
         }
@@ -279,7 +285,7 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
             setSuccess("Produk berhasil dipublikasikan!");
             setTimeout(() => { router.push("/seller/products"); router.refresh(); }, 1000);
         } catch (err) {
-            setError(getErrorMessage(err, "Gagal mempublikasikan produk."));
+            failSubmit(getErrorMessage(err, "Gagal mempublikasikan produk."));
         } finally {
             setLoading(false);
         }
@@ -309,6 +315,7 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
 
     return (
         <div className="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {upgradeMsg && <TierUpgradeModal message={upgradeMsg} onClose={() => setUpgradeMsg(null)} />}
             {/* Breadcrumbs */}
             <nav aria-label="Breadcrumb" className="flex mb-6">
                 <ol className="inline-flex items-center space-x-1 md:space-x-3">

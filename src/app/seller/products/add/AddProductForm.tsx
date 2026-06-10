@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Home, ChevronRight, X, Image as ImageIcon, ChevronDown, CheckCircle, Clock, Info, Save, AlertTriangle, Loader2 } from "lucide-react";
 import { Upload } from "lucide-react";
 import { createProduct, publishProduct } from "@/actions/products";
+import TierUpgradeModal, { isTierUpgradeError } from "@/components/seller/TierUpgradeModal";
 import { conditionGuidance } from "@/lib/condition-guidance";
 import VariantMatrixEditor, { type ComboVariant } from "@/components/seller/VariantMatrixEditor";
 
@@ -34,6 +35,13 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null);
+    // Tier-gate errors (wajib upgrade T1/T2) get the modal with a one-click KYC
+    // link; everything else stays on the inline banner.
+    const failSubmit = (message: string) => {
+        if (isTierUpgradeError(message)) setUpgradeMsg(message);
+        else setError(message);
+    };
     const [success, setSuccess] = useState("");
 
     // Form state
@@ -258,7 +266,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
 
             // If not draft, publish immediately
             if (!result.success) {
-                setError(result.error || "Gagal menyimpan produk. Silakan coba lagi.");
+                failSubmit(result.error || "Gagal menyimpan produk. Silakan coba lagi.");
                 return;
             }
 
@@ -275,7 +283,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                 router.refresh();
             }, 1000);
         } catch (err) {
-            setError(getErrorMessage(err, "Gagal menyimpan produk. Silakan coba lagi."));
+            failSubmit(getErrorMessage(err, "Gagal menyimpan produk. Silakan coba lagi."));
         } finally {
             setLoading(false);
         }
@@ -283,6 +291,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
 
     return (
         <div className="flex-grow w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {upgradeMsg && <TierUpgradeModal message={upgradeMsg} onClose={() => setUpgradeMsg(null)} />}
             {/* Breadcrumbs */}
             <nav aria-label="Breadcrumb" className="flex mb-6">
                 <ol className="inline-flex items-center space-x-1 md:space-x-3">
