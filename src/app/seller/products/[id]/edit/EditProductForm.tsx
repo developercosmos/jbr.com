@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { updateProduct, publishProduct, archiveProduct } from "@/actions/products";
 import TierUpgradeModal, { isTierUpgradeError } from "@/components/seller/TierUpgradeModal";
+import FormErrorModal from "@/components/seller/FormErrorModal";
 import { conditionGuidance } from "@/lib/condition-guidance";
 import VariantMatrixEditor, { type ComboVariant } from "@/components/seller/VariantMatrixEditor";
 
@@ -360,7 +361,7 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
                 </span>
             </div>
 
-            {error && <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl">{error}</div>}
+            {error && <FormErrorModal message={error} onClose={() => setError("")} />}
             {success && <div className="mb-6 p-4 bg-green-50 border border-green-200 text-green-700 rounded-xl">{success}</div>}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -598,8 +599,8 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
 
                     {/* Spesifikasi Raket */}
                     <section className="bg-white dark:bg-surface-dark rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">
-                        <h3 className="text-lg font-bold mb-1 text-slate-900 dark:text-white">Spesifikasi Raket</h3>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Opsional — membantu pembeli menemukan & membandingkan raket Anda.</p>
+                        <h3 className="text-lg font-bold mb-1 text-slate-900 dark:text-white">Spesifikasi Raket (Opsional) - Khusus Raket</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Akan sangat membantu pembeli menemukan & membandingkan raket Anda.</p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label className="block text-sm font-medium mb-2 text-slate-500 dark:text-slate-400">Bobot (Weight)</label>

@@ -8,6 +8,7 @@ import { Home, ChevronRight, X, Image as ImageIcon, ChevronDown, CheckCircle, Cl
 import { Upload } from "lucide-react";
 import { createProduct, publishProduct } from "@/actions/products";
 import TierUpgradeModal, { isTierUpgradeError } from "@/components/seller/TierUpgradeModal";
+import FormErrorModal from "@/components/seller/FormErrorModal";
 import { conditionGuidance } from "@/lib/condition-guidance";
 import VariantMatrixEditor, { type ComboVariant } from "@/components/seller/VariantMatrixEditor";
 
@@ -339,11 +340,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
             </div>
 
             {/* Messages */}
-            {error && (
-                <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl">
-                    {error}
-                </div>
-            )}
+            {error && <FormErrorModal message={error} onClose={() => setError("")} />}
             {success && (
                 <div className="mb-6 p-4 bg-green-50 border border-green-200 text-green-700 rounded-xl">
                     {success}
@@ -751,10 +748,10 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                     {/* Racket Specs Section — powers /compare, spec search filters, match score */}
                     <section className="bg-white dark:bg-surface-dark rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">
                         <h3 className="text-lg font-bold mb-1 text-slate-900 dark:text-white">
-                            Spesifikasi Raket
+                            Spesifikasi Raket (Opsional) - Khusus Raket
                         </h3>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-                            Opsional, tapi sangat membantu pembeli menemukan & membandingkan raket Anda.
+                            Akan sangat membantu pembeli menemukan & membandingkan raket Anda.
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
