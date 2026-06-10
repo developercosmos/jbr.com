@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Banknote, Ban, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, Banknote, Ban, CheckCircle2, ExternalLink, ScanText, XCircle } from "lucide-react";
 import {
     approveAffiliateApplication,
     processAffiliatePayoutBatch,
@@ -10,6 +10,18 @@ import {
     setAffiliateRateOverride,
     suspendAffiliate,
 } from "@/actions/affiliate";
+import { runAffiliateOcrForUser } from "@/actions/kyc-ocr";
+
+interface OcrResult {
+    status: "PENDING" | "DONE" | "FAILED" | "SKIPPED";
+    attempts: number;
+    isKtp: boolean | null;
+    extracted: { nik: string | null; nama: string | null; ttl: string | null } | null;
+    checks: { nikVerdict: "match" | "near" | "mismatch" | "unreadable"; nikDistance: number | null } | null;
+    model: string | null;
+    error: string | null;
+    ranAt: string | null;
+}
 
 interface Account {
     userId: string;
@@ -22,13 +34,26 @@ interface Account {
     reviewedAt: string | null;
     userName: string | null;
     userEmail: string | null;
+    fullName: string | null;
+    nik: string | null;
+    ktpFileId: string | null;
+    ktpUrl: string | null;
+    ocr: OcrResult | null;
 }
 
 interface Props {
     initial: Account[];
+    ocrConfigured: boolean;
 }
 
-export default function AffiliatesAdminClient({ initial }: Props) {
+const OCR_VERDICT: Record<string, { label: string; className: string }> = {
+    match: { label: "NIK cocok dengan kartu", className: "bg-emerald-100 text-emerald-700" },
+    near: { label: "NIK mirip (kemungkinan noise OCR)", className: "bg-amber-100 text-amber-700" },
+    mismatch: { label: "NIK BERBEDA dari kartu", className: "bg-rose-100 text-rose-700" },
+    unreadable: { label: "NIK tak terbaca dari kartu", className: "bg-slate-100 text-slate-600" },
+};
+
+export default function AffiliatesAdminClient({ initial, ocrConfigured }: Props) {
     const router = useRouter();
     const [drafts, setDrafts] = useState<Record<string, string>>({});
     const [revealedPayout, setRevealedPayout] = useState<Record<string, boolean>>({});
@@ -36,6 +61,20 @@ export default function AffiliatesAdminClient({ initial }: Props) {
     const [info, setInfo] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
+    const [ocrRunningId, setOcrRunningId] = useState<string | null>(null);
+
+    async function handleRunOcr(userId: string) {
+        setError(null);
+        setOcrRunningId(userId);
+        try {
+            await runAffiliateOcrForUser(userId);
+            router.refresh();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Gagal menjalankan OCR.");
+        } finally {
+            setOcrRunningId(null);
+        }
+    }
 
     function maskPayoutAccount(value: string | null): string {
         if (!value) return "";
@@ -228,6 +267,94 @@ export default function AffiliatesAdminClient({ initial }: Props) {
                                     )}
                                 </div>
                             </div>
+
+                            {(a.ktpFileId || a.ktpUrl || a.nik) && (
+                                <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3 space-y-2">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                                            <span className="font-semibold uppercase tracking-wide text-slate-500 inline-flex items-center gap-1">
+                                                <ScanText className="w-3.5 h-3.5" /> KTP &amp; OCR
+                                            </span>
+                                            {a.ktpFileId ? (
+                                                <a
+                                                    href={`/api/files/${a.ktpFileId}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1 text-brand-primary hover:underline"
+                                                >
+                                                    Lihat KTP <ExternalLink className="w-3 h-3" />
+                                                </a>
+                                            ) : a.ktpUrl ? (
+                                                <a
+                                                    href={a.ktpUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1 text-amber-600 hover:underline"
+                                                    title="Upload lama: tersimpan sebagai URL publik"
+                                                >
+                                                    Lihat KTP (upload lama) <ExternalLink className="w-3 h-3" />
+                                                </a>
+                                            ) : (
+                                                <span className="text-slate-400">KTP belum diunggah</span>
+                                            )}
+                                            {a.nik && (
+                                                <span className="text-slate-500">
+                                                    NIK diketik: <span className="font-mono tracking-wider text-slate-900 dark:text-white">{a.nik}</span>
+                                                </span>
+                                            )}
+                                        </div>
+                                        {ocrConfigured && a.ktpFileId && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRunOcr(a.userId)}
+                                                disabled={ocrRunningId === a.userId}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-brand-primary/50 disabled:opacity-60"
+                                            >
+                                                {ocrRunningId === a.userId ? (
+                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                ) : (
+                                                    <ScanText className="w-3.5 h-3.5" />
+                                                )}
+                                                {a.ocr?.status === "DONE" || a.ocr?.status === "FAILED" ? "Jalankan ulang OCR" : "Jalankan OCR"}
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                                        {a.ocr?.status === "DONE" && a.ocr.checks && (
+                                            <span className={`font-semibold px-2 py-0.5 rounded-full ${OCR_VERDICT[a.ocr.checks.nikVerdict]?.className ?? ""}`}>
+                                                {OCR_VERDICT[a.ocr.checks.nikVerdict]?.label ?? a.ocr.checks.nikVerdict}
+                                            </span>
+                                        )}
+                                        {a.ocr?.status === "DONE" && a.ocr.isKtp === false && (
+                                            <span className="font-semibold px-2 py-0.5 rounded-full bg-rose-600 text-white">Bukan KTP</span>
+                                        )}
+                                        {a.ocr?.status === "PENDING" && <span className="text-amber-600">OCR: menunggu diproses…</span>}
+                                        {a.ocr?.status === "FAILED" && (
+                                            <span className="text-rose-600">OCR gagal{a.ocr.error ? `: ${a.ocr.error}` : ""}</span>
+                                        )}
+                                        {!a.ocr && <span className="text-slate-400">OCR belum dijalankan</span>}
+                                    </div>
+                                    {a.ocr?.status === "DONE" && a.ocr.extracted && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                                            <div>
+                                                <span className="text-slate-400">NIK (kartu):</span>{" "}
+                                                <span className="font-mono text-slate-900 dark:text-white">{a.ocr.extracted.nik ?? "—"}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400">Nama (kartu):</span>{" "}
+                                                <span className="text-slate-900 dark:text-white">{a.ocr.extracted.nama ?? "—"}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400">TTL (kartu):</span>{" "}
+                                                <span className="text-slate-900 dark:text-white">{a.ocr.extracted.ttl ?? "—"}</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="text-[11px] text-slate-400">
+                                        OCR bersifat advisory — verifikasi akhir tetap manual oleh admin.
+                                    </div>
+                                </div>
+                            )}
                             {a.status === "PENDING" && (
                                 <textarea
                                     rows={2}

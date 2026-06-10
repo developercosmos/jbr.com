@@ -37,8 +37,10 @@ export interface KtpExtraction {
 
 export type NikVerdict = "match" | "near" | "mismatch" | "unreadable";
 
-/** Feature-flag key gating the automatic OCR sweep. */
+/** Feature-flag key gating the automatic OCR sweep for seller KYC. */
 export const KYC_OCR_FEATURE_KEY = "kyc.ocr";
+/** Feature-flag key gating OCR for affiliate enrollment KTPs. */
+export const AFFILIATE_OCR_FEATURE_KEY = "affiliate.ocr";
 
 export interface NikCrossCheck {
     nikVerdict: NikVerdict;

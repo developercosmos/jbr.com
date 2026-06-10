@@ -1,15 +1,16 @@
-// Core per-submission OCR processor for KYC documents. Lives in lib/ (NOT a
-// "use server" actions file) so it can be imported by BOTH the public entry
-// points without itself becoming a publicly-invokable server action:
-//   - src/actions/kyc.ts        : instant background kick right after submit
-//   - src/actions/kyc-ocr.ts    : cron sweep (retry/backstop) + admin manual run
+// Core KTP-OCR processors. Lives in lib/ (NOT a "use server" actions file) so it
+// can be imported by the public entry points without itself becoming a
+// publicly-invokable server action:
+//   - src/actions/kyc.ts        : instant kick after seller-KYC submit
+//   - src/actions/affiliate.ts  : instant kick after affiliate enrollment
+//   - src/actions/kyc-ocr.ts    : cron sweeps (retry/backstop) + admin manual runs
 //
-// OCR is ADVISORY: it never flips KYC status. It records what the card says,
-// cross-checks the seller-typed NIK, and nudges an admin when something looks
+// OCR is ADVISORY: it never flips a review status. It records what the card
+// says, cross-checks the typed NIK, and nudges an admin when something looks
 // off (not a KTP, or the NIK on the card differs from what was typed).
 
 import { db } from "@/db";
-import { files, notifications, seller_kyc, users } from "@/db/schema";
+import { affiliate_accounts, files, notifications, seller_kyc, users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import fs from "fs/promises";
 import { decryptPdpField } from "@/lib/crypto/pdp-field";
@@ -20,6 +21,8 @@ import { logger } from "@/lib/logger";
 const MAX_ATTEMPTS = 3;
 
 export type SellerKycRow = typeof seller_kyc.$inferSelect;
+export type AffiliateAccountRow = typeof affiliate_accounts.$inferSelect;
+// Both tables share the exact same ocr jsonb shape.
 type OcrResult = NonNullable<SellerKycRow["ocr"]>;
 
 export interface OcrRowOutcome {
@@ -47,7 +50,12 @@ function maskNik(nik: string | null): string | null {
     return `${d.slice(0, 6)}${"*".repeat(8)}${d.slice(14)}`;
 }
 
-async function notifyAdminsOfOcrFinding(sellerId: string, storeLabel: string, message: string, verdictKey: string) {
+async function notifyAdminsOfOcrFinding(
+    subjectUserId: string,
+    subjectLabel: string,
+    message: string,
+    idempotencyKey: string
+) {
     try {
         const admins = await db.query.users.findMany({ where: eq(users.role, "ADMIN"), columns: { id: true } });
         for (const admin of admins) {
@@ -56,108 +64,169 @@ async function notifyAdminsOfOcrFinding(sellerId: string, storeLabel: string, me
                 .values({
                     user_id: admin.id,
                     type: "SELLER_REVIEW_NEEDED",
-                    title: "Temuan OCR pada KYC Seller",
-                    message: `${storeLabel}: ${message}`,
-                    idempotency_key: `KYC_OCR_ALERT:${sellerId}:${verdictKey}`,
-                    data: { seller_id: sellerId, kind: "ocr_alert", verdict: verdictKey },
+                    title: "Temuan OCR pada Dokumen KTP",
+                    message: `${subjectLabel}: ${message}`,
+                    idempotency_key: `${idempotencyKey}:${admin.id}`,
+                    data: { subject_user_id: subjectUserId, kind: "ocr_alert" },
                 })
                 .onConflictDoNothing();
         }
     } catch (e) {
-        logger.error?.("kyc-ocr:notify_failed", { sellerId, error: e instanceof Error ? e.message : String(e) });
+        logger.error?.("kyc-ocr:notify_failed", { subjectUserId, error: e instanceof Error ? e.message : String(e) });
     }
 }
 
+interface KtpOcrSuccess {
+    ok: true;
+    isKtp: boolean | null;
+    extracted: { nik: string | null; nama: string | null; ttl: string | null };
+    checks: { nikVerdict: NikVerdict; nikDistance: number | null };
+}
+
+interface KtpOcrFailure {
+    ok: false;
+    error: string;
+    retryable: boolean;
+}
+
 /**
- * Process one KYC submission's KTP image through OCR and persist the result.
- * Never throws — failures are recorded on the row (retryable until MAX_ATTEMPTS).
+ * Shared core: load the KTP file, run the LLM extraction, cross-check the
+ * typed (encrypted) NIK. No table writes — callers persist per-table.
  */
-export async function processKycOcrRow(row: SellerKycRow): Promise<OcrRowOutcome> {
-    const config = getOcrConfig();
-    const priorAttempts = row.ocr?.attempts ?? 0;
-    const attempts = priorAttempts + 1;
-    const now = new Date();
-
-    const fail = async (error: string, retryable: boolean): Promise<OcrRowOutcome> => {
-        const exhausted = !retryable || attempts >= MAX_ATTEMPTS;
-        const status: OcrResult["status"] = exhausted ? "FAILED" : "PENDING";
-        await db
-            .update(seller_kyc)
-            .set({
-                ocr_status: status,
-                ocr: {
-                    status,
-                    attempts,
-                    isKtp: row.ocr?.isKtp ?? null,
-                    extracted: row.ocr?.extracted ?? null,
-                    checks: row.ocr?.checks ?? null,
-                    model: config?.model ?? null,
-                    error,
-                    ranAt: now.toISOString(),
-                },
-                updated_at: now,
-            })
-            .where(eq(seller_kyc.user_id, row.user_id));
-        return { status: exhausted ? "FAILED" : "PENDING", error };
-    };
-
-    if (!config) return fail("OCR endpoint not configured", false);
-    if (!row.ktp_file_id) return fail("No KTP file on submission", false);
+async function executeKtpOcr(ktpFileId: string | null, encryptedTypedNik: string | null): Promise<KtpOcrSuccess | KtpOcrFailure> {
+    if (!ktpFileId) return { ok: false, error: "No KTP file on submission", retryable: false };
 
     let bytes: Buffer;
     let mime = "image/jpeg";
     try {
         const file = await db.query.files.findFirst({
-            where: eq(files.id, row.ktp_file_id),
+            where: eq(files.id, ktpFileId),
             columns: { storage_key: true, mime_type: true },
         });
-        if (!file) return fail("KTP file row not found", false);
+        if (!file) return { ok: false, error: "KTP file row not found", retryable: false };
         mime = file.mime_type;
         bytes = await readStoredFileBytes(file.storage_key);
     } catch (e) {
-        return fail(`read KTP bytes: ${e instanceof Error ? e.message : String(e)}`, true);
+        return { ok: false, error: `read KTP bytes: ${e instanceof Error ? e.message : String(e)}`, retryable: true };
     }
 
     let extraction;
     try {
         extraction = await extractKtpFromImage(bytes, mime);
     } catch (e) {
-        return fail(e instanceof Error ? e.message : String(e), true);
+        return { ok: false, error: e instanceof Error ? e.message : String(e), retryable: true };
     }
 
-    const typedNik = decryptPdpField(row.nik) ?? "";
+    const typedNik = decryptPdpField(encryptedTypedNik) ?? "";
     const check = crossCheckNik(typedNik, extraction.nik);
 
-    const result: OcrResult = {
-        status: "DONE",
-        attempts,
+    return {
+        ok: true,
         isKtp: extraction.isKtp,
         extracted: { nik: maskNik(extraction.nik), nama: extraction.nama, ttl: extraction.ttl },
         checks: check,
-        model: config.model,
+    };
+}
+
+function buildFailedOcr(prior: OcrResult | null, attempts: number, error: string, retryable: boolean, model: string | null, now: Date): { status: "FAILED" | "PENDING"; ocr: OcrResult } {
+    const exhausted = !retryable || attempts >= MAX_ATTEMPTS;
+    const status = exhausted ? ("FAILED" as const) : ("PENDING" as const);
+    return {
+        status,
+        ocr: {
+            status,
+            attempts,
+            isKtp: prior?.isKtp ?? null,
+            extracted: prior?.extracted ?? null,
+            checks: prior?.checks ?? null,
+            model,
+            error,
+            ranAt: now.toISOString(),
+        },
+    };
+}
+
+function buildDoneOcr(result: KtpOcrSuccess, attempts: number, model: string | null, now: Date): OcrResult {
+    return {
+        status: "DONE",
+        attempts,
+        isKtp: result.isKtp,
+        extracted: result.extracted,
+        checks: result.checks,
+        model,
         error: null,
         ranAt: now.toISOString(),
     };
+}
 
-    await db
-        .update(seller_kyc)
-        .set({ ocr_status: "DONE", ocr: result, updated_at: now })
-        .where(eq(seller_kyc.user_id, row.user_id));
+/**
+ * Process one seller-KYC submission's KTP through OCR and persist the result.
+ * Never throws — failures are recorded on the row (retryable until MAX_ATTEMPTS).
+ */
+export async function processKycOcrRow(row: SellerKycRow): Promise<OcrRowOutcome> {
+    const config = getOcrConfig();
+    const attempts = (row.ocr?.attempts ?? 0) + 1;
+    const now = new Date();
 
-    // Advisory admin nudges — only on the two findings worth an interrupt.
-    const storeLabel = await db.query.users
-        .findFirst({ where: eq(users.id, row.user_id), columns: { store_name: true, name: true } })
-        .then((u) => u?.store_name || u?.name || "Seller");
-    if (extraction.isKtp === false) {
-        await notifyAdminsOfOcrFinding(row.user_id, storeLabel, "Dokumen yang diunggah terdeteksi BUKAN KTP.", "not_ktp");
-    } else if (check.nikVerdict === "mismatch") {
-        await notifyAdminsOfOcrFinding(
-            row.user_id,
-            storeLabel,
-            "NIK pada gambar KTP berbeda dari NIK yang diketik seller.",
-            "nik_mismatch"
-        );
+    if (!config) {
+        const failed = buildFailedOcr(row.ocr, attempts, "OCR endpoint not configured", false, null, now);
+        await db.update(seller_kyc).set({ ocr_status: failed.status, ocr: failed.ocr, updated_at: now }).where(eq(seller_kyc.user_id, row.user_id));
+        return { status: failed.status, error: failed.ocr.error ?? undefined };
     }
 
-    return { status: "DONE", verdict: check.nikVerdict, isKtp: extraction.isKtp };
+    const result = await executeKtpOcr(row.ktp_file_id, row.nik);
+    if (!result.ok) {
+        const failed = buildFailedOcr(row.ocr, attempts, result.error, result.retryable, config.model, now);
+        await db.update(seller_kyc).set({ ocr_status: failed.status, ocr: failed.ocr, updated_at: now }).where(eq(seller_kyc.user_id, row.user_id));
+        return { status: failed.status, error: result.error };
+    }
+
+    const done = buildDoneOcr(result, attempts, config.model, now);
+    await db.update(seller_kyc).set({ ocr_status: "DONE", ocr: done, updated_at: now }).where(eq(seller_kyc.user_id, row.user_id));
+
+    const label = await db.query.users
+        .findFirst({ where: eq(users.id, row.user_id), columns: { store_name: true, name: true } })
+        .then((u) => `KYC seller ${u?.store_name || u?.name || row.user_id}`);
+    if (result.isKtp === false) {
+        await notifyAdminsOfOcrFinding(row.user_id, label, "Dokumen yang diunggah terdeteksi BUKAN KTP.", `KYC_OCR_ALERT:${row.user_id}:not_ktp`);
+    } else if (result.checks.nikVerdict === "mismatch") {
+        await notifyAdminsOfOcrFinding(row.user_id, label, "NIK pada gambar KTP berbeda dari NIK yang diketik.", `KYC_OCR_ALERT:${row.user_id}:nik_mismatch`);
+    }
+
+    return { status: "DONE", verdict: result.checks.nikVerdict, isKtp: result.isKtp };
+}
+
+/**
+ * Process one affiliate enrollment's KTP through OCR and persist the result.
+ * Same contract as processKycOcrRow, writing to affiliate_accounts.
+ */
+export async function processAffiliateOcrRow(row: AffiliateAccountRow): Promise<OcrRowOutcome> {
+    const config = getOcrConfig();
+    const attempts = (row.ocr?.attempts ?? 0) + 1;
+    const now = new Date();
+
+    if (!config) {
+        const failed = buildFailedOcr(row.ocr, attempts, "OCR endpoint not configured", false, null, now);
+        await db.update(affiliate_accounts).set({ ocr_status: failed.status, ocr: failed.ocr, updated_at: now }).where(eq(affiliate_accounts.user_id, row.user_id));
+        return { status: failed.status, error: failed.ocr.error ?? undefined };
+    }
+
+    const result = await executeKtpOcr(row.ktp_file_id, row.nik);
+    if (!result.ok) {
+        const failed = buildFailedOcr(row.ocr, attempts, result.error, result.retryable, config.model, now);
+        await db.update(affiliate_accounts).set({ ocr_status: failed.status, ocr: failed.ocr, updated_at: now }).where(eq(affiliate_accounts.user_id, row.user_id));
+        return { status: failed.status, error: result.error };
+    }
+
+    const done = buildDoneOcr(result, attempts, config.model, now);
+    await db.update(affiliate_accounts).set({ ocr_status: "DONE", ocr: done, updated_at: now }).where(eq(affiliate_accounts.user_id, row.user_id));
+
+    const label = `Affiliate ${row.full_name || row.code}`;
+    if (result.isKtp === false) {
+        await notifyAdminsOfOcrFinding(row.user_id, label, "Dokumen yang diunggah terdeteksi BUKAN KTP.", `AFFILIATE_OCR_ALERT:${row.user_id}:not_ktp`);
+    } else if (result.checks.nikVerdict === "mismatch") {
+        await notifyAdminsOfOcrFinding(row.user_id, label, "NIK pada gambar KTP berbeda dari NIK yang diketik.", `AFFILIATE_OCR_ALERT:${row.user_id}:nik_mismatch`);
+    }
+
+    return { status: "DONE", verdict: result.checks.nikVerdict, isKtp: result.isKtp };
 }

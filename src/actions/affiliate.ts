@@ -5,6 +5,7 @@ import {
     affiliate_accounts,
     affiliate_attributions,
     affiliate_clicks,
+    files,
     notifications,
     orders,
     seller_kyc,
@@ -12,6 +13,7 @@ import {
 } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers, cookies } from "next/headers";
+import { after } from "next/server";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
@@ -25,6 +27,9 @@ import { getSetting } from "@/actions/accounting/settings";
 import { logger } from "@/lib/logger";
 import { decryptPdpField, encryptPdpField } from "@/lib/crypto/pdp-field";
 import { sendAffiliateApprovedEmail, sendAffiliateRejectedEmail } from "@/lib/email";
+import { AFFILIATE_OCR_FEATURE_KEY, isOcrConfigured } from "@/lib/kyc-ocr";
+import { processAffiliateOcrRow } from "@/lib/kyc-ocr-runner";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 
 const ATTRIBUTION_WINDOW_DAYS = Number(process.env.AFFILIATE_ATTRIBUTION_DAYS || 30);
 const DEFAULT_COMMISSION_RATE = Number(process.env.AFFILIATE_DEFAULT_RATE || 5);
@@ -84,10 +89,18 @@ const enrollSchema = z.object({
     payoutMethod: z.string().max(40).optional(),
     payoutAccount: z.string().max(120).optional(),
     fullName: z.string().max(120).optional(),
-    nik: z.string().max(20).optional(),
+    nik: z
+        .string()
+        .max(20)
+        .transform((v) => v.replace(/\D/g, ""))
+        .refine((v) => v.length === 16, "NIK harus 16 digit angka.")
+        .optional(),
     phone: z.string().max(20).optional(),
     instagramHandle: z.string().max(80).optional(),
+    /** Legacy public-URL KTP (old uploads only — new submissions send ktpFileId). */
     ktpUrl: z.string().max(512).optional(),
+    /** Private files-row id from uploadKycDocument (slot "ktp"). */
+    ktpFileId: z.string().uuid().optional(),
     statementUrl: z.string().max(512).optional(),
     bankName: z.string().max(60).optional(),
     bankAccountNumber: z.string().max(40).optional(),
@@ -113,6 +126,28 @@ export async function enrollAffiliate(input: z.infer<typeof enrollSchema>) {
 
     const code = await resolveAffiliateCode(validated.referralCode, user.name, existing?.user_id);
 
+    // New flow: the KTP is a PRIVATE files row (uploaded via uploadKycDocument).
+    // Verify ownership + privacy before linking it to the application.
+    if (validated.ktpFileId) {
+        const ktpFile = await db.query.files.findFirst({
+            where: eq(files.id, validated.ktpFileId),
+            columns: { id: true, uploaded_by: true, is_public: true, mime_type: true },
+        });
+        if (!ktpFile || ktpFile.uploaded_by !== user.id || ktpFile.is_public) {
+            throw new Error("Berkas KTP harus berupa file privat milik akun Anda sendiri.");
+        }
+        if (!ktpFile.mime_type.startsWith("image/")) {
+            throw new Error("Berkas KTP harus berupa gambar (JPG/PNG/WEBP).");
+        }
+    }
+    const effectiveKtpFileId = validated.ktpFileId ?? existing?.ktp_file_id ?? null;
+
+    // Queue async OCR (advisory) when there's a private KTP + typed NIK and the
+    // feature is on + endpoint configured. The after() kick below processes it
+    // right away; the cron sweep is the retry/backstop.
+    const ocrShouldQueue =
+        !!effectiveKtpFileId && !!validated.nik && isOcrConfigured() && (await isFeatureEnabled(AFFILIATE_OCR_FEATURE_KEY));
+
     const payload = {
         code,
         status: "PENDING" as const,
@@ -122,7 +157,9 @@ export async function enrollAffiliate(input: z.infer<typeof enrollSchema>) {
         nik: encryptPdpField(validated.nik),
         phone: validated.phone,
         instagram_handle: validated.instagramHandle,
-        ktp_url: validated.ktpUrl,
+        // Once a private file exists, stop carrying the legacy public URL.
+        ktp_url: effectiveKtpFileId ? null : validated.ktpUrl,
+        ktp_file_id: effectiveKtpFileId,
         statement_url: validated.statementUrl,
         bank_name: validated.bankName,
         bank_account_number: encryptPdpField(validated.bankAccountNumber),
@@ -130,6 +167,19 @@ export async function enrollAffiliate(input: z.infer<typeof enrollSchema>) {
         review_notes: null,
         reviewed_at: null,
         reviewer_id: null,
+        ocr_status: ocrShouldQueue ? ("PENDING" as const) : null,
+        ocr: ocrShouldQueue
+            ? {
+                  status: "PENDING" as const,
+                  attempts: 0,
+                  isKtp: null,
+                  extracted: null,
+                  checks: null,
+                  model: null,
+                  error: null,
+                  ranAt: null,
+              }
+            : null,
         updated_at: new Date(),
     };
 
@@ -146,6 +196,17 @@ export async function enrollAffiliate(input: z.infer<typeof enrollSchema>) {
                 ...payload,
             })
             .returning();
+
+    // Instant OCR kick post-response (seller never waits on the ~30s LLM call).
+    if (ocrShouldQueue && saved) {
+        after(async () => {
+            try {
+                await processAffiliateOcrRow(saved);
+            } catch (e) {
+                console.error("[enrollAffiliate] OCR kick failed (cron sweep will retry):", e);
+            }
+        });
+    }
 
     const admins = await db.query.users.findMany({
         where: eq(users.role, "ADMIN"),
@@ -366,6 +427,7 @@ export async function getAffiliateDashboard() {
                 phone: string | null;
                 instagramHandle: string | null;
                 ktpUrl: string | null;
+                ktpFileId: string | null;
                 statementUrl: string | null;
                 bankName: string | null;
                 bankAccountNumber: string | null;
@@ -431,6 +493,7 @@ export async function getAffiliateDashboard() {
             phone: account.phone,
             instagramHandle: account.instagram_handle,
             ktpUrl: account.ktp_url,
+            ktpFileId: account.ktp_file_id,
             statementUrl: account.statement_url,
             bankName: account.bank_name,
             bankAccountNumber: decryptPdpField(account.bank_account_number),
@@ -462,6 +525,8 @@ export async function listAffiliatesForAdmin() {
         ...row,
         payout_account: decryptPdpField(row.payout_account),
         bank_account_number: decryptPdpField(row.bank_account_number),
+        // Decrypted for the admin reviewer (cross-check against the OCR result).
+        nik: decryptPdpField(row.nik),
     }));
 }
 

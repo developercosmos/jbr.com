@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runKycOcrSweep } from "@/actions/kyc-ocr";
+import { runAffiliateOcrSweep, runKycOcrSweep } from "@/actions/kyc-ocr";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +21,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     try {
-        const result = await runKycOcrSweep();
-        return NextResponse.json({ success: true, kycOcr: result, ranAt: new Date().toISOString() });
+        // Sequential on purpose: both sweeps share the same single LLM box.
+        const kycOcr = await runKycOcrSweep();
+        const affiliateOcr = await runAffiliateOcrSweep();
+        return NextResponse.json({ success: true, kycOcr, affiliateOcr, ranAt: new Date().toISOString() });
     } catch (error) {
         console.error("[kyc-ocr] sweep failure:", error);
         return NextResponse.json(

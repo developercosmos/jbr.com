@@ -763,7 +763,10 @@ export const affiliate_accounts = pgTable("affiliate_accounts", {
     nik: text("nik"),
     phone: text("phone"),
     instagram_handle: text("instagram_handle"),
+    // Legacy public-URL KTP (old /api/upload flow). New submissions use
+    // ktp_file_id → private files row served via /api/files/[id].
     ktp_url: text("ktp_url"),
+    ktp_file_id: uuid("ktp_file_id").references(() => files.id, { onDelete: "set null" }),
     statement_url: text("statement_url"),
     bank_name: text("bank_name"),
     bank_account_number: text("bank_account_number"),
@@ -771,6 +774,21 @@ export const affiliate_accounts = pgTable("affiliate_accounts", {
     review_notes: text("review_notes"),
     reviewed_at: timestamp("reviewed_at"),
     reviewer_id: text("reviewer_id").references(() => users.id, { onDelete: "set null" }),
+    // Async OCR screening of the KTP (same shape as seller_kyc.ocr).
+    ocr_status: text("ocr_status"), // PENDING | DONE | FAILED | SKIPPED | null
+    ocr: jsonb("ocr").$type<{
+        status: "PENDING" | "DONE" | "FAILED" | "SKIPPED";
+        attempts: number;
+        isKtp: boolean | null;
+        extracted: { nik: string | null; nama: string | null; ttl: string | null } | null;
+        checks: {
+            nikVerdict: "match" | "near" | "mismatch" | "unreadable";
+            nikDistance: number | null;
+        } | null;
+        model: string | null;
+        error: string | null;
+        ranAt: string | null;
+    }>(),
     created_at: timestamp("created_at").defaultNow().notNull(),
     updated_at: timestamp("updated_at").defaultNow().notNull(),
 });

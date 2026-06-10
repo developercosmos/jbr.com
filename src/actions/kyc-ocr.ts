@@ -1,20 +1,20 @@
 "use server";
 
-// Public entry points for the async KYC OCR pre-screen. The core per-row
-// processor lives in src/lib/kyc-ocr-runner.ts (shared with the instant kick in
-// submitSellerKycApplication); this file exposes only:
-//   - runKycOcrSweep()        : cron worker — retry/backstop for kicks that died
-//   - runKycOcrForSeller(id)  : admin manual "run now" (synchronous, one row)
+// Public entry points for the async KTP-OCR pre-screens (seller KYC + affiliate
+// enrollment). The core per-row processors live in src/lib/kyc-ocr-runner.ts
+// (shared with the instant kicks at submit); this file exposes only:
+//   - runKycOcrSweep() / runAffiliateOcrSweep() : cron workers — retry/backstop
+//   - runKycOcrForSeller(id) / runAffiliateOcrForUser(id) : admin manual runs
 
 import { db } from "@/db";
-import { seller_kyc, users } from "@/db/schema";
+import { affiliate_accounts, seller_kyc, users } from "@/db/schema";
 import { asc, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { isFeatureEnabled } from "@/lib/feature-flags";
-import { isOcrConfigured, KYC_OCR_FEATURE_KEY } from "@/lib/kyc-ocr";
-import { processKycOcrRow, type OcrRowOutcome } from "@/lib/kyc-ocr-runner";
+import { AFFILIATE_OCR_FEATURE_KEY, isOcrConfigured, KYC_OCR_FEATURE_KEY } from "@/lib/kyc-ocr";
+import { processAffiliateOcrRow, processKycOcrRow, type OcrRowOutcome } from "@/lib/kyc-ocr-runner";
 import { logger } from "@/lib/logger";
 
 async function requireAdmin() {
@@ -98,5 +98,61 @@ export async function runKycOcrForSeller(sellerId: string): Promise<RunOcrForSel
 
     const outcome = await processKycOcrRow(row);
     revalidatePath("/admin/kyc");
+    return { ok: outcome.status === "DONE", status: outcome.status, verdict: outcome.verdict, isKtp: outcome.isKtp, error: outcome.error };
+}
+
+/** Background worker: OCR the oldest PENDING affiliate enrollments within a time budget. */
+export async function runAffiliateOcrSweep(): Promise<KycOcrSweepResult> {
+    const base: KycOcrSweepResult = { inspected: 0, processed: 0, mismatches: 0, notKtp: 0, failed: 0 };
+    if (!isOcrConfigured()) return { ...base, skipped: "not_configured" };
+    if (!(await isFeatureEnabled(AFFILIATE_OCR_FEATURE_KEY))) return { ...base, skipped: "disabled" };
+
+    const batch = Math.max(1, Number.parseInt(process.env.KYC_OCR_BATCH || "3", 10) || 3);
+    const budgetMs = Math.max(20_000, Number.parseInt(process.env.KYC_OCR_SWEEP_BUDGET_MS || "120000", 10) || 120_000);
+    const startedAt = Date.now();
+
+    const rows = await db.query.affiliate_accounts.findMany({
+        where: eq(affiliate_accounts.ocr_status, "PENDING"),
+        orderBy: [asc(affiliate_accounts.updated_at)],
+        limit: batch,
+    });
+
+    for (const row of rows) {
+        if (Date.now() - startedAt > budgetMs) break;
+        base.inspected++;
+        try {
+            const outcome = await processAffiliateOcrRow(row);
+            if (outcome.status === "DONE") {
+                base.processed++;
+                if (outcome.isKtp === false) base.notKtp++;
+                if (outcome.verdict === "mismatch") base.mismatches++;
+            } else if (outcome.status === "FAILED") {
+                base.failed++;
+            }
+        } catch (e) {
+            base.failed++;
+            logger.error?.("kyc-ocr:affiliate_sweep_row_failed", {
+                userId: row.user_id,
+                error: e instanceof Error ? e.message : String(e),
+            });
+        }
+    }
+    return base;
+}
+
+/** Admin "Run OCR now" for an affiliate enrollment (works even if the sweep flag is off). */
+export async function runAffiliateOcrForUser(affiliateUserId: string): Promise<RunOcrForSellerResult> {
+    await requireAdmin();
+    if (!isOcrConfigured()) {
+        throw new Error("Endpoint OCR belum dikonfigurasi (KYC_OCR_LLM_URL / KYC_OCR_LLM_MODEL).");
+    }
+    const row = await db.query.affiliate_accounts.findFirst({
+        where: eq(affiliate_accounts.user_id, affiliateUserId),
+    });
+    if (!row) throw new Error("Pengajuan affiliate tidak ditemukan.");
+    if (!row.ktp_file_id) throw new Error("Pengajuan ini tidak memiliki berkas KTP privat (upload lama). Minta affiliate mengajukan ulang dengan upload KTP baru.");
+
+    const outcome = await processAffiliateOcrRow(row);
+    revalidatePath("/admin/affiliates");
     return { ok: outcome.status === "DONE", status: outcome.status, verdict: outcome.verdict, isKtp: outcome.isKtp, error: outcome.error };
 }

@@ -14,6 +14,7 @@ import {
     Building2,
 } from "lucide-react";
 import { enrollAffiliate } from "@/actions/affiliate";
+import { uploadKycDocument } from "@/actions/kyc";
 
 interface DashboardData {
     account: {
@@ -28,6 +29,7 @@ interface DashboardData {
         phone: string | null;
         instagramHandle: string | null;
         ktpUrl: string | null;
+        ktpFileId: string | null;
         statementUrl: string | null;
         bankName: string | null;
         bankAccountNumber: string | null;
@@ -78,7 +80,10 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
     );
     const [instagram, setInstagram] = useState(account?.instagramHandle ?? "");
     const [referralCode, setReferralCode] = useState(account?.code ?? prefill.suggestedCode);
-    const [ktpUrl, setKtpUrl] = useState(account?.ktpUrl ?? "");
+    // Legacy public URL (old applications) — still counts as "uploaded" on re-apply.
+    const [ktpUrl] = useState(account?.ktpUrl ?? "");
+    // New flow: private files-row id (uploadKycDocument), required for OCR screening.
+    const [ktpFileId, setKtpFileId] = useState<string | null>(account?.ktpFileId ?? null);
     const [statementUrl, setStatementUrl] = useState(account?.statementUrl ?? "");
     const [bankModal, setBankModal] = useState<BankModal>({
         bankName: account?.bankName ?? "",
@@ -132,6 +137,30 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
         []
     );
 
+    // KTP goes through the PRIVATE document path (same as seller KYC): stored
+    // non-public, served only via /api/files/[id] to the owner/admin, and
+    // eligible for the automatic OCR screening after submit. Never /api/upload
+    // (that path is public-read).
+    const handleKtpUpload = useCallback(async (file: File) => {
+        setError(null);
+        if (file.size > 8 * 1024 * 1024) {
+            setError(`Ukuran KTP maksimal 8 MB. File Anda: ${(file.size / 1024 / 1024).toFixed(1)} MB`);
+            return;
+        }
+        setIsUploadingKtp(true);
+        try {
+            const fd = new FormData();
+            fd.append("file", file);
+            fd.append("slot", "ktp");
+            const result = await uploadKycDocument(fd);
+            setKtpFileId(result.fileId);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Upload KTP gagal");
+        } finally {
+            setIsUploadingKtp(false);
+        }
+    }, []);
+
     // ── referral code helpers ──────────────────────────────────────────────
     function refreshCode() {
         const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -146,9 +175,10 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
     // ── validation ─────────────────────────────────────────────────────────
     function validate() {
         const errs: Record<string, string> = {};
-        if (!ktpUrl) errs.ktp = "Foto KTP wajib diupload";
+        if (!ktpFileId && !ktpUrl) errs.ktp = "Foto KTP wajib diupload";
         if (!fullName.trim()) errs.fullName = "Nama lengkap wajib diisi";
         if (!nik.trim()) errs.nik = "Nomor KTP wajib diisi";
+        else if (nik.replace(/\D/g, "").length !== 16) errs.nik = "NIK harus 16 digit angka";
         if (!phone.trim()) errs.phone = "Nomor handphone wajib diisi";
         if (!referralCode || referralCode.length < 5) errs.referralCode = "Minimal 5 karakter";
         if (!/^[a-z0-9]+$/i.test(referralCode)) errs.referralCode = "Hanya huruf dan angka";
@@ -172,7 +202,8 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
                     nik: nik.trim(),
                     phone: `+62${phone.trim()}`,
                     instagramHandle: instagram.trim() || undefined,
-                    ktpUrl,
+                    ktpUrl: ktpUrl || undefined,
+                    ktpFileId: ktpFileId || undefined,
                     statementUrl: statementUrl || undefined,
                     bankName: bankModal.bankName,
                     bankAccountNumber: bankModal.bankAccountNumber,
@@ -251,7 +282,8 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
                                 onChange={(e) => {
                                     const f = e.target.files?.[0];
                                     if (!f) return;
-                                    handleFileUpload(f, "ktp", setKtpUrl, setIsUploadingKtp);
+                                    handleKtpUpload(f);
+                                    e.target.value = "";
                                 }}
                             />
                             <button
@@ -261,11 +293,13 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
                                 className="inline-flex items-center gap-2 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-black/20 hover:bg-slate-50 disabled:opacity-60"
                             >
                                 {isUploadingKtp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                                {ktpUrl ? "Ganti File" : "Choose File"}
+                                {ktpFileId || ktpUrl ? "Ganti File" : "Choose File"}
                             </button>
-                            <span className="text-sm text-slate-500">{ktpUrl ? "✓ KTP terupload" : "No file chosen"}</span>
+                            <span className="text-sm text-slate-500">{ktpFileId || ktpUrl ? "✓ KTP terupload" : "No file chosen"}</span>
                         </div>
-                        <p className="mt-1 text-xs text-brand-primary">Upload foto KTP untuk ekstraksi NIK dan nama otomatis (wajib)</p>
+                        <p className="mt-1 text-xs text-brand-primary">
+                            Wajib. Foto KTP disimpan privat &amp; hanya diakses petugas review. NIK pada kartu akan dicocokkan otomatis (OCR) dengan NIK yang Anda ketik setelah pengajuan dikirim.
+                        </p>
                         {fieldErrors.ktp && <p className="mt-1 text-xs text-amber-600 flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{fieldErrors.ktp}</p>}
                     </div>
 
@@ -276,12 +310,12 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
                         </label>
                         <input
                             type="text"
-                            placeholder={ktpUrl ? "Isi nama sesuai KTP" : "Akan diisi otomatis setelah upload KTP"}
+                            placeholder="Isi nama sesuai KTP"
                             value={fullName}
                             onChange={(e) => setFullName(e.target.value)}
                             className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-sm"
                         />
-                        {!ktpUrl && (
+                        {!ktpFileId && !ktpUrl && (
                             <p className="mt-1 text-xs text-amber-600 flex items-center gap-1">
                                 <AlertTriangle className="w-3 h-3" /> Upload foto KTP terlebih dahulu
                             </p>
@@ -298,7 +332,7 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
                             type="text"
                             inputMode="numeric"
                             maxLength={16}
-                            placeholder={ktpUrl ? "Masukkan 16 digit NIK" : "Akan diisi otomatis setelah upload KTP"}
+                            placeholder="Masukkan 16 digit NIK"
                             value={nik}
                             onChange={(e) => setNik(e.target.value.replace(/\D/g, ""))}
                             className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-sm"

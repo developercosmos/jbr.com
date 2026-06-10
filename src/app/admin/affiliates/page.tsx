@@ -1,4 +1,5 @@
 import { listAffiliatesForAdmin } from "@/actions/affiliate";
+import { isOcrConfigured } from "@/lib/kyc-ocr";
 import AffiliatesAdminClient from "./AffiliatesAdminClient";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +17,11 @@ export default async function AdminAffiliatesPage() {
         reviewedAt: a.reviewed_at?.toISOString() ?? null,
         userName: a.user?.name ?? null,
         userEmail: a.user?.email ?? null,
+        fullName: a.full_name,
+        nik: a.nik,
+        ktpFileId: a.ktp_file_id,
+        ktpUrl: a.ktp_url,
+        ocr: a.ocr,
     }));
 
     return (
@@ -30,7 +36,7 @@ export default async function AdminAffiliatesPage() {
                         payout untuk komisi yang sudah CLEARED.
                     </p>
                 </div>
-                <AffiliatesAdminClient initial={serialized} />
+                <AffiliatesAdminClient initial={serialized} ocrConfigured={isOcrConfigured()} />
             </div>
         </div>
     );

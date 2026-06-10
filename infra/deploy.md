@@ -154,6 +154,7 @@ Pre-screens KYC KTP images via a local OpenAI-compatible LLM (e.g. llama.cpp + G
   - **Cron**: `*/5 * * * * /usr/bin/flock -n /tmp/jbr-kyc-ocr.lock /var/www/jbr/scripts/jbr-kyc-ocr.sh`
   - **Log**: `/var/www/jbr/logs/kyc-ocr.log`
 - The admin KYC page also has a manual "Jalankan OCR / Jalankan ulang" button (re-runs + old submissions).
+- Affiliate enrollments use the same pipeline behind their own flag `affiliate.ocr` (env override `FEATURE_AFFILIATE_OCR`); the same cron route sweeps both queues and the admin Affiliates page has its own manual-run button.
 - The LLM endpoint must be reachable from the app server (verify: `curl http://<llm-host>/v1/models`).
 
 ### E2E Smoke Test (regression detector)
