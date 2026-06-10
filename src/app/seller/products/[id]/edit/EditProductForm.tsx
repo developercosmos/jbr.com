@@ -106,6 +106,13 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
     const [tierFloorDefault, setTierFloorDefault] = useState(product.tiered_floor_price?.default ? String(Math.round(product.tiered_floor_price.default)) : "");
     const [tierFloorHighTrust, setTierFloorHighTrust] = useState(product.tiered_floor_price?.high_trust ? String(Math.round(product.tiered_floor_price.high_trust)) : "");
     const [tierFloorPlatinum, setTierFloorPlatinum] = useState(product.tiered_floor_price?.platinum_buyer ? String(Math.round(product.tiered_floor_price.platinum_buyer)) : "");
+    // Collapsed by default; auto-expand bila produk sudah punya nilai tier.
+    const [showTierFloors, setShowTierFloors] = useState(
+        Boolean(
+            product.tiered_floor_price &&
+            (product.tiered_floor_price.default || product.tiered_floor_price.high_trust || product.tiered_floor_price.platinum_buyer)
+        )
+    );
     const [images, setImages] = useState<string[]>(product.images ?? []);
     const [uploading, setUploading] = useState(false);
     // Racket specs + variants (parity with AddProductForm).
@@ -490,7 +497,16 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
                                     </div>
                                     <p className="text-xs text-slate-400 mt-2">Nilai ini tidak terlihat buyer dan dipakai untuk auto-counter.</p>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowTierFloors((v) => !v)}
+                                        className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-primary hover:underline"
+                                    >
+                                        <span className="inline-block w-3">{showTierFloors ? "\u25be" : "\u25b8"}</span>
+                                        Floor price per tier buyer (opsional)
+                                    </button>
+                                    {showTierFloors && (
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
                                         <div>
                                             <label className="block text-xs font-medium mb-1 text-slate-500">Default Tier</label>
                                             <input
@@ -522,6 +538,7 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
                                             />
                                         </div>
                                     </div>
+                                    )}
                                 </div>
                             )}
                         </div>

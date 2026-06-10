@@ -69,6 +69,8 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
     const [tierFloorDefault, setTierFloorDefault] = useState("");
     const [tierFloorHighTrust, setTierFloorHighTrust] = useState("");
     const [tierFloorPlatinum, setTierFloorPlatinum] = useState("");
+    // Tier floors jarang dipakai - collapsed by default agar form ringkas.
+    const [showTierFloors, setShowTierFloors] = useState(false);
     const [images, setImages] = useState<string[]>([]);
 
     // Dimensions
@@ -597,7 +599,16 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                                         Nilai ini tidak ditampilkan ke buyer. Jika offer di bawah nilai ini, sistem bisa kirim auto-counter.
                                     </p>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowTierFloors((v) => !v)}
+                                        className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-primary hover:underline"
+                                    >
+                                        <span className="inline-block w-3">{showTierFloors ? "\u25be" : "\u25b8"}</span>
+                                        Floor price per tier buyer (opsional)
+                                    </button>
+                                    {showTierFloors && (
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
                                         <div>
                                             <label className="block text-xs font-medium mb-1 text-slate-500">Default Tier</label>
                                             <input
@@ -629,6 +640,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                                             />
                                         </div>
                                     </div>
+                                    )}
                                 </div>
                             )}
                         </div>
