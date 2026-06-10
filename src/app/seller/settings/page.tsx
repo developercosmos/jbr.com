@@ -77,8 +77,9 @@ export default async function SellerSettingsPage({ searchParams }: PageProps) {
                                     ? "Sebagai akun perusahaan, Anda WAJIB melengkapi verifikasi T2 (dokumen bisnis) sebelum menerbitkan produk \u2014 lihat bagian KYC di bawah. "
                                     : "Tanpa KYC Anda sudah bisa berjualan; "}untuk membuka limit lebih besar dan
                                 lencana ✓ Seller Terverifikasi (tampil ke pembeli, menambah kepercayaan),
-                                ajukan KYC tier 1 (KTP + selfie) atau tier 2 (+ dokumen bisnis) di bagian
-                                bawah halaman ini.
+                                {(sellerProfile.account_type ?? "PERSONAL") === "COMPANY"
+                                    ? " lengkapi verifikasi T2 (KTP penanggung jawab + selfie + dokumen bisnis)"
+                                    : " ajukan KYC T1 (KTP + selfie)"} di bagian bawah halaman ini.
                             </p>
                         </div>
                     </div>

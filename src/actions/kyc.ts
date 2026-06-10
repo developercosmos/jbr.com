@@ -337,11 +337,25 @@ export async function submitSellerKycApplication(input: z.infer<typeof submitSel
             id: true,
             store_name: true,
             store_slug: true,
+            account_type: true,
         },
     });
 
     if (!seller?.store_name || !seller.store_slug) {
         throw new Error("Aktifkan toko sebelum mengajukan KYC.");
+    }
+
+    // Jalur tier mengikuti tipe akun registrasi: T2 eksklusif akun Perusahaan,
+    // akun pribadi hanya T1 (registrasi bisnis sudah dipisahkan).
+    const isCompanyAccount = (seller.account_type ?? "PERSONAL") === "COMPANY";
+    if (isCompanyAccount && validated.targetTier !== "T2") {
+        throw new Error("Akun perusahaan hanya dapat mengajukan verifikasi T2.");
+    }
+    if (!isCompanyAccount && validated.targetTier !== "T1") {
+        throw new Error(
+            "Akun pribadi hanya dapat mengajukan verifikasi T1. Verifikasi T2 khusus akun Perusahaan \u2014 " +
+            "daftarkan akun baru sebagai Perusahaan bila Anda berjualan atas nama bisnis (PT/CV)."
+        );
     }
 
     const fileIds = [validated.ktpFileId, validated.selfieFileId, validated.businessDocFileId].filter(Boolean) as string[];

@@ -229,11 +229,11 @@ export default function KycSection({ profile, currentTier, gmv, t0Gates, account
                         Tier yang Diajukan
                     </label>
                     <div className="flex gap-3">
-                        {(["T1", "T2"] as const).map((tier) => (
+                        {(isCompany ? (["T2"] as const) : (["T1"] as const)).map((tier) => (
                             <button
                                 key={tier}
                                 type="button"
-                                disabled={isLocked || (isCompany && tier === "T1")}
+                                disabled={isLocked}
                                 onClick={() => setTargetTier(tier)}
                                 className={`flex-1 px-4 py-3 rounded-lg border text-sm font-semibold transition ${
                                     targetTier === tier
@@ -277,7 +277,9 @@ export default function KycSection({ profile, currentTier, gmv, t0Gates, account
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {(Object.keys(slotMeta) as SlotKey[]).map((slot) => {
+                    {(Object.keys(slotMeta) as SlotKey[])
+                        .filter((slot) => slot !== "business" || isCompany)
+                        .map((slot) => {
                         const stored = fileIds[slot];
                         const required = slot === "business" ? targetTier === "T2" : true;
                         const meta = slotMeta[slot];
