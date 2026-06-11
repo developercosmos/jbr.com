@@ -11,6 +11,7 @@ import {
 import { updateProduct, publishProduct, archiveProduct } from "@/actions/products";
 import TierUpgradeModal, { isTierUpgradeError } from "@/components/seller/TierUpgradeModal";
 import FormErrorModal from "@/components/seller/FormErrorModal";
+import ProductVideoUpload from "@/components/seller/ProductVideoUpload";
 import { conditionGuidance } from "@/lib/condition-guidance";
 import VariantMatrixEditor, { type ComboVariant } from "@/components/seller/VariantMatrixEditor";
 
@@ -60,6 +61,7 @@ interface EditProductFormProps {
     product: ProductData;
     categories: Category[];
     brands: string[];
+    videoLimits: { maxMb: number; maxSeconds: number };
 }
 
 const CONDITION_CHECKLIST_ITEMS = [
@@ -79,7 +81,7 @@ function toAmountInput(value: string | null | undefined): string {
     return Number.isFinite(n) ? String(n) : "";
 }
 
-export function EditProductForm({ product, categories, brands }: EditProductFormProps) {
+export function EditProductForm({ product, categories, brands, videoLimits }: EditProductFormProps) {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -114,6 +116,7 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
             (product.tiered_floor_price.default || product.tiered_floor_price.high_trust || product.tiered_floor_price.platinum_buyer)
         )
     );
+    const [videoUrl, setVideoUrl] = useState<string>((product as { video_url?: string | null }).video_url ?? "");
     const [images, setImages] = useState<string[]>(product.images ?? []);
     const [uploading, setUploading] = useState(false);
     // Racket specs + variants (parity with AddProductForm).
@@ -264,6 +267,7 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
                 category_id: categoryId || undefined,
                 bargain_enabled: bargainEnabled,
                 floor_price: bargainEnabled && floorPrice ? parseFloat(floorPrice) : undefined,
+                video_url: videoUrl || null,
                 tiered_floor_price: bargainEnabled
                     ? {
                         default: tierFloorDefault ? parseFloat(tierFloorDefault) : undefined,
@@ -407,6 +411,13 @@ export function EditProductForm({ product, categories, brands }: EditProductForm
                             </div>
                         )}
                     </section>
+
+                    <ProductVideoUpload
+                        videoUrl={videoUrl}
+                        onChange={setVideoUrl}
+                        maxMb={videoLimits.maxMb}
+                        maxSeconds={videoLimits.maxSeconds}
+                    />
 
                     {/* Informasi Produk */}
                     <section className="bg-white dark:bg-surface-dark rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">

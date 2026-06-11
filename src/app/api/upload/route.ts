@@ -44,13 +44,32 @@ export async function POST(request: NextRequest) {
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
 
+        // Product videos get their own (configurable) size budget and must be video/*.
+        let maxBytesOverride: number | undefined;
+        if (folder === "product-videos") {
+            if (!file.type.startsWith("video/")) {
+                return NextResponse.json({ error: "Folder product-videos hanya menerima file video." }, { status: 400 });
+            }
+            const { getProductVideoLimits } = await import("@/actions/products");
+            const limits = await getProductVideoLimits();
+            maxBytesOverride = limits.maxMb * 1024 * 1024;
+            if (buffer.length > maxBytesOverride) {
+                return NextResponse.json(
+                    { error: `Ukuran video maksimal ${limits.maxMb} MB.` },
+                    { status: 400 }
+                );
+            }
+        }
+
         // Upload file
         const result = await uploadFile(
             folder,
             file.name,
             buffer,
             file.type,
-            session.user.id
+            session.user.id,
+            true,
+            maxBytesOverride
         );
 
         // Atomically persist to the seller's profile when requested.

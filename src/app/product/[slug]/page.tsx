@@ -122,6 +122,21 @@ export default async function ProductPage({ params }: ProductPageProps) {
                                   : "Pre-loved"
                         }
                     />
+
+                    {product.video_url && (
+                        <div className="mt-4">
+                            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-2">
+                                Video Produk
+                            </h2>
+                            <video
+                                src={product.video_url}
+                                controls
+                                preload="metadata"
+                                playsInline
+                                className="w-full rounded-2xl bg-black"
+                            />
+                        </div>
+                    )}
                 </div>
 
                 {/* Right Side: Details & Actions */}

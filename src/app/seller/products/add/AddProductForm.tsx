@@ -9,6 +9,7 @@ import { Upload } from "lucide-react";
 import { createProduct, publishProduct } from "@/actions/products";
 import TierUpgradeModal, { isTierUpgradeError } from "@/components/seller/TierUpgradeModal";
 import FormErrorModal from "@/components/seller/FormErrorModal";
+import ProductVideoUpload from "@/components/seller/ProductVideoUpload";
 import { conditionGuidance } from "@/lib/condition-guidance";
 import VariantMatrixEditor, { type ComboVariant } from "@/components/seller/VariantMatrixEditor";
 
@@ -22,6 +23,7 @@ interface AddProductFormProps {
     categories: Category[];
     brands: string[];
     hasPickupAddress: boolean;
+    videoLimits: { maxMb: number; maxSeconds: number };
 }
 
 const CONDITION_CHECKLIST_ITEMS = [
@@ -32,7 +34,7 @@ const CONDITION_CHECKLIST_ITEMS = [
     "Foto sesuai kondisi aktual",
 ];
 
-export function AddProductForm({ categories, brands, hasPickupAddress }: AddProductFormProps) {
+export function AddProductForm({ categories, brands, hasPickupAddress, videoLimits }: AddProductFormProps) {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -72,6 +74,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
     const [tierFloorPlatinum, setTierFloorPlatinum] = useState("");
     // Tier floors jarang dipakai - collapsed by default agar form ringkas.
     const [showTierFloors, setShowTierFloors] = useState(false);
+    const [videoUrl, setVideoUrl] = useState("");
     const [images, setImages] = useState<string[]>([]);
 
     // Dimensions
@@ -258,6 +261,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                 category_id: categoryId || undefined,
                 bargain_enabled: bargainEnabled,
                 floor_price: bargainEnabled && floorPrice ? parseFloat(floorPrice) : undefined,
+                video_url: videoUrl || undefined,
                 tiered_floor_price: bargainEnabled
                     ? {
                         default: tierFloorDefault ? parseFloat(tierFloorDefault) : undefined,
@@ -425,6 +429,13 @@ export function AddProductForm({ categories, brands, hasPickupAddress }: AddProd
                             </div>
                         )}
                     </section>
+
+                    <ProductVideoUpload
+                        videoUrl={videoUrl}
+                        onChange={setVideoUrl}
+                        maxMb={videoLimits.maxMb}
+                        maxSeconds={videoLimits.maxSeconds}
+                    />
 
                     {/* 2. Product Information */}
                     <section className="bg-white dark:bg-surface-dark rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">

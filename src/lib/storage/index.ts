@@ -24,17 +24,19 @@ export async function uploadFile(
     body: Buffer | Uint8Array,
     contentType: string,
     userId?: string,
-    isPublic: boolean = true
+    isPublic: boolean = true,
+    maxBytes?: number
 ): Promise<UploadResult> {
     // Validate file type
     if (!storageConfig.allowedMimeTypes.includes(contentType)) {
         throw new Error(`File type not allowed: ${contentType}`);
     }
 
-    // Validate file size
-    if (body.length > storageConfig.maxFileSize) {
+    // Validate file size (callers like product videos may pass a larger budget)
+    const sizeLimit = maxBytes ?? storageConfig.maxFileSize;
+    if (body.length > sizeLimit) {
         throw new Error(
-            `File too large. Maximum size is ${storageConfig.maxFileSize / 1024 / 1024}MB`
+            `File too large. Maximum size is ${Math.round(sizeLimit / 1024 / 1024)}MB`
         );
     }
 

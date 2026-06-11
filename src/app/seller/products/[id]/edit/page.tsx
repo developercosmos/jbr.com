@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getSellerProfileByUserId } from "@/actions/seller";
 import { canAccessSellerCenter } from "@/lib/seller";
-import { getSellerProductById, getBrands } from "@/actions/products";
+import { getSellerProductById, getBrands, getProductVideoLimits } from "@/actions/products";
 import { getCategories } from "@/actions/categories";
 import { EditProductForm } from "./EditProductForm";
 
@@ -77,6 +77,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
             }}
             categories={categories}
             brands={brands}
+            videoLimits={await getProductVideoLimits()}
         />
     );
 }

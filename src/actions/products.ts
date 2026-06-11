@@ -40,6 +40,7 @@ const createProductSchema = z.object({
     description: z.string().optional(),
     brand: z.string().optional(),
     gender: z.enum(["UNISEX", "MEN", "WOMEN"]).default("UNISEX"),
+    video_url: z.string().max(512).optional().nullable(),
     price: z.number().positive(),
     condition: z.enum(["NEW", "PRELOVED"]),
     condition_rating: z.number().min(1).max(10).optional(),
@@ -177,6 +178,19 @@ async function syncProductToIndex(productId: string, op: "upsert" | "delete") {
     } catch {
         // Sync errors are non-fatal — the nightly reconcile will fix drift.
     }
+}
+
+/** Batas video produk (configurable: product.video_max_mb / product.video_max_seconds). */
+export async function getProductVideoLimits(): Promise<{ maxMb: number; maxSeconds: number }> {
+    const { getSetting } = await import("@/actions/accounting/settings");
+    const [maxMb, maxSeconds] = await Promise.all([
+        getSetting<number>("product.video_max_mb", { defaultValue: 25 }),
+        getSetting<number>("product.video_max_seconds", { defaultValue: 60 }),
+    ]);
+    return {
+        maxMb: Number(maxMb ?? 25) || 25,
+        maxSeconds: Number(maxSeconds ?? 60) || 60,
+    };
 }
 
 export async function createProduct(input: z.infer<typeof createProductSchema>) {

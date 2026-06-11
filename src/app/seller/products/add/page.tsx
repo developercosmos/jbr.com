@@ -1,6 +1,6 @@
 import { getCategories } from "@/actions/categories";
 import { getUserAddresses } from "@/actions/address";
-import { getBrands } from "@/actions/products";
+import { getBrands, getProductVideoLimits } from "@/actions/products";
 import { getSellerProfileByUserId } from "@/actions/seller";
 import { canAccessSellerCenter } from "@/lib/seller";
 import { auth } from "@/lib/auth";
@@ -60,6 +60,7 @@ export default async function AddProductPage() {
             categories={categories}
             brands={brands}
             hasPickupAddress={hasPickupAddress}
+            videoLimits={await getProductVideoLimits()}
         />
     );
 }

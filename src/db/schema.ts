@@ -408,6 +408,8 @@ export const products = pgTable(
         // to the seller on the edit page. Null when not moderated.
         moderation_reason: text("moderation_reason"),
         images: jsonb("images").$type<string[]>().default([]),
+        // Video produk opsional (URL publik; batas via accounting_settings).
+        video_url: text("video_url"),
         bargain_enabled: boolean("bargain_enabled").default(false).notNull(),
         min_acceptable_price: decimal("min_acceptable_price", { precision: 12, scale: 2 }),
         max_offer_rounds: integer("max_offer_rounds").default(3).notNull(),
