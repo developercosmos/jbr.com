@@ -29,6 +29,58 @@ function readVideoDuration(file: File): Promise<number> {
     });
 }
 
+/**
+ * Fallback duration probe for MP4/MOV (ISO BMFF): parses moov→mvhd straight from
+ * the file bytes. Works even when CSP blocks blob: media or the codec can't decode.
+ */
+async function readIsoBmffDuration(file: File): Promise<number | null> {
+    try {
+        const buf = new DataView(await file.arrayBuffer());
+        const len = buf.byteLength;
+        const boxType = (off: number) =>
+            String.fromCharCode(buf.getUint8(off), buf.getUint8(off + 1), buf.getUint8(off + 2), buf.getUint8(off + 3));
+        // Scan boxes in [start, end) for `want`; returns payload [start, end) or null.
+        const findBox = (start: number, end: number, want: string): [number, number] | null => {
+            let off = start;
+            while (off + 8 <= end) {
+                let size = buf.getUint32(off);
+                const name = boxType(off + 4);
+                let header = 8;
+                if (size === 1) {
+                    if (off + 16 > end) return null;
+                    size = buf.getUint32(off + 8) * 4294967296 + buf.getUint32(off + 12);
+                    header = 16;
+                } else if (size === 0) {
+                    size = end - off; // box extends to end of scope
+                }
+                if (size < header) return null;
+                if (name === want) return [off + header, Math.min(off + size, end)];
+                off += size;
+            }
+            return null;
+        };
+        const moov = findBox(0, len, "moov");
+        if (!moov) return null;
+        const mvhd = findBox(moov[0], moov[1], "mvhd");
+        if (!mvhd) return null;
+        const version = buf.getUint8(mvhd[0]);
+        let timescale: number;
+        let duration: number;
+        if (version === 1) {
+            timescale = buf.getUint32(mvhd[0] + 20);
+            duration = buf.getUint32(mvhd[0] + 24) * 4294967296 + buf.getUint32(mvhd[0] + 28);
+        } else {
+            timescale = buf.getUint32(mvhd[0] + 12);
+            duration = buf.getUint32(mvhd[0] + 16);
+            if (duration === 0xffffffff) return null; // unknown per spec
+        }
+        if (!timescale || !Number.isFinite(duration)) return null;
+        return duration / timescale;
+    } catch {
+        return null;
+    }
+}
+
 export default function ProductVideoUpload({ videoUrl, onChange, maxMb, maxSeconds }: Props) {
     const inputRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
@@ -45,14 +97,17 @@ export default function ProductVideoUpload({ videoUrl, onChange, maxMb, maxSecon
             setError(`Ukuran video maksimal ${maxMb} MB. File Anda: ${(file.size / 1024 / 1024).toFixed(1)} MB.`);
             return;
         }
+        // Duration check: <video> metadata first, then byte-level MP4/MOV parse
+        // (CSP/codec-immune). If neither can read it, proceed — server still
+        // enforces the size cap, which bounds duration in practice.
+        let duration: number | null = null;
         try {
-            const duration = await readVideoDuration(file);
-            if (Number.isFinite(duration) && duration > maxSeconds) {
-                setError(`Durasi video maksimal ${maxSeconds} detik. Video Anda: ${Math.round(duration)} detik.`);
-                return;
-            }
+            duration = await readVideoDuration(file);
         } catch {
-            setError("File video tidak dapat dibaca — coba format MP4.");
+            duration = await readIsoBmffDuration(file);
+        }
+        if (duration != null && Number.isFinite(duration) && duration > maxSeconds) {
+            setError(`Durasi video maksimal ${maxSeconds} detik. Video Anda: ${Math.round(duration)} detik.`);
             return;
         }
 
