@@ -184,11 +184,11 @@ async function syncProductToIndex(productId: string, op: "upsert" | "delete") {
 export async function getProductVideoLimits(): Promise<{ maxMb: number; maxSeconds: number }> {
     const { getSetting } = await import("@/actions/accounting/settings");
     const [maxMb, maxSeconds] = await Promise.all([
-        getSetting<number>("product.video_max_mb", { defaultValue: 25 }),
+        getSetting<number>("product.video_max_mb", { defaultValue: 10 }),
         getSetting<number>("product.video_max_seconds", { defaultValue: 60 }),
     ]);
     return {
-        maxMb: Number(maxMb ?? 25) || 25,
+        maxMb: Number(maxMb ?? 10) || 10,
         maxSeconds: Number(maxSeconds ?? 60) || 60,
     };
 }
