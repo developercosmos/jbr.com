@@ -258,7 +258,9 @@ export async function createProduct(input: z.infer<typeof createProductSchema>) 
         revalidatePath("/seller/products");
         return { success: true as const, product };
     } catch (err) {
-        const message = err instanceof Error ? err.message : "Gagal menyimpan produk";
+        const message =
+            err instanceof Error && err.message.trim() ? err.message : "Gagal menyimpan produk";
+        logger.warn("product:create_failed", { error: message });
         return { success: false as const, error: message };
     }
 }
@@ -365,9 +367,10 @@ export async function updateProduct(input: z.infer<typeof updateProductSchema>) 
         const message =
             err instanceof z.ZodError
                 ? err.issues[0]?.message ?? "Data produk tidak valid"
-                : err instanceof Error
+                : err instanceof Error && err.message.trim()
                     ? err.message
                     : "Gagal menyimpan perubahan";
+        logger.warn("product:update_failed", { productId: input?.id, error: message });
         return { success: false as const, error: message };
     }
 }
