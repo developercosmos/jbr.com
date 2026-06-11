@@ -48,7 +48,11 @@ export default function DeleteProductButton({
     const onReactivate = () => {
         start(async () => {
             try {
-                await publishProduct(productId);
+                const result = await publishProduct(productId);
+                if (!result.success) {
+                    alert(result.error || "Gagal mengaktifkan produk.");
+                    return;
+                }
                 router.refresh();
             } catch (e) {
                 alert(e instanceof Error ? e.message : "Gagal mengaktifkan produk.");

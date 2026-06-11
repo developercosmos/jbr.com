@@ -277,7 +277,7 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
                     : undefined,
             });
             if (!result.success) {
-                setError("Gagal menyimpan perubahan.");
+                failSubmit(result.error || "Gagal menyimpan perubahan.");
                 return;
             }
             setSuccess("Produk berhasil diperbarui!");
@@ -293,7 +293,11 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
         setError("");
         setLoading(true);
         try {
-            await publishProduct(product.id);
+            const result = await publishProduct(product.id);
+            if (!result.success) {
+                failSubmit(result.error || "Gagal mempublikasikan produk.");
+                return;
+            }
             setSuccess("Produk berhasil dipublikasikan!");
             setTimeout(() => { router.push("/seller/products"); router.refresh(); }, 1000);
         } catch (err) {
@@ -308,7 +312,11 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
         setError("");
         setLoading(true);
         try {
-            await archiveProduct(product.id);
+            const result = await archiveProduct(product.id);
+            if (!result.success) {
+                setError(result.error || "Gagal mengarsipkan produk.");
+                return;
+            }
             setSuccess("Produk diarsipkan.");
             setTimeout(() => { router.push("/seller/products"); router.refresh(); }, 1000);
         } catch (err) {

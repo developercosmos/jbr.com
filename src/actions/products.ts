@@ -263,7 +263,7 @@ export async function createProduct(input: z.infer<typeof createProductSchema>) 
     }
 }
 
-export async function updateProduct(input: z.infer<typeof updateProductSchema>) {
+async function updateProductInternal(input: z.infer<typeof updateProductSchema>) {
     const user = await getCurrentUser();
     const validated = updateProductSchema.parse(input);
 
@@ -350,7 +350,26 @@ export async function updateProduct(input: z.infer<typeof updateProductSchema>) 
     revalidatePath("/seller/products");
     revalidatePath(`/product/${product.slug}`);
     void syncProductToIndex(product.id, "upsert");
-    return { success: true, product };
+    return { success: true as const, product };
+}
+
+/**
+ * Errors are RETURNED, not thrown: thrown server-action errors get masked by
+ * Next.js in production ("An error occurred in the Server Components render"),
+ * which hid the T0 price-gate message from sellers on the edit form.
+ */
+export async function updateProduct(input: z.infer<typeof updateProductSchema>) {
+    try {
+        return await updateProductInternal(input);
+    } catch (err) {
+        const message =
+            err instanceof z.ZodError
+                ? err.issues[0]?.message ?? "Data produk tidak valid"
+                : err instanceof Error
+                    ? err.message
+                    : "Gagal menyimpan perubahan";
+        return { success: false as const, error: message };
+    }
 }
 
 export async function deleteProduct(productId: string) {

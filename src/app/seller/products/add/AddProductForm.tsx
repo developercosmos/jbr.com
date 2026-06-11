@@ -278,7 +278,11 @@ export function AddProductForm({ categories, brands, hasPickupAddress, videoLimi
             }
 
             if (!asDraft && result.product?.id) {
-                await publishProduct(result.product.id);
+                const pub = await publishProduct(result.product.id);
+                if (!pub.success) {
+                    failSubmit(pub.error || "Produk tersimpan sebagai draft, tetapi gagal dipublikasikan.");
+                    return;
+                }
                 setSuccess("Produk berhasil dipublikasikan!");
             } else {
                 setSuccess("Draft berhasil disimpan!");
