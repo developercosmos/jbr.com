@@ -117,11 +117,9 @@ function validatePrelovedChecklist(input: { condition: "NEW" | "PRELOVED"; check
         return { checklist: [], requiresModeration: false, moderationReason: null };
     }
 
+    // Checklist bersifat OPSIONAL — boleh kosong. Saat diisi dan ada penanda
+    // kerusakan struktural, produk tetap masuk moderasi demi keamanan pembeli.
     const checklist = normalizeChecklist(input.checklist);
-    if (checklist.length < 3) {
-        throw new Error("Produk pre-loved wajib mengisi minimal 3 item condition checklist.");
-    }
-
     const riskItems = checklist.filter((item) => /retak|struktural|patah/i.test(item));
     const hasRiskMarker = riskItems.length > 0;
     return {

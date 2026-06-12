@@ -632,7 +632,7 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
                                 <p className="mt-3 text-xs text-slate-500 leading-relaxed">{conditionGuidance(conditionRating)}</p>
 
                                 <div className="mt-5 space-y-2">
-                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Verified Condition Checklist</p>
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Verified Condition Checklist <span className="normal-case font-normal">(Opsional)</span></p>
                                     <div className="flex flex-wrap gap-2">
                                         {CONDITION_CHECKLIST_ITEMS.map((item) => {
                                             const active = conditionChecklist.includes(item);
@@ -750,22 +750,36 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
                             </div>
                         )}
 
-                        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700 shadow-lg">
-                            <h4 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
-                                <Info className="w-5 h-5 text-brand-primary" />Seller Tips
+                        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700 shadow-lg relative overflow-hidden">
+                            <div className="absolute -top-10 -right-10 w-32 h-32 bg-brand-primary/10 rounded-full blur-2xl"></div>
+                            <div className="relative z-10">
+                            <h4 className="text-white font-bold text-lg mb-4 flex items-center gap-2.5">
+                                <span className="w-8 h-8 rounded-lg bg-brand-primary/20 flex items-center justify-center shrink-0">
+                                    <Info className="w-4 h-4 text-brand-primary" />
+                                </span>
+                                Seller Tips
                             </h4>
-                            <ul className="space-y-3">
-                                {[
-                                    "Foto berkualitas tinggi meningkatkan konversi 3x.",
-                                    "Deskripsi jujur tentang defect mencegah retur.",
-                                    "Harga kompetitif = listing terjual lebih cepat.",
-                                ].map((tip) => (
-                                    <li key={tip} className="flex gap-3 text-sm text-slate-400">
-                                        <CheckCircle className="w-4 h-4 text-brand-primary shrink-0 mt-0.5" />
-                                        <span>{tip}</span>
-                                    </li>
-                                ))}
+                            <ul className="space-y-2.5">
+                                <li className="flex items-start gap-3 rounded-lg bg-white/5 px-3 py-2.5">
+                                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                                    <span className="text-sm leading-relaxed text-slate-200">
+                                        Foto berkualitas tinggi <span className="font-semibold text-white">meningkatkan konversi 3×</span>.
+                                    </span>
+                                </li>
+                                <li className="flex items-start gap-3 rounded-lg bg-white/5 px-3 py-2.5">
+                                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                                    <span className="text-sm leading-relaxed text-slate-200">
+                                        Deskripsi jujur tentang defect <span className="font-semibold text-white">mencegah retur</span>.
+                                    </span>
+                                </li>
+                                <li className="flex items-start gap-3 rounded-lg bg-white/5 px-3 py-2.5">
+                                    <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                                    <span className="text-sm leading-relaxed text-slate-200">
+                                        Harga kompetitif = <span className="font-semibold text-white">listing terjual lebih cepat</span>.
+                                    </span>
+                                </li>
                             </ul>
+                            </div>
                         </div>
 
                         <div className="bg-white dark:bg-surface-dark rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">
