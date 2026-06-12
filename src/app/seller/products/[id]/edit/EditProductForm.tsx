@@ -38,6 +38,7 @@ interface ProductData {
     tiered_floor_price: Record<string, number> | null;
     category_id: string | null;
     images: string[];
+    video_url?: string | null;
     status: "DRAFT" | "PUBLISHED" | "ARCHIVED" | "MODERATED";
     moderation_reason?: string | null;
     weight_class: string | null;
@@ -116,7 +117,7 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
             (product.tiered_floor_price.default || product.tiered_floor_price.high_trust || product.tiered_floor_price.platinum_buyer)
         )
     );
-    const [videoUrl, setVideoUrl] = useState<string>((product as { video_url?: string | null }).video_url ?? "");
+    const [videoUrl, setVideoUrl] = useState<string>(product.video_url ?? "");
     const [images, setImages] = useState<string[]>(product.images ?? []);
     const [uploading, setUploading] = useState(false);
     // Racket specs + variants (parity with AddProductForm).
