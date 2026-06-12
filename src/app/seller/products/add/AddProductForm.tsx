@@ -75,6 +75,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress, videoLimi
     // Tier floors jarang dipakai - collapsed by default agar form ringkas.
     const [showTierFloors, setShowTierFloors] = useState(false);
     const [videoUrl, setVideoUrl] = useState("");
+    const [videoPosition, setVideoPosition] = useState(0);
     const [images, setImages] = useState<string[]>([]);
 
     // Dimensions
@@ -164,6 +165,17 @@ export function AddProductForm({ categories, brands, hasPickupAddress, videoLimi
 
     const removeImage = (index: number) => {
         setImages((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    // Swap with the neighbor — foto pertama menjadi foto UTAMA.
+    const moveImage = (index: number, delta: number) => {
+        setImages((prev) => {
+            const target = index + delta;
+            if (target < 0 || target >= prev.length) return prev;
+            const next = [...prev];
+            [next[index], next[target]] = [next[target], next[index]];
+            return next;
+        });
     };
 
     const toggleConditionChecklist = (item: string) => {
@@ -262,6 +274,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress, videoLimi
                 bargain_enabled: bargainEnabled,
                 floor_price: bargainEnabled && floorPrice ? parseFloat(floorPrice) : undefined,
                 video_url: videoUrl || undefined,
+                video_position: videoPosition,
                 tiered_floor_price: bargainEnabled
                     ? {
                         default: tierFloorDefault ? parseFloat(tierFloorDefault) : undefined,
@@ -408,6 +421,28 @@ export function AddProductForm({ categories, brands, hasPickupAddress, videoLimi
                                                 <X className="w-3 h-3" />
                                             </button>
                                         </div>
+                                        <div className="absolute bottom-1 right-1 z-10 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                            {index > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => moveImage(index, -1)}
+                                                    aria-label="Geser ke kiri"
+                                                    className="bg-black/60 text-white rounded size-5 flex items-center justify-center hover:bg-black/80 text-[11px] leading-none"
+                                                >
+                                                    ◀
+                                                </button>
+                                            )}
+                                            {index < images.length - 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => moveImage(index, 1)}
+                                                    aria-label="Geser ke kanan"
+                                                    className="bg-black/60 text-white rounded size-5 flex items-center justify-center hover:bg-black/80 text-[11px] leading-none"
+                                                >
+                                                    ▶
+                                                </button>
+                                            )}
+                                        </div>
                                         {index === 0 && (
                                             <div className="absolute bottom-1 left-1 z-10 bg-brand-primary text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
                                                 UTAMA
@@ -439,6 +474,9 @@ export function AddProductForm({ categories, brands, hasPickupAddress, videoLimi
                         onChange={setVideoUrl}
                         maxMb={videoLimits.maxMb}
                         maxSeconds={videoLimits.maxSeconds}
+                        position={videoPosition}
+                        onPositionChange={setVideoPosition}
+                        imageCount={images.length}
                     />
 
                     {/* 2. Product Information */}

@@ -39,6 +39,7 @@ interface ProductData {
     category_id: string | null;
     images: string[];
     video_url?: string | null;
+    video_position?: number | null;
     status: "DRAFT" | "PUBLISHED" | "ARCHIVED" | "MODERATED";
     moderation_reason?: string | null;
     weight_class: string | null;
@@ -118,6 +119,7 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
         )
     );
     const [videoUrl, setVideoUrl] = useState<string>(product.video_url ?? "");
+    const [videoPosition, setVideoPosition] = useState<number>(product.video_position ?? 0);
     const [images, setImages] = useState<string[]>(product.images ?? []);
     const [uploading, setUploading] = useState(false);
     // Racket specs + variants (parity with AddProductForm).
@@ -197,6 +199,17 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
 
     const removeImage = (index: number) => setImages((prev) => prev.filter((_, i) => i !== index));
 
+    // Swap with the neighbor — foto pertama menjadi foto UTAMA.
+    const moveImage = (index: number, delta: number) => {
+        setImages((prev) => {
+            const target = index + delta;
+            if (target < 0 || target >= prev.length) return prev;
+            const next = [...prev];
+            [next[index], next[target]] = [next[target], next[index]];
+            return next;
+        });
+    };
+
     const formatPrice = (value: string) => {
         const num = value.replace(/\D/g, "");
         return new Intl.NumberFormat("id-ID").format(parseInt(num) || 0);
@@ -269,6 +282,7 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
                 bargain_enabled: bargainEnabled,
                 floor_price: bargainEnabled && floorPrice ? parseFloat(floorPrice) : undefined,
                 video_url: videoUrl || null,
+                video_position: videoPosition,
                 tiered_floor_price: bargainEnabled
                     ? {
                         default: tierFloorDefault ? parseFloat(tierFloorDefault) : undefined,
@@ -402,6 +416,28 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
                                                 <X className="w-3 h-3" />
                                             </button>
                                         </div>
+                                        <div className="absolute bottom-1 right-1 z-10 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                            {index > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => moveImage(index, -1)}
+                                                    aria-label="Geser ke kiri"
+                                                    className="bg-black/60 text-white rounded size-5 flex items-center justify-center hover:bg-black/80 text-[11px] leading-none"
+                                                >
+                                                    ◀
+                                                </button>
+                                            )}
+                                            {index < images.length - 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => moveImage(index, 1)}
+                                                    aria-label="Geser ke kanan"
+                                                    className="bg-black/60 text-white rounded size-5 flex items-center justify-center hover:bg-black/80 text-[11px] leading-none"
+                                                >
+                                                    ▶
+                                                </button>
+                                            )}
+                                        </div>
                                         {index === 0 && <div className="absolute bottom-1 left-1 z-10 bg-brand-primary text-white text-[10px] px-1.5 py-0.5 rounded font-bold">UTAMA</div>}
                                         {/* unoptimized: just-uploaded local files choke the Next image
                                             optimizer (it can cache a miss for a freshly written file),
@@ -426,6 +462,9 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
                         onChange={setVideoUrl}
                         maxMb={videoLimits.maxMb}
                         maxSeconds={videoLimits.maxSeconds}
+                        position={videoPosition}
+                        onPositionChange={setVideoPosition}
+                        imageCount={images.length}
                     />
 
                     {/* Informasi Produk */}

@@ -9,6 +9,11 @@ interface Props {
     /** Configurable limits (accounting_settings: product.video_max_mb / product.video_max_seconds). */
     maxMb: number;
     maxSeconds: number;
+    /** Slide position of the video within the gallery (0 = first). */
+    position: number;
+    onPositionChange: (position: number) => void;
+    /** Current photo count — determines how many slide positions exist. */
+    imageCount: number;
 }
 
 /** Read the duration (seconds) of a local video file via metadata — no upload needed. */
@@ -111,7 +116,7 @@ function uploadWithProgress(file: File, onProgress: (pct: number) => void): Prom
     });
 }
 
-export default function ProductVideoUpload({ videoUrl, onChange, maxMb, maxSeconds }: Props) {
+export default function ProductVideoUpload({ videoUrl, onChange, maxMb, maxSeconds, position, onPositionChange, imageCount }: Props) {
     const inputRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
@@ -199,13 +204,29 @@ export default function ProductVideoUpload({ videoUrl, onChange, maxMb, maxSecon
                         playsInline
                         className="w-full max-h-72 rounded-xl bg-black"
                     />
-                    <button
-                        type="button"
-                        onClick={() => { onChange(""); setUploadedInfo(""); }}
-                        className="inline-flex items-center gap-1.5 text-sm font-semibold text-rose-600 hover:underline"
-                    >
-                        <Trash2 className="w-4 h-4" /> Hapus video
-                    </button>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <button
+                            type="button"
+                            onClick={() => { onChange(""); setUploadedInfo(""); }}
+                            className="inline-flex items-center gap-1.5 text-sm font-semibold text-rose-600 hover:underline"
+                        >
+                            <Trash2 className="w-4 h-4" /> Hapus video
+                        </button>
+                        <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                            Posisi di galeri:
+                            <select
+                                value={Math.min(position, imageCount)}
+                                onChange={(e) => onPositionChange(Number(e.target.value))}
+                                className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1.5 text-sm font-semibold"
+                            >
+                                {Array.from({ length: imageCount + 1 }, (_, i) => (
+                                    <option key={i} value={i}>
+                                        Slide {i + 1}{i === 0 ? " (pertama)" : i === imageCount ? " (terakhir)" : ""}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                    </div>
                 </div>
             ) : (
                 <button

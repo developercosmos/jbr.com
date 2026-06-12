@@ -115,6 +115,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                             )
                         )}
                         videoUrl={product.video_url}
+                        videoPosition={product.video_position ?? 0}
                         conditionLabel={
                             product.condition === "NEW"
                                 ? "Baru"

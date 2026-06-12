@@ -55,6 +55,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
                 category_id: product.category_id,
                 images: (product.images ?? []) as string[],
                 video_url: product.video_url ?? null,
+                video_position: product.video_position ?? 0,
                 status: product.status as "DRAFT" | "PUBLISHED" | "ARCHIVED" | "MODERATED",
                 moderation_reason: product.moderation_reason ?? null,
                 weight_class: product.weight_class,

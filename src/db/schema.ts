@@ -410,6 +410,8 @@ export const products = pgTable(
         images: jsonb("images").$type<string[]>().default([]),
         // Video produk opsional (URL publik; batas via accounting_settings).
         video_url: text("video_url"),
+        // Posisi slide video dalam galeri (0 = pertama), diatur seller.
+        video_position: integer("video_position").default(0),
         bargain_enabled: boolean("bargain_enabled").default(false).notNull(),
         min_acceptable_price: decimal("min_acceptable_price", { precision: 12, scale: 2 }),
         max_offer_rounds: integer("max_offer_rounds").default(3).notNull(),

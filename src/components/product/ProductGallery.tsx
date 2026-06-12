@@ -7,23 +7,36 @@ import { ZoomIn, ZoomOut, X, Maximize2, Play } from "lucide-react";
 interface ProductGalleryProps {
     images: string[];
     videoUrl?: string | null;
+    /** Slide position of the video within the gallery (0 = first), seller-set. */
+    videoPosition?: number | null;
     conditionLabel?: string;
 }
+
+type MediaItem = { type: "image" | "video"; url: string };
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 5;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
-export function ProductGallery({ images, videoUrl, conditionLabel }: ProductGalleryProps) {
+export function ProductGallery({ images, videoUrl, videoPosition, conditionLabel }: ProductGalleryProps) {
     const sanitizedImages = images.filter(
         (img): img is string => typeof img === "string" && img.trim().length > 0
     );
     const firstImage = sanitizedImages[0] ?? "";
-    const [activeImage, setActiveImage] = useState(firstImage);
     const video = typeof videoUrl === "string" && videoUrl.trim().length > 0 ? videoUrl.trim() : null;
-    // Video is the first slide and plays (muted — browsers block audible
-    // autoplay) as soon as the PDP opens; navigating to a photo unmounts it.
-    const [showingVideo, setShowingVideo] = useState<boolean>(Boolean(video));
+    // Ordered media slides: photos in seller order, video spliced at the
+    // seller-chosen position. The video autoplays (muted — browsers block
+    // audible autoplay) whenever its slide is shown; leaving it unmounts it.
+    const media: MediaItem[] = sanitizedImages.map((url) => ({ type: "image", url }));
+    if (video) {
+        media.splice(clamp(Math.round(videoPosition ?? 0), 0, media.length), 0, { type: "video", url: video });
+    }
+    const mediaRef = useRef(media);
+    mediaRef.current = media;
+    const [activeIndex, setActiveIndex] = useState(0);
+    const active = media.length > 0 ? media[clamp(activeIndex, 0, media.length - 1)] : undefined;
+    const showingVideo = active?.type === "video";
+    const activeImage = active?.type === "image" ? active.url : "";
 
     // Zoom + pan lightbox state
     const [zoomOpen, setZoomOpen] = useState(false);
@@ -78,8 +91,11 @@ export function ProductGallery({ images, videoUrl, conditionLabel }: ProductGall
     useEffect(() => {
         const onVariantImage = (e: Event) => {
             const detail = (e as CustomEvent).detail as { image?: string | null } | undefined;
-            setShowingVideo(false);
-            setActiveImage(detail?.image || firstImage);
+            const url = detail?.image || firstImage;
+            const list = mediaRef.current;
+            const idx = list.findIndex((m) => m.type === "image" && m.url === url);
+            const firstImageIdx = list.findIndex((m) => m.type === "image");
+            setActiveIndex(idx >= 0 ? idx : Math.max(0, firstImageIdx));
         };
         window.addEventListener("pdp:variant-image", onVariantImage as EventListener);
         return () => window.removeEventListener("pdp:variant-image", onVariantImage as EventListener);
@@ -138,10 +154,10 @@ export function ProductGallery({ images, videoUrl, conditionLabel }: ProductGall
                         {conditionLabel}
                     </div>
                 )}
-                {video && showingVideo ? (
+                {showingVideo && active ? (
                     <video
-                        key={video}
-                        src={video}
+                        key={active.url}
+                        src={active.url}
                         controls
                         autoPlay
                         muted
@@ -168,52 +184,42 @@ export function ProductGallery({ images, videoUrl, conditionLabel }: ProductGall
                 )}
             </div>
 
-            {/* Thumbnails (video first when present) */}
-            <div className="grid grid-cols-5 gap-3">
-                {video && (
+            {/* Thumbnails — single scrollable row, in seller-defined media order */}
+            <div className="flex gap-3 overflow-x-auto pb-1.5 snap-x [scrollbar-width:thin]">
+                {media.map((item, index) => (
                     <button
+                        key={`${item.type}-${index}`}
                         type="button"
-                        onClick={() => setShowingVideo(true)}
-                        aria-label="Putar video produk"
+                        onClick={() => setActiveIndex(index)}
+                        aria-label={item.type === "video" ? "Putar video produk" : `Foto produk ${index + 1}`}
                         className={cn(
-                            "relative aspect-square rounded-lg overflow-hidden transition-all",
-                            showingVideo
+                            "relative w-20 h-20 shrink-0 snap-start rounded-lg overflow-hidden transition-all",
+                            index === clamp(activeIndex, 0, media.length - 1)
                                 ? "border-2 border-brand-primary ring-2 ring-brand-primary/20 ring-offset-2 ring-offset-background-light dark:ring-offset-background-dark"
                                 : "border border-slate-200 dark:border-gray-800 opacity-70 hover:opacity-100"
                         )}
                     >
-                        <video
-                            src={video}
-                            muted
-                            playsInline
-                            preload="metadata"
-                            className="w-full h-full object-cover pointer-events-none bg-black"
-                        />
-                        <span className="absolute inset-0 flex items-center justify-center bg-black/30">
-                            <span className="w-8 h-8 rounded-full bg-black/60 flex items-center justify-center">
-                                <Play className="w-4 h-4 text-white fill-white translate-x-px" />
-                            </span>
-                        </span>
-                    </button>
-                )}
-                {sanitizedImages.map((img, index) => (
-                    <button
-                        key={index}
-                        onClick={() => {
-                            setShowingVideo(false);
-                            setActiveImage(img);
-                        }}
-                        className={cn(
-                            "relative aspect-square rounded-lg overflow-hidden transition-all",
-                            !showingVideo && activeImage === img
-                                ? "border-2 border-brand-primary ring-2 ring-brand-primary/20 ring-offset-2 ring-offset-background-light dark:ring-offset-background-dark"
-                                : "border border-slate-200 dark:border-gray-800 opacity-70 hover:opacity-100"
+                        {item.type === "video" ? (
+                            <>
+                                <video
+                                    src={item.url}
+                                    muted
+                                    playsInline
+                                    preload="metadata"
+                                    className="w-full h-full object-cover pointer-events-none bg-black"
+                                />
+                                <span className="absolute inset-0 flex items-center justify-center bg-black/30">
+                                    <span className="w-8 h-8 rounded-full bg-black/60 flex items-center justify-center">
+                                        <Play className="w-4 h-4 text-white fill-white translate-x-px" />
+                                    </span>
+                                </span>
+                            </>
+                        ) : (
+                            <div
+                                className="w-full h-full bg-center bg-cover"
+                                style={{ backgroundImage: `url('${item.url}')` }}
+                            ></div>
                         )}
-                    >
-                        <div
-                            className="w-full h-full bg-center bg-cover"
-                            style={{ backgroundImage: `url('${img}')` }}
-                        ></div>
                     </button>
                 ))}
             </div>

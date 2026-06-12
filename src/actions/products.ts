@@ -41,6 +41,7 @@ const createProductSchema = z.object({
     brand: z.string().optional(),
     gender: z.enum(["UNISEX", "MEN", "WOMEN"]).default("UNISEX"),
     video_url: z.string().max(512).optional().nullable(),
+    video_position: z.number().int().min(0).max(60).optional(),
     price: z.number().positive(),
     condition: z.enum(["NEW", "PRELOVED"]),
     condition_rating: z.number().min(1).max(10).optional(),
