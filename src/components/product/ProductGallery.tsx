@@ -2,10 +2,11 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { ZoomIn, ZoomOut, X, Maximize2 } from "lucide-react";
+import { ZoomIn, ZoomOut, X, Maximize2, Play } from "lucide-react";
 
 interface ProductGalleryProps {
     images: string[];
+    videoUrl?: string | null;
     conditionLabel?: string;
 }
 
@@ -13,12 +14,16 @@ const MIN_SCALE = 1;
 const MAX_SCALE = 5;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
-export function ProductGallery({ images, conditionLabel }: ProductGalleryProps) {
+export function ProductGallery({ images, videoUrl, conditionLabel }: ProductGalleryProps) {
     const sanitizedImages = images.filter(
         (img): img is string => typeof img === "string" && img.trim().length > 0
     );
     const firstImage = sanitizedImages[0] ?? "";
     const [activeImage, setActiveImage] = useState(firstImage);
+    const video = typeof videoUrl === "string" && videoUrl.trim().length > 0 ? videoUrl.trim() : null;
+    // Video is the first slide and plays (muted — browsers block audible
+    // autoplay) as soon as the PDP opens; navigating to a photo unmounts it.
+    const [showingVideo, setShowingVideo] = useState<boolean>(Boolean(video));
 
     // Zoom + pan lightbox state
     const [zoomOpen, setZoomOpen] = useState(false);
@@ -30,11 +35,11 @@ export function ProductGallery({ images, conditionLabel }: ProductGalleryProps) 
     const pan = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
 
     const openZoom = useCallback(() => {
-        if (!activeImage) return;
+        if (!activeImage || showingVideo) return;
         setScale(1.8); // open already zoomed so panning is meaningful
         setPos({ x: 0, y: 0 });
         setZoomOpen(true);
-    }, [activeImage]);
+    }, [activeImage, showingVideo]);
 
     const closeZoom = useCallback(() => {
         setZoomOpen(false);
@@ -73,6 +78,7 @@ export function ProductGallery({ images, conditionLabel }: ProductGalleryProps) 
     useEffect(() => {
         const onVariantImage = (e: Event) => {
             const detail = (e as CustomEvent).detail as { image?: string | null } | undefined;
+            setShowingVideo(false);
             setActiveImage(detail?.image || firstImage);
         };
         window.addEventListener("pdp:variant-image", onVariantImage as EventListener);
@@ -132,7 +138,19 @@ export function ProductGallery({ images, conditionLabel }: ProductGalleryProps) 
                         {conditionLabel}
                     </div>
                 )}
-                {activeImage ? (
+                {video && showingVideo ? (
+                    <video
+                        key={video}
+                        src={video}
+                        controls
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        preload="metadata"
+                        className="w-full h-full object-contain bg-black"
+                    />
+                ) : activeImage ? (
                     <button
                         type="button"
                         onClick={openZoom}
@@ -143,22 +161,51 @@ export function ProductGallery({ images, conditionLabel }: ProductGalleryProps) 
                 ) : (
                     <div className="w-full h-full bg-slate-100 dark:bg-slate-800" />
                 )}
-                {activeImage && (
+                {activeImage && !showingVideo && (
                     <div className="absolute bottom-4 right-4 bg-black/55 text-white px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                         <Maximize2 className="w-3.5 h-3.5" /> Klik untuk zoom & geser
                     </div>
                 )}
             </div>
 
-            {/* Thumbnails */}
+            {/* Thumbnails (video first when present) */}
             <div className="grid grid-cols-5 gap-3">
+                {video && (
+                    <button
+                        type="button"
+                        onClick={() => setShowingVideo(true)}
+                        aria-label="Putar video produk"
+                        className={cn(
+                            "relative aspect-square rounded-lg overflow-hidden transition-all",
+                            showingVideo
+                                ? "border-2 border-brand-primary ring-2 ring-brand-primary/20 ring-offset-2 ring-offset-background-light dark:ring-offset-background-dark"
+                                : "border border-slate-200 dark:border-gray-800 opacity-70 hover:opacity-100"
+                        )}
+                    >
+                        <video
+                            src={video}
+                            muted
+                            playsInline
+                            preload="metadata"
+                            className="w-full h-full object-cover pointer-events-none bg-black"
+                        />
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/30">
+                            <span className="w-8 h-8 rounded-full bg-black/60 flex items-center justify-center">
+                                <Play className="w-4 h-4 text-white fill-white translate-x-px" />
+                            </span>
+                        </span>
+                    </button>
+                )}
                 {sanitizedImages.map((img, index) => (
                     <button
                         key={index}
-                        onClick={() => setActiveImage(img)}
+                        onClick={() => {
+                            setShowingVideo(false);
+                            setActiveImage(img);
+                        }}
                         className={cn(
                             "relative aspect-square rounded-lg overflow-hidden transition-all",
-                            activeImage === img
+                            !showingVideo && activeImage === img
                                 ? "border-2 border-brand-primary ring-2 ring-brand-primary/20 ring-offset-2 ring-offset-background-light dark:ring-offset-background-dark"
                                 : "border border-slate-200 dark:border-gray-800 opacity-70 hover:opacity-100"
                         )}
