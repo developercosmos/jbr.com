@@ -73,7 +73,7 @@ export default function BuyerInteractionRatingCard({
 
         startTransition(async () => {
             try {
-                await submitBuyerInteractionRating({
+                const res = await submitBuyerInteractionRating({
                     contextType: "ORDER",
                     contextId: orderId,
                     buyerId,
@@ -81,6 +81,10 @@ export default function BuyerInteractionRatingCard({
                     tags,
                     note: note.trim() || undefined,
                 });
+                if (!res.success) {
+                    setError(res.error || "Gagal menyimpan penilaian buyer.");
+                    return;
+                }
                 setSuccess("Penilaian buyer berhasil disimpan.");
                 router.refresh();
             } catch (err) {

@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/db";
+import { logger } from "@/lib/logger";
 import {
     buyer_interaction_ratings,
     buyer_reputation_access_log,
@@ -472,7 +473,7 @@ async function recomputeBuyerReputationSummaryInternal(buyerId: string) {
     };
 }
 
-export async function submitBuyerInteractionRating(input: z.infer<typeof submitBuyerInteractionRatingSchema>) {
+async function submitBuyerInteractionRatingInternal(input: z.infer<typeof submitBuyerInteractionRatingSchema>) {
     const user = await getCurrentUser();
     const validated = submitBuyerInteractionRatingSchema.parse(input);
 
@@ -533,7 +534,27 @@ export async function submitBuyerInteractionRating(input: z.infer<typeof submitB
     revalidatePath("/messages");
     revalidatePath("/profile/orders");
 
-    return { success: true, ratingId, summary };
+    return { success: true as const, ratingId, summary };
+}
+
+/**
+ * Errors are RETURNED, not thrown: thrown server-action errors get masked by
+ * Next.js in production ("An error occurred in the Server Components render"),
+ * which hid business-rule messages like the 24-hour edit window from sellers.
+ */
+export async function submitBuyerInteractionRating(input: z.infer<typeof submitBuyerInteractionRatingSchema>) {
+    try {
+        return await submitBuyerInteractionRatingInternal(input);
+    } catch (err) {
+        const message =
+            err instanceof z.ZodError
+                ? err.issues[0]?.message ?? "Data rating tidak valid"
+                : err instanceof Error && err.message.trim()
+                    ? err.message
+                    : "Gagal menyimpan rating.";
+        logger.warn("reputation:rating_failed", { error: message });
+        return { success: false as const, error: message };
+    }
 }
 
 export async function getSellerInteractionRatingForContext(contextType: InteractionContext, contextId: string, buyerId: string) {

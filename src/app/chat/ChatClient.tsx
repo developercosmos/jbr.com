@@ -417,7 +417,7 @@ export function ChatClient({
         }
 
         try {
-            await submitBuyerInteractionRating({
+            const res = await submitBuyerInteractionRating({
                 contextType: "CHAT",
                 contextId: activeConversationId,
                 buyerId: activeConversation.otherParty.id,
@@ -425,6 +425,10 @@ export function ChatClient({
                 tags: [],
                 note: chatRatingDraft.note.trim() || undefined,
             });
+            if (!res.success) {
+                setChatRatingError(res.error || "Gagal menyimpan penilaian chat.");
+                return;
+            }
             setChatRatingInfo("Penilaian chat berhasil disimpan.");
         } catch (error) {
             setChatRatingError(error instanceof Error ? error.message : "Gagal menyimpan penilaian chat.");

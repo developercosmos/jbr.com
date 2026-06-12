@@ -128,7 +128,7 @@ export default function OffersInboxClient({ offers }: Props) {
         setActiveId(offerId);
         withTransition(async () => {
             try {
-                await submitBuyerInteractionRating({
+                const res = await submitBuyerInteractionRating({
                     contextType: "OFFER",
                     contextId: offerId,
                     buyerId,
@@ -136,6 +136,10 @@ export default function OffersInboxClient({ offers }: Props) {
                     tags: [],
                     note: draft.note.trim() || undefined,
                 });
+                if (!res.success) {
+                    setError(res.error || "Gagal menyimpan rating calon buyer.");
+                    return;
+                }
                 setInfo("Penilaian calon buyer dari offer berhasil disimpan.");
                 router.refresh();
             } catch (err) {
