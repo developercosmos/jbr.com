@@ -449,3 +449,63 @@ export async function getSearchFilters() {
         ],
     };
 }
+
+/**
+ * Per-category product counts for the current search (query + non-category
+ * filters), so the sidebar can show "Raket (17)". Standard facet behaviour:
+ * the category filter itself is NOT applied, so each category shows how many of
+ * the currently-matching products fall into it. With no query/filters this
+ * equals the true category totals — matching the dedicated category page, which
+ * removes the "kategori cuma 2 padahal ada lebih" inconsistency.
+ *
+ * Always computed in Postgres (the source of truth) regardless of the search
+ * backend, so the counts are accurate and consistent.
+ */
+export async function getCategoryCounts(
+    filters: Pick<
+        SearchFilters,
+        "query" | "minPrice" | "maxPrice" | "condition" | "gender" | "weightClass" | "balance" | "shaftFlex" | "gripSize" | "minTensionLbs"
+    >
+): Promise<Record<string, number>> {
+    const conditions = [eq(products.status, "PUBLISHED")];
+
+    if (filters.query?.trim()) {
+        const variants = getSearchVariants(filters.query);
+        if (variants.length > 0) {
+            const wordConditions = variants.map((variant) =>
+                or(
+                    ilike(products.title, `%${variant}%`),
+                    ilike(products.description, `%${variant}%`),
+                    ilike(products.brand, `%${variant}%`),
+                    sql`REPLACE(LOWER(${products.brand}), ' ', '') LIKE ${`%${variant.replace(/\s+/g, "")}%`}`
+                )
+            );
+            conditions.push(or(...wordConditions)!);
+        }
+    }
+    if (filters.minPrice !== undefined) conditions.push(sql`CAST(${products.price} AS NUMERIC) >= ${filters.minPrice}`);
+    if (filters.maxPrice !== undefined) conditions.push(sql`CAST(${products.price} AS NUMERIC) <= ${filters.maxPrice}`);
+    if (filters.condition) conditions.push(eq(products.condition, filters.condition));
+    if (filters.gender) conditions.push(eq(products.gender, filters.gender));
+    if (filters.weightClass && filters.weightClass.length > 0) conditions.push(inArray(products.weight_class, filters.weightClass));
+    if (filters.balance && filters.balance.length > 0) conditions.push(inArray(products.balance, filters.balance));
+    if (filters.shaftFlex && filters.shaftFlex.length > 0) conditions.push(inArray(products.shaft_flex, filters.shaftFlex));
+    if (filters.gripSize && filters.gripSize.length > 0) conditions.push(inArray(products.grip_size, filters.gripSize));
+    if (filters.minTensionLbs !== undefined) conditions.push(gte(products.max_string_tension_lbs, filters.minTensionLbs));
+
+    const rows = await db
+        .select({ categoryId: products.category_id, count: sql<number>`COUNT(*)` })
+        .from(products)
+        .where(and(...conditions))
+        .groupBy(products.category_id);
+
+    const cats = await db.query.categories.findMany({ columns: { id: true, slug: true } });
+    const idToSlug = new Map(cats.map((c) => [c.id, c.slug]));
+    const out: Record<string, number> = {};
+    for (const r of rows) {
+        if (!r.categoryId) continue;
+        const slug = idToSlug.get(r.categoryId);
+        if (slug) out[slug] = (out[slug] ?? 0) + Number(r.count);
+    }
+    return out;
+}

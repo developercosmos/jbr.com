@@ -40,6 +40,12 @@ interface SearchFiltersPanelProps {
      * to showing options without count suffixes.
      */
     facetCounts?: Record<string, Record<string, number>> | null;
+    /**
+     * Per-category product counts for the current query (slug -> count). Lets the
+     * sidebar show "Raket (17)" and reveals categories with 0 matches as muted,
+     * so the count is consistent with the dedicated category page.
+     */
+    categoryCounts?: Record<string, number>;
 }
 
 const WEIGHT_OPTIONS: FilterOption[] = [
@@ -69,6 +75,7 @@ const GRIP_OPTIONS: FilterOption[] = [
 
 export function SearchFiltersPanel({
     categories,
+    categoryCounts,
     conditions,
     genders,
     priceRange,
@@ -183,18 +190,30 @@ export function SearchFiltersPanel({
                         >
                             Semua Kategori
                         </button>
-                        {categories.map((cat) => (
-                            <button
-                                key={cat.id}
-                                onClick={() => applyFilter("category", cat.slug)}
-                                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${currentFilters.category === cat.slug
-                                        ? "bg-brand-primary text-white"
-                                        : "hover:bg-slate-100 text-slate-700"
-                                    }`}
-                            >
-                                {cat.name}
-                            </button>
-                        ))}
+                        {categories.map((cat) => {
+                            const count = categoryCounts?.[cat.slug];
+                            const isActive = currentFilters.category === cat.slug;
+                            const isEmpty = count === 0 && !isActive;
+                            return (
+                                <button
+                                    key={cat.id}
+                                    onClick={() => applyFilter("category", cat.slug)}
+                                    className={`w-full flex items-center justify-between gap-2 text-left px-3 py-2 rounded-lg text-sm transition-colors ${isActive
+                                            ? "bg-brand-primary text-white"
+                                            : isEmpty
+                                              ? "text-slate-400 hover:bg-slate-100"
+                                              : "hover:bg-slate-100 text-slate-700"
+                                        }`}
+                                >
+                                    <span>{cat.name}</span>
+                                    {count !== undefined && (
+                                        <span className={`text-xs tabular-nums ${isActive ? "text-white/80" : "text-slate-400"}`}>
+                                            {count}
+                                        </span>
+                                    )}
+                                </button>
+                            );
+                        })}
                     </div>
                 )}
             </div>

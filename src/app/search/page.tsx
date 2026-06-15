@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { Search } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { searchProducts, getSearchFilters } from "@/actions/search";
+import { searchProducts, getSearchFilters, getCategoryCounts } from "@/actions/search";
 import { SearchFiltersPanel } from "./SearchFiltersPanel";
 import { SearchPagination } from "./SearchPagination";
 import { SearchSortControl } from "./SearchSortControl";
@@ -37,24 +37,32 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     const query = params.q || "";
     const page = parseInt(params.page || "1", 10);
 
-    const [results, filters] = await Promise.all([
+    const nonCategoryFilters = {
+        query,
+        minPrice: params.minPrice ? parseFloat(params.minPrice) : undefined,
+        maxPrice: params.maxPrice ? parseFloat(params.maxPrice) : undefined,
+        condition: params.condition as "NEW" | "PRELOVED" | undefined,
+        gender: params.gender as "UNISEX" | "MEN" | "WOMEN" | undefined,
+        weightClass: csvOrUndef(params.weightClass),
+        balance: csvOrUndef(params.balance),
+        shaftFlex: csvOrUndef(params.shaftFlex),
+        gripSize: csvOrUndef(params.gripSize),
+        minTensionLbs: params.minTension ? parseInt(params.minTension, 10) : undefined,
+    };
+
+    const [results, filters, categoryCounts] = await Promise.all([
         searchProducts({
-            query,
+            ...nonCategoryFilters,
             category: params.category,
-            minPrice: params.minPrice ? parseFloat(params.minPrice) : undefined,
-            maxPrice: params.maxPrice ? parseFloat(params.maxPrice) : undefined,
-            condition: params.condition as "NEW" | "PRELOVED" | undefined,
-            gender: params.gender as "UNISEX" | "MEN" | "WOMEN" | undefined,
             sortBy: (params.sort as "relevance" | "price_asc" | "price_desc" | "newest" | "popular") || "relevance",
             page,
-            limit: 24,
-            weightClass: csvOrUndef(params.weightClass),
-            balance: csvOrUndef(params.balance),
-            shaftFlex: csvOrUndef(params.shaftFlex),
-            gripSize: csvOrUndef(params.gripSize),
-            minTensionLbs: params.minTension ? parseInt(params.minTension, 10) : undefined,
+            // Match the dedicated category page (limit 48) so counts stay consistent.
+            limit: 48,
         }),
         getSearchFilters(),
+        // Facet counts per category respect the active query but NOT the selected
+        // category — so the sidebar shows "Raket (17)" even while a category is picked.
+        getCategoryCounts(nonCategoryFilters),
     ]);
 
     const formatPrice = (price: string) => {
@@ -98,6 +106,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                                 priceRange={filters.priceRange}
                                 currentFilters={params}
                                 facetCounts={results.facets}
+                                categoryCounts={categoryCounts}
                             />
                         </Suspense>
                     </aside>
