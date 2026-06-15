@@ -10,6 +10,10 @@ import { revalidatePath } from "next/cache";
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
+    // Entry trace (before anything) — distinguishes "request never arrived" from
+    // "arrived but failed at auth/parse" when diagnosing a failing upload.
+    const hasCookie = (request.headers.get("cookie") || "").length > 0;
+    console.log(`[upload] HIT ct=${request.headers.get("content-type")?.slice(0, 40)} cookie=${hasCookie}`);
     try {
         // Check authentication
         const session = await auth.api.getSession({
@@ -17,8 +21,9 @@ export async function POST(request: NextRequest) {
         });
 
         if (!session?.user) {
+            console.warn(`[upload] 401 unauthorized (cookie=${hasCookie})`);
             return NextResponse.json(
-                { error: "Unauthorized" },
+                { error: "Sesi tidak dikenali. Muat ulang halaman lalu coba lagi." },
                 { status: 401 }
             );
         }
