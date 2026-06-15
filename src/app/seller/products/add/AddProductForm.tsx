@@ -10,6 +10,7 @@ import { createProduct, publishProduct } from "@/actions/products";
 import TierUpgradeModal, { isTierUpgradeError } from "@/components/seller/TierUpgradeModal";
 import FormErrorModal from "@/components/seller/FormErrorModal";
 import ProductVideoUpload from "@/components/seller/ProductVideoUpload";
+import { uploadToServer } from "@/lib/upload-client";
 import { conditionGuidance } from "@/lib/condition-guidance";
 import VariantMatrixEditor, { type ComboVariant } from "@/components/seller/VariantMatrixEditor";
 
@@ -125,35 +126,9 @@ export function AddProductForm({ categories, brands, hasPickupAddress, videoLimi
         setError("");
 
         try {
-            const uploadPromises = Array.from(files).map(async (file) => {
-                const formData = new FormData();
-                formData.append("file", file);
-                formData.append("folder", "products");
-
-                const response = await fetch("/api/upload", {
-                    method: "POST",
-                    body: formData,
-                });
-
-                if (!response.ok) {
-                    if (response.status === 429) {
-                        throw new Error("Terlalu banyak request. Tunggu sebentar lalu coba lagi.");
-                    }
-                    let errMessage = "Upload gagal";
-                    try {
-                        const errData = await response.json();
-                        errMessage = errData.error || errMessage;
-                    } catch {
-                        // response body is not JSON (e.g., nginx error page)
-                    }
-                    throw new Error(errMessage);
-                }
-
-                const data = await response.json();
-                return data.url;
-            });
-
-            const urls = await Promise.all(uploadPromises);
+            const urls = await Promise.all(
+                Array.from(files).map((file) => uploadToServer(file, "products"))
+            );
             setImages((prev) => [...prev, ...urls]);
         } catch (err) {
             setError(getErrorMessage(err, "Upload gagal"));
