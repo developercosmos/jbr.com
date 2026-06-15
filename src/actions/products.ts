@@ -199,9 +199,11 @@ export async function createProduct(input: z.infer<typeof createProductSchema>) 
         const validated = createProductSchema.parse(input);
         // Defense-in-depth: the form requires >=1 photo, but the schema's default([])
         // would otherwise let a dropped upload (empty images) persist a photoless
-        // product. Mirror the client rule on the server.
-        if (validated.images.length === 0) {
-            throw new Error("Minimal 1 foto produk wajib diupload.");
+        // product. Mirror the client rule — a combination product may carry its
+        // photos per-variant instead of as general product photos.
+        const hasVariantImage = (validated.variants ?? []).some((v) => (v.images?.length ?? 0) > 0);
+        if (validated.images.length === 0 && !hasVariantImage) {
+            throw new Error("Minimal 1 foto produk atau foto varian wajib diupload.");
         }
         // Akun COMPANY wajib sudah mengajukan KYC T2 sebelum menerbitkan produk.
         await ensureCompanyHasT2Application(user.id);

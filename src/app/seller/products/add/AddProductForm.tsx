@@ -222,8 +222,11 @@ export function AddProductForm({ categories, brands, hasPickupAddress, videoLimi
             }
         }
 
-        if (images.length === 0) {
-            setError("Minimal 1 foto produk wajib diupload.");
+        // Accept per-variant photos (combination products) as satisfying the
+        // photo requirement, not only general product photos.
+        const hasVariantImage = variants.some((v) => Array.isArray(v.images) && v.images.length > 0);
+        if (images.length === 0 && !hasVariantImage) {
+            setError("Minimal 1 foto produk atau foto varian wajib diupload.");
             return;
         }
 
@@ -402,6 +405,12 @@ export function AddProductForm({ categories, brands, hasPickupAddress, videoLimi
                                 onChange={handleFileChange}
                             />
                         </label>
+
+                        {images.length === 0 && variants.some((v) => Array.isArray(v.images) && v.images.length > 0) && (
+                            <p className="mt-3 text-sm text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5">
+                                Produk ini memakai <span className="font-semibold text-slate-700 dark:text-slate-200">foto per varian</span> — kelola di bagian <span className="font-semibold text-slate-700 dark:text-slate-200">Varian</span>. Foto produk umum di sini opsional.
+                            </p>
+                        )}
 
                         {/* Thumbnails Preview */}
                         {images.length > 0 && (

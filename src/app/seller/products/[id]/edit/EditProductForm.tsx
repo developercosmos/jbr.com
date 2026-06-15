@@ -248,7 +248,13 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
             if (Number.isNaN(numericFloor) || numericFloor <= 0) { setError("Floor price harus lebih dari 0."); return; }
             if (numericFloor >= numericPrice) { setError("Floor price harus lebih rendah dari harga jual."); return; }
         }
-        if (images.length === 0) { setError("Minimal 1 foto produk wajib diupload."); return; }
+        // A combination product may carry its photos per-variant (per Warna)
+        // instead of as general product photos — accept either so it stays editable.
+        const hasVariantImage = variants.some((v) => Array.isArray(v.images) && v.images.length > 0);
+        if (images.length === 0 && !hasVariantImage) {
+            setError("Minimal 1 foto produk atau foto varian wajib diupload.");
+            return;
+        }
         setLoading(true);
         try {
             const result = await updateProduct({
@@ -411,6 +417,11 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
                             </div>
                             <input type="file" className="hidden" accept="image/*" multiple disabled={uploading || images.length >= 10} onChange={handleFileChange} />
                         </label>
+                        {images.length === 0 && variants.some((v) => Array.isArray(v.images) && v.images.length > 0) && (
+                            <p className="mt-3 text-sm text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2.5">
+                                Produk ini memakai <span className="font-semibold text-slate-700 dark:text-slate-200">foto per varian</span> — kelola di bagian <span className="font-semibold text-slate-700 dark:text-slate-200">Varian</span> di bawah. Foto produk umum di sini opsional.
+                            </p>
+                        )}
                         {images.length > 0 && (
                             <div className="flex gap-4 mt-6 overflow-x-auto pb-2">
                                 {images.map((url, index) => (
