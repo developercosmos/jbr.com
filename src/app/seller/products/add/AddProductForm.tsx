@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
 import { Home, ChevronRight, X, Image as ImageIcon, ChevronDown, CheckCircle, Clock, Info, Save, AlertTriangle, Loader2 } from "lucide-react";
 import { Upload } from "lucide-react";
@@ -78,6 +77,9 @@ export function AddProductForm({ categories, brands, hasPickupAddress, videoLimi
     const [videoUrl, setVideoUrl] = useState("");
     const [videoPosition, setVideoPosition] = useState(0);
     const [images, setImages] = useState<string[]>([]);
+    // serverUrl -> local blob URL, so a freshly uploaded photo previews instantly
+    // (no CDN round-trip). Existing/edit images aren't in here and use their URL.
+    const [previewMap, setPreviewMap] = useState<Record<string, string>>({});
 
     // Dimensions
     const [dimensionL, setDimensionL] = useState("");
@@ -126,10 +128,21 @@ export function AddProductForm({ categories, brands, hasPickupAddress, videoLimi
         setError("");
 
         try {
-            const urls = await Promise.all(
-                Array.from(files).map((file) => uploadToServer(file, "products"))
+            const results = await Promise.all(
+                Array.from(files).map(async (file) => {
+                    // Instant preview straight from the local file — never waits on a
+                    // round-trip back through the CDN to display the just-uploaded image.
+                    const preview = URL.createObjectURL(file);
+                    const url = await uploadToServer(file, "products");
+                    return { url, preview };
+                })
             );
-            setImages((prev) => [...prev, ...urls]);
+            setImages((prev) => [...prev, ...results.map((r) => r.url)]);
+            setPreviewMap((prev) => {
+                const next = { ...prev };
+                results.forEach((r) => { next[r.url] = r.preview; });
+                return next;
+            });
         } catch (err) {
             setError(getErrorMessage(err, "Upload gagal"));
         } finally {
@@ -139,7 +152,15 @@ export function AddProductForm({ categories, brands, hasPickupAddress, videoLimi
     };
 
     const removeImage = (index: number) => {
-        setImages((prev) => prev.filter((_, i) => i !== index));
+        setImages((prev) => {
+            const url = prev[index];
+            const blob = previewMap[url];
+            if (blob) {
+                URL.revokeObjectURL(blob);
+                setPreviewMap((m) => { const next = { ...m }; delete next[url]; return next; });
+            }
+            return prev.filter((_, i) => i !== index);
+        });
     };
 
     // Swap with the neighbor — foto pertama menjadi foto UTAMA.
@@ -423,13 +444,14 @@ export function AddProductForm({ categories, brands, hasPickupAddress, videoLimi
                                                 UTAMA
                                             </div>
                                         )}
-                                        <Image
+                                        {/* Plain <img> with the local blob when available:
+                                            shows instantly and never depends on the Next
+                                            optimizer or a CDN fetch of the fresh file. */}
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
                                             alt={`Product image ${index + 1}`}
-                                            className="object-cover"
-                                            src={url}
-                                            fill
-                                            sizes="96px"
-                                            unoptimized
+                                            className="absolute inset-0 w-full h-full object-cover"
+                                            src={previewMap[url] ?? url}
                                         />
                                     </div>
                                 ))}

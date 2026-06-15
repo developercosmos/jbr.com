@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
 import {
     Home, ChevronRight, X, Image as ImageIcon, ChevronDown, CheckCircle,
@@ -122,6 +121,8 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
     const [videoUrl, setVideoUrl] = useState<string>(product.video_url ?? "");
     const [videoPosition, setVideoPosition] = useState<number>(product.video_position ?? 0);
     const [images, setImages] = useState<string[]>(product.images ?? []);
+    // serverUrl -> local blob URL for instant preview of freshly uploaded photos.
+    const [previewMap, setPreviewMap] = useState<Record<string, string>>({});
     const [uploading, setUploading] = useState(false);
     // Racket specs + variants (parity with AddProductForm).
     const [weightClass, setWeightClass] = useState(product.weight_class ?? "");
@@ -171,10 +172,19 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
         setUploading(true);
         setError("");
         try {
-            const urls = await Promise.all(
-                Array.from(files).map((file) => uploadToServer(file, "products"))
+            const results = await Promise.all(
+                Array.from(files).map(async (file) => {
+                    const preview = URL.createObjectURL(file);
+                    const url = await uploadToServer(file, "products");
+                    return { url, preview };
+                })
             );
-            setImages((prev) => [...prev, ...urls]);
+            setImages((prev) => [...prev, ...results.map((r) => r.url)]);
+            setPreviewMap((prev) => {
+                const next = { ...prev };
+                results.forEach((r) => { next[r.url] = r.preview; });
+                return next;
+            });
         } catch (err) {
             setError(getErrorMessage(err, "Upload gagal"));
         } finally {
@@ -183,7 +193,15 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
         }
     };
 
-    const removeImage = (index: number) => setImages((prev) => prev.filter((_, i) => i !== index));
+    const removeImage = (index: number) => setImages((prev) => {
+        const url = prev[index];
+        const blob = previewMap[url];
+        if (blob) {
+            URL.revokeObjectURL(blob);
+            setPreviewMap((m) => { const next = { ...m }; delete next[url]; return next; });
+        }
+        return prev.filter((_, i) => i !== index);
+    });
 
     // Swap with the neighbor — foto pertama menjadi foto UTAMA.
     const moveImage = (index: number, delta: number) => {
@@ -429,7 +447,8 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
                                             optimizer (it can cache a miss for a freshly written file),
                                             which made the first upload appear to "not work". Loading the
                                             file directly shows it immediately. */}
-                                        <Image alt={`Product image ${index + 1}`} className="object-cover" src={url} fill sizes="96px" unoptimized />
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img alt={`Product image ${index + 1}`} className="absolute inset-0 w-full h-full object-cover" src={previewMap[url] ?? url} />
                                     </div>
                                 ))}
                                 {images.length < 10 && (

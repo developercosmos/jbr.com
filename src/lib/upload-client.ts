@@ -25,14 +25,27 @@ function postOnce(
         fd.append("folder", folder);
         const xhr = new XMLHttpRequest();
         xhr.open("POST", "/api/upload");
-        xhr.responseType = "json";
+        // Parse the body from responseText ourselves (NOT responseType="json")
+        // so a proxy/CDN that strips or rewrites the Content-Type can't leave
+        // xhr.response null — the classic "200 but no url" drop.
         if (onProgress) {
             xhr.upload.onprogress = (e) => {
                 if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
             };
         }
         xhr.onload = () => {
-            const body = (xhr.response ?? {}) as { url?: string; error?: string };
+            let body: { url?: string; error?: string } = {};
+            try {
+                if (xhr.responseText) body = JSON.parse(xhr.responseText);
+            } catch {
+                // non-JSON body (e.g. an nginx/Cloudflare error page)
+            }
+            // 200 with no usable url means the success body was lost in transit —
+            // treat it as a transient drop so the caller's retry kicks in.
+            if (xhr.status === 200 && !body.url) {
+                reject(new UploadNetworkError("Respons upload kosong (body hilang)."));
+                return;
+            }
             resolve({ url: body.url, error: body.error, status: xhr.status });
         };
         xhr.onerror = () => reject(new UploadNetworkError("Koneksi terputus saat mengunggah."));

@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { Store, MapPin, Landmark, Loader2, ShieldCheck } from "lucide-react";
 import { activateSellerProfile, checkStoreSlugAvailability } from "@/actions/seller";
 import { normalizeStoreSlug } from "@/lib/seller";
+import FormErrorModal from "@/components/seller/FormErrorModal";
 
 interface AddressOption {
     id: string;
@@ -153,11 +154,7 @@ export function SellerRegistrationForm({ addresses, initialName, initialSlugAvai
                 </div>
                 )}
 
-                {message && (
-                    <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                        {message}
-                    </div>
-                )}
+                {message && <FormErrorModal message={message} onClose={() => setMessage("")} />}
 
                 <div className="grid gap-6 md:grid-cols-2">
                     <div className="space-y-2 md:col-span-2">

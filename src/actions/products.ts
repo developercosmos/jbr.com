@@ -197,6 +197,12 @@ export async function createProduct(input: z.infer<typeof createProductSchema>) 
         const user = await getCurrentUser();
         await ensureCurrentUserCanSell();
         const validated = createProductSchema.parse(input);
+        // Defense-in-depth: the form requires >=1 photo, but the schema's default([])
+        // would otherwise let a dropped upload (empty images) persist a photoless
+        // product. Mirror the client rule on the server.
+        if (validated.images.length === 0) {
+            throw new Error("Minimal 1 foto produk wajib diupload.");
+        }
         // Akun COMPANY wajib sudah mengajukan KYC T2 sebelum menerbitkan produk.
         await ensureCompanyHasT2Application(user.id);
         // Gate T0: harga (dasar + semua varian) dibatasi sampai seller naik tier.
