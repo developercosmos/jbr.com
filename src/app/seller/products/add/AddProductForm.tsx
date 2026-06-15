@@ -575,7 +575,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress, videoLimi
                                     <input
                                         className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary py-3 px-4"
                                         placeholder="1"
-                                        type="number"
+                                        type="number" onWheel={(e) => e.currentTarget.blur()}
                                         min="1"
                                         value={stock}
                                         onChange={(e) => setStock(e.target.value)}
@@ -874,7 +874,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress, videoLimi
                                 <input
                                     className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary py-3 px-4"
                                     placeholder="mis. 30"
-                                    type="number"
+                                    type="number" onWheel={(e) => e.currentTarget.blur()}
                                     min={15}
                                     max={40}
                                     value={stringTension}
@@ -910,7 +910,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress, videoLimi
                                     <input
                                         className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary py-3 px-4 pr-16"
                                         placeholder="0"
-                                        type="number"
+                                        type="number" onWheel={(e) => e.currentTarget.blur()}
                                         value={weight}
                                         onChange={(e) => setWeight(e.target.value)}
                                     />
@@ -928,7 +928,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress, videoLimi
                                         <input
                                             className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary py-3 px-4 text-center"
                                             placeholder="P"
-                                            type="number"
+                                            type="number" onWheel={(e) => e.currentTarget.blur()}
                                             value={dimensionL}
                                             onChange={(e) => setDimensionL(e.target.value)}
                                         />
@@ -938,7 +938,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress, videoLimi
                                         <input
                                             className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary py-3 px-4 text-center"
                                             placeholder="L"
-                                            type="number"
+                                            type="number" onWheel={(e) => e.currentTarget.blur()}
                                             value={dimensionW}
                                             onChange={(e) => setDimensionW(e.target.value)}
                                         />
@@ -948,7 +948,7 @@ export function AddProductForm({ categories, brands, hasPickupAddress, videoLimi
                                         <input
                                             className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary py-3 px-4 text-center"
                                             placeholder="T"
-                                            type="number"
+                                            type="number" onWheel={(e) => e.currentTarget.blur()}
                                             value={dimensionH}
                                             onChange={(e) => setDimensionH(e.target.value)}
                                         />

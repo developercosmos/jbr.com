@@ -522,7 +522,7 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-2 text-slate-500 dark:text-slate-400">Stok</label>
-                                    <input className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary py-3 px-4" type="number" min="0" value={stock} onChange={(e) => setStock(e.target.value)} />
+                                    <input className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary py-3 px-4" type="number" onWheel={(e) => e.currentTarget.blur()} min="0" value={stock} onChange={(e) => setStock(e.target.value)} />
                                 </div>
                             </div>
                             <div>
@@ -719,7 +719,7 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-2 text-slate-500 dark:text-slate-400">Tegangan Senar Maks (lbs)</label>
-                                <input className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary py-3 px-4" placeholder="mis. 30" type="number" min={15} max={40} value={stringTension} onChange={(e) => setStringTension(e.target.value)} />
+                                <input className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary py-3 px-4" placeholder="mis. 30" type="number" onWheel={(e) => e.currentTarget.blur()} min={15} max={40} value={stringTension} onChange={(e) => setStringTension(e.target.value)} />
                             </div>
                         </div>
                     </section>
@@ -737,7 +737,7 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
                         <div>
                             <label className="block text-sm font-medium mb-2 text-slate-500 dark:text-slate-400">Berat Produk</label>
                             <div className="relative max-w-xs">
-                                <input className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary py-3 px-4 pr-16" placeholder="0" type="number" value={weight} onChange={(e) => setWeight(e.target.value)} />
+                                <input className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary py-3 px-4 pr-16" placeholder="0" type="number" onWheel={(e) => e.currentTarget.blur()} value={weight} onChange={(e) => setWeight(e.target.value)} />
                                 <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-slate-500 border-l border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-surface-dark rounded-r-lg">
                                     <span className="text-sm font-medium">Gram</span>
                                 </div>

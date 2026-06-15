@@ -304,8 +304,8 @@ export default function VariantMatrixEditor({
                 <div className="space-y-3">
                     <div className="flex flex-wrap items-end gap-2 rounded-lg bg-slate-50 dark:bg-black/20 p-3">
                         <span className="text-xs font-medium text-slate-500">Isi cepat semua ({combos.length} kombinasi):</span>
-                        <input type="number" min={0} value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} placeholder="Harga" className="w-28 rounded-lg bg-white dark:bg-black/30 border border-slate-200 dark:border-slate-700 py-1.5 px-2 text-sm" />
-                        <input type="number" min={0} value={bulkStock} onChange={(e) => setBulkStock(e.target.value)} placeholder="Stok" className="w-20 rounded-lg bg-white dark:bg-black/30 border border-slate-200 dark:border-slate-700 py-1.5 px-2 text-sm" />
+                        <input type="number" min={0} onWheel={(e) => e.currentTarget.blur()} value={bulkPrice} onChange={(e) => setBulkPrice(e.target.value)} placeholder="Harga" className="w-28 rounded-lg bg-white dark:bg-black/30 border border-slate-200 dark:border-slate-700 py-1.5 px-2 text-sm" />
+                        <input type="number" min={0} onWheel={(e) => e.currentTarget.blur()} value={bulkStock} onChange={(e) => setBulkStock(e.target.value)} placeholder="Stok" className="w-20 rounded-lg bg-white dark:bg-black/30 border border-slate-200 dark:border-slate-700 py-1.5 px-2 text-sm" />
                         <button type="button" onClick={applyBulk} className="rounded-lg bg-slate-800 dark:bg-slate-700 text-white px-3 py-1.5 text-sm font-medium">Terapkan</button>
                     </div>
 
@@ -329,6 +329,7 @@ export default function VariantMatrixEditor({
                                                 <input
                                                     type="number"
                                                     min={0}
+                                                    onWheel={(e) => e.currentTarget.blur()}
                                                     value={cell.price}
                                                     onChange={(e) => updateCell(c1, c2, { price: e.target.value })}
                                                     placeholder={basePrice || "harga produk"}
@@ -339,6 +340,7 @@ export default function VariantMatrixEditor({
                                                 <input
                                                     type="number"
                                                     min={0}
+                                                    onWheel={(e) => e.currentTarget.blur()}
                                                     value={cell.stock}
                                                     onChange={(e) => updateCell(c1, c2, { stock: e.target.value })}
                                                     className="w-full rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 py-1.5 px-2 text-sm"
