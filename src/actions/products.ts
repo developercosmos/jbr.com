@@ -286,7 +286,7 @@ async function updateProductInternal(input: z.infer<typeof updateProductSchema>)
     const user = await getCurrentUser();
     const validated = updateProductSchema.parse(input);
 
-    const { id, variants: variantInputs, ...updateData } = validated;
+    const { id, variants: variantInputs, images: imagesPatch, ...updateData } = validated;
     // Verify ownership
     const existing = await db.query.products.findFirst({
         where: and(eq(products.id, id), eq(products.seller_id, user.id)),
@@ -295,6 +295,13 @@ async function updateProductInternal(input: z.infer<typeof updateProductSchema>)
     if (!existing) {
         throw new Error("Product not found or unauthorized");
     }
+
+    logger.info("product:update_input", {
+        productId: id,
+        status: updateData.status ?? null,
+        imagesPatch: imagesPatch === undefined ? "undef" : `len:${imagesPatch.length}`,
+        existingImages: Array.isArray(existing.images) ? existing.images.length : -1,
+    });
 
     // Gate T0: berlaku juga saat edit (harga baru ATAU harga lama yang dipertahankan).
     await ensureSellerCanPriceProduct(user.id, [
@@ -324,6 +331,10 @@ async function updateProductInternal(input: z.infer<typeof updateProductSchema>)
         .update(products)
         .set({
             ...updateData,
+            // Only (re)write images when the caller actually sends photos.
+            // publishProduct/archiveProduct send only { id, status }; the schema's
+            // images.default([]) must NEVER wipe a product's existing photos here.
+            ...(Array.isArray(imagesPatch) && imagesPatch.length > 0 ? { images: imagesPatch } : {}),
             condition_checklist: finalCondition === "NEW" ? [] : checklistPolicy.checklist,
             price: updateData.price?.toString(),
             floor_price: updateData.floor_price?.toString(),
@@ -334,6 +345,10 @@ async function updateProductInternal(input: z.infer<typeof updateProductSchema>)
         })
         .where(eq(products.id, id))
         .returning();
+    logger.info("product:update_saved", {
+        productId: id,
+        savedImages: Array.isArray(product.images) ? product.images.length : -1,
+    });
 
     // Replace variant set when the editor submits one. Undefined => leave variants
     // untouched (edit of a non-variant field); [] => explicitly clear all variants.
