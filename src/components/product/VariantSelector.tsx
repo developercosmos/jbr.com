@@ -145,45 +145,59 @@ function CombinationSelector({
                             : undefined;
                         if (swatch) {
                             return (
-                                <button
-                                    key={val}
-                                    type="button"
-                                    onClick={() => isAvail && choose(val)}
-                                    disabled={!isAvail}
-                                    title={val}
-                                    className={`relative w-12 h-12 rounded-lg overflow-hidden border-2 transition-all ${
-                                        selected
-                                            ? "border-brand-primary ring-2 ring-brand-primary/30"
-                                            : isAvail
-                                              ? "border-slate-200 hover:border-slate-400"
-                                              : "border-slate-100 opacity-50 cursor-not-allowed"
-                                    }`}
-                                >
-                                    <Image src={swatch} alt={val} fill className="object-cover" />
-                                    {selected && (
-                                        <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                                            <Check className="w-5 h-5 text-white" />
-                                        </div>
+                                <div key={val} className="flex flex-col items-center gap-1 w-12">
+                                    <button
+                                        type="button"
+                                        onClick={() => isAvail && choose(val)}
+                                        disabled={!isAvail}
+                                        title={isAvail ? val : `${val} — stok habis`}
+                                        aria-label={isAvail ? val : `${val}, stok habis`}
+                                        className={`relative w-12 h-12 rounded-lg overflow-hidden border-2 transition-all ${
+                                            selected
+                                                ? "border-brand-primary ring-2 ring-brand-primary/30"
+                                                : isAvail
+                                                  ? "border-slate-200 hover:border-slate-400"
+                                                  : "border-slate-200 cursor-not-allowed"
+                                        }`}
+                                    >
+                                        <Image src={swatch} alt={val} fill className={`object-cover ${isAvail ? "" : "grayscale opacity-60"}`} />
+                                        {selected && isAvail && (
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                                <Check className="w-5 h-5 text-white" />
+                                            </div>
+                                        )}
+                                        {!isAvail && (
+                                            <div className="absolute inset-0 flex items-center justify-center bg-white/55">
+                                                <span className="text-[9px] font-extrabold uppercase tracking-wide text-rose-600 -rotate-12">Habis</span>
+                                            </div>
+                                        )}
+                                    </button>
+                                    {!isAvail && (
+                                        <span className="text-[10px] font-semibold text-rose-500 leading-none text-center">Stok habis</span>
                                     )}
-                                </button>
+                                </div>
                             );
                         }
                         return (
-                            <button
-                                key={val}
-                                type="button"
-                                onClick={() => isAvail && choose(val)}
-                                disabled={!isAvail}
-                                className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
-                                    selected
-                                        ? "border-brand-primary bg-brand-primary/10 text-brand-primary"
-                                        : isAvail
-                                          ? "border-slate-200 hover:border-slate-400 text-slate-700"
-                                          : "border-slate-100 text-slate-400 line-through cursor-not-allowed"
-                                }`}
-                            >
-                                {val}
-                            </button>
+                            <div key={val} className="flex flex-col items-start gap-1">
+                                <button
+                                    type="button"
+                                    onClick={() => isAvail && choose(val)}
+                                    disabled={!isAvail}
+                                    className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                                        selected
+                                            ? "border-brand-primary bg-brand-primary/10 text-brand-primary"
+                                            : isAvail
+                                              ? "border-slate-200 hover:border-slate-400 text-slate-700"
+                                              : "border-slate-100 text-slate-400 line-through cursor-not-allowed"
+                                    }`}
+                                >
+                                    {val}
+                                </button>
+                                {!isAvail && (
+                                    <span className="text-[10px] font-semibold text-rose-500 leading-none">Stok habis</span>
+                                )}
+                            </div>
                         );
                     })}
                 </div>
@@ -202,9 +216,16 @@ function CombinationSelector({
                             Harga: <span className="font-bold text-slate-900">{formatPrice(resolved.price)}</span>
                         </p>
                     )}
-                    <p>
-                        Stok {resolved.name}: <span className="font-bold">{resolved.stock}</span>
-                    </p>
+                    {resolved.is_available && resolved.stock > 0 ? (
+                        <p>
+                            Stok {resolved.name}: <span className="font-bold">{resolved.stock}</span>
+                        </p>
+                    ) : (
+                        <p className="inline-flex items-center gap-1.5 font-semibold text-rose-600">
+                            <span className="inline-block w-2 h-2 rounded-full bg-rose-500" />
+                            Stok {resolved.name} habis — pilih varian lain
+                        </p>
+                    )}
                 </div>
             ) : (
                 <p className="text-sm text-slate-400">Pilih kombinasi untuk melihat harga & stok.</p>
@@ -258,54 +279,63 @@ function LegacySelector({
 
                             if (type === "color" && variant.images?.[0]) {
                                 return (
-                                    <button
-                                        key={variant.id}
-                                        onClick={() => isAvailable && handleSelect(type, variant.id)}
-                                        disabled={!isAvailable}
-                                        className={`relative w-12 h-12 rounded-lg overflow-hidden border-2 transition-all ${
-                                            selected
-                                                ? "border-brand-primary ring-2 ring-brand-primary/30"
-                                                : isAvailable
-                                                  ? "border-slate-200 hover:border-slate-400"
-                                                  : "border-slate-100 opacity-50 cursor-not-allowed"
-                                        }`}
-                                        title={variant.name}
-                                    >
-                                        <Image src={variant.images[0]} alt={variant.name} fill className="object-cover" />
-                                        {selected && (
-                                            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                                                <Check className="w-5 h-5 text-white" />
-                                            </div>
-                                        )}
+                                    <div key={variant.id} className="flex flex-col items-center gap-1 w-12">
+                                        <button
+                                            onClick={() => isAvailable && handleSelect(type, variant.id)}
+                                            disabled={!isAvailable}
+                                            className={`relative w-12 h-12 rounded-lg overflow-hidden border-2 transition-all ${
+                                                selected
+                                                    ? "border-brand-primary ring-2 ring-brand-primary/30"
+                                                    : isAvailable
+                                                      ? "border-slate-200 hover:border-slate-400"
+                                                      : "border-slate-200 cursor-not-allowed"
+                                            }`}
+                                            title={isAvailable ? variant.name : `${variant.name} — stok habis`}
+                                            aria-label={isAvailable ? variant.name : `${variant.name}, stok habis`}
+                                        >
+                                            <Image src={variant.images[0]} alt={variant.name} fill className={`object-cover ${isAvailable ? "" : "grayscale opacity-60"}`} />
+                                            {selected && isAvailable && (
+                                                <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                                    <Check className="w-5 h-5 text-white" />
+                                                </div>
+                                            )}
+                                            {!isAvailable && (
+                                                <div className="absolute inset-0 flex items-center justify-center bg-white/55">
+                                                    <span className="text-[9px] font-extrabold uppercase tracking-wide text-rose-600 -rotate-12">Habis</span>
+                                                </div>
+                                            )}
+                                        </button>
                                         {!isAvailable && (
-                                            <div className="absolute inset-0 flex items-center justify-center bg-white/60">
-                                                <span className="text-xs text-slate-500">Habis</span>
-                                            </div>
+                                            <span className="text-[10px] font-semibold text-rose-500 leading-none text-center">Stok habis</span>
                                         )}
-                                    </button>
+                                    </div>
                                 );
                             }
 
                             return (
-                                <button
-                                    key={variant.id}
-                                    onClick={() => isAvailable && handleSelect(type, variant.id)}
-                                    disabled={!isAvailable}
-                                    className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
-                                        selected
-                                            ? "border-brand-primary bg-brand-primary/10 text-brand-primary"
-                                            : isAvailable
-                                              ? "border-slate-200 hover:border-slate-400 text-slate-700"
-                                              : "border-slate-100 text-slate-400 line-through cursor-not-allowed"
-                                    }`}
-                                >
-                                    {variant.name}
-                                    {variant.price && variant.price !== basePrice && (
-                                        <span className="ml-1 text-xs opacity-75">
-                                            (+{formatPrice((parseFloat(variant.price) - parseFloat(basePrice)).toString())})
-                                        </span>
+                                <div key={variant.id} className="flex flex-col items-start gap-1">
+                                    <button
+                                        onClick={() => isAvailable && handleSelect(type, variant.id)}
+                                        disabled={!isAvailable}
+                                        className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all ${
+                                            selected
+                                                ? "border-brand-primary bg-brand-primary/10 text-brand-primary"
+                                                : isAvailable
+                                                  ? "border-slate-200 hover:border-slate-400 text-slate-700"
+                                                  : "border-slate-100 text-slate-400 line-through cursor-not-allowed"
+                                        }`}
+                                    >
+                                        {variant.name}
+                                        {variant.price && variant.price !== basePrice && (
+                                            <span className="ml-1 text-xs opacity-75">
+                                                (+{formatPrice((parseFloat(variant.price) - parseFloat(basePrice)).toString())})
+                                            </span>
+                                        )}
+                                    </button>
+                                    {!isAvailable && (
+                                        <span className="text-[10px] font-semibold text-rose-500 leading-none">Stok habis</span>
                                     )}
-                                </button>
+                                </div>
                             );
                         })}
                     </div>
