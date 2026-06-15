@@ -197,6 +197,12 @@ export async function createProduct(input: z.infer<typeof createProductSchema>) 
         const user = await getCurrentUser();
         await ensureCurrentUserCanSell();
         const validated = createProductSchema.parse(input);
+        logger.info("product:create_input", {
+            actorId: user.id,
+            imgCount: validated.images.length,
+            img0: validated.images[0]?.slice(0, 70) ?? null,
+            variantImgs: (validated.variants ?? []).filter((v) => (v.images?.length ?? 0) > 0).length,
+        });
         // Defense-in-depth: the form requires >=1 photo, but the schema's default([])
         // would otherwise let a dropped upload (empty images) persist a photoless
         // product. Mirror the client rule — a combination product may carry its
@@ -233,6 +239,10 @@ export async function createProduct(input: z.infer<typeof createProductSchema>) 
                 moderation_reason: checklistPolicy.moderationReason,
             })
             .returning();
+        logger.info("product:create_saved", {
+            productId: product.id,
+            savedImgCount: Array.isArray(product.images) ? product.images.length : -1,
+        });
 
         // Insert variants (if any). product.stock stays as the aggregate the seller
         // entered; per-variant stock is the authoritative inventory at checkout.
