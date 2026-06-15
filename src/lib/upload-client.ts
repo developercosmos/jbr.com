@@ -1,80 +1,40 @@
 "use client";
 
 /**
- * Robust client-side uploader for /api/upload.
+ * Client-side uploader for /api/upload.
  *
- * Why this exists: behind a CDN/tunnel (Cloudflare → cloudflared → nginx), the
- * RESPONSE to a successful upload can be dropped in transit — the file lands on
- * the server but the browser never sees the reply. With a plain `fetch`, that
- * surfaces as an error and the user re-uploads ("harus 2x upload"). Here we use
- * XHR (real progress events) and auto-retry ONCE on a transient network failure
- * (never on a 4xx), so a single user action reliably succeeds.
+ * Mirrors the variant-image uploader (VariantMatrixEditor.uploadColorImage),
+ * which uploads reliably in ONE shot: a plain `fetch` (not XHR). The only
+ * addition is a single automatic retry on a genuine network failure — `fetch`
+ * rejects only when no HTTP response arrives (connection dropped), never on a
+ * 4xx/5xx status — so a transient drop behind the CDN/tunnel doesn't force the
+ * user to upload twice.
  */
-
-/** No HTTP response arrived (connection dropped / timeout) — safe to retry. */
-class UploadNetworkError extends Error {}
-
-function postOnce(
-    file: File,
-    folder: string,
-    onProgress?: (pct: number) => void
-): Promise<{ url?: string; error?: string; status: number }> {
-    return new Promise((resolve, reject) => {
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("folder", folder);
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/upload");
-        // Parse the body from responseText ourselves (NOT responseType="json")
-        // so a proxy/CDN that strips or rewrites the Content-Type can't leave
-        // xhr.response null — the classic "200 but no url" drop.
-        if (onProgress) {
-            xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
-            };
-        }
-        xhr.onload = () => {
-            let body: { url?: string; error?: string } = {};
-            try {
-                if (xhr.responseText) body = JSON.parse(xhr.responseText);
-            } catch {
-                // non-JSON body (e.g. an nginx/Cloudflare error page)
-            }
-            // 200 with no usable url means the success body was lost in transit —
-            // treat it as a transient drop so the caller's retry kicks in.
-            if (xhr.status === 200 && !body.url) {
-                reject(new UploadNetworkError("Respons upload kosong (body hilang)."));
-                return;
-            }
-            resolve({ url: body.url, error: body.error, status: xhr.status });
-        };
-        xhr.onerror = () => reject(new UploadNetworkError("Koneksi terputus saat mengunggah."));
-        xhr.ontimeout = () => reject(new UploadNetworkError("Upload melebihi batas waktu."));
-        xhr.timeout = 120_000;
-        xhr.send(fd);
-    });
+async function postOnce(file: File, folder: string): Promise<{ url?: string; error?: string; status: number }> {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", folder);
+    const res = await fetch("/api/upload", { method: "POST", body: fd });
+    let body: { url?: string; error?: string } = {};
+    try {
+        body = await res.json();
+    } catch {
+        // non-JSON body (e.g. an nginx/Cloudflare error page)
+    }
+    return { url: body.url, error: body.error, status: res.status };
 }
 
-/**
- * Upload a single file and return its public URL. Throws on a real failure
- * (4xx/empty result) after one automatic retry for transient network drops.
- */
-export async function uploadToServer(
-    file: File,
-    folder: string,
-    onProgress?: (pct: number) => void
-): Promise<string> {
+/** Upload a single file and return its public URL, or throw on a real failure. */
+export async function uploadToServer(file: File, folder: string): Promise<string> {
     let res: { url?: string; error?: string; status: number };
     try {
-        res = await postOnce(file, folder, onProgress);
+        res = await postOnce(file, folder);
     } catch (e) {
-        if (!(e instanceof UploadNetworkError)) throw e;
-        // The file may already be on the server, but the client never saw the
-        // reply. One automatic retry beats making the user upload again by hand.
+        // Network-level failure (no response) — the file may have landed but the
+        // reply was lost. One automatic retry beats a manual re-upload.
         // eslint-disable-next-line no-console
-        console.warn("[upload] network error, retrying once:", e.message);
-        onProgress?.(0);
-        res = await postOnce(file, folder, onProgress);
+        console.warn("[upload] network error, retrying once:", e);
+        res = await postOnce(file, folder);
     }
     if (!res.url) {
         if (res.status === 429) throw new Error("Terlalu banyak request. Tunggu sebentar lalu coba lagi.");
