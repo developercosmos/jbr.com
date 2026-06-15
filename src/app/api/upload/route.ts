@@ -44,6 +44,12 @@ export async function POST(request: NextRequest) {
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
 
+        // Diagnostic: trace each upload end-to-end (client bundle-agnostic) so a
+        // "file landed but UI shows nothing" report can be pinned to server vs client.
+        console.log(
+            `[upload] recv user=${session.user.id} folder=${folder} name=${file.name} type=${file.type} size=${buffer.length}`
+        );
+
         // Product videos get their own (configurable) size budget and must be video/*.
         let maxBytesOverride: number | undefined;
         if (folder === "product-videos") {
@@ -82,6 +88,7 @@ export async function POST(request: NextRequest) {
             console.log(`[upload] persisted ${persistAs} user=${session.user.id} url=${result.url}`);
         }
 
+        console.log(`[upload] done folder=${folder} url=${result.url} -> sending 200`);
         return NextResponse.json({
             success: true,
             url: result.url,
