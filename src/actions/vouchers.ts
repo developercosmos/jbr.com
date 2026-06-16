@@ -1,6 +1,8 @@
 "use server";
 
 import { db } from "@/db";
+import { logger } from "@/lib/logger";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { users, vouchers, voucher_redemptions } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -46,6 +48,17 @@ const createVoucherSchema = z.object({
 });
 
 export async function createVoucher(input: z.infer<typeof createVoucherSchema>) {
+    try {
+        return await createVoucherInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal membuat voucher.");
+        logger.warn("voucher:create_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function createVoucherInternal(input: z.infer<typeof createVoucherSchema>) {
     await requireAdmin();
     const validated = createVoucherSchema.parse(input);
 
@@ -72,7 +85,7 @@ export async function createVoucher(input: z.infer<typeof createVoucherSchema>) 
         .returning();
 
     revalidatePath("/admin/vouchers");
-    return { success: true, voucher: created };
+    return { success: true as const, voucher: created };
 }
 
 export async function revokeVoucher(voucherId: string) {
@@ -82,7 +95,7 @@ export async function revokeVoucher(voucherId: string) {
         .set({ is_active: false, updated_at: new Date() })
         .where(eq(vouchers.id, voucherId));
     revalidatePath("/admin/vouchers");
-    return { success: true };
+    return { success: true as const };
 }
 
 export async function listVouchers() {
@@ -193,5 +206,5 @@ export async function redeemVoucher(opts: {
                 voucher_redemptions.order_id,
             ],
         });
-    return { success: true };
+    return { success: true as const };
 }

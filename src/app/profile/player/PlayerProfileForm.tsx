@@ -54,7 +54,7 @@ export default function PlayerProfileForm({ initial }: Props) {
         setSuccess(null);
         startTransition(async () => {
             try {
-                await upsertPlayerProfile({
+                const res = await upsertPlayerProfile({
                     level: level ? (level as "BEGINNER" | "INTERMEDIATE" | "ADVANCED" | "PRO") : undefined,
                     play_style: playStyle ? (playStyle as "OFFENSIVE" | "DEFENSIVE" | "ALL_AROUND" | "DOUBLES_FRONT" | "DOUBLES_BACK") : undefined,
                     dominant_hand: dominantHand ? (dominantHand as "LEFT" | "RIGHT" | "AMBI") : undefined,
@@ -62,6 +62,10 @@ export default function PlayerProfileForm({ initial }: Props) {
                     preferred_balance: preferredBalance ? (preferredBalance as "HEAD_HEAVY" | "EVEN" | "HEAD_LIGHT") : undefined,
                     preferred_shaft_flex: preferredFlex ? (preferredFlex as "STIFF" | "MEDIUM" | "FLEXIBLE") : undefined,
                 });
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal menyimpan profil pemain.");
+                    return;
+                }
                 setSuccess("Profil tersimpan.");
                 router.refresh();
             } catch (err) {

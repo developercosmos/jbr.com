@@ -104,10 +104,14 @@ export default function BuyerInteractionRatingCard({
 
         startTransition(async () => {
             try {
-                await openBuyerRatingDispute({
+                const res = await openBuyerRatingDispute({
                     interactionRatingId: existing.id,
                     reason: disputeReason.trim(),
                 });
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal membuka sengketa rating.");
+                    return;
+                }
                 setSuccess("Sengketa rating berhasil dibuat dan masuk ke admin disputes.");
                 setDisputeReason("");
                 setIsDisputeMode(false);

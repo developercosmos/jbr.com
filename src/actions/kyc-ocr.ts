@@ -7,6 +7,7 @@
 //   - runKycOcrForSeller(id) / runAffiliateOcrForUser(id) : admin manual runs
 
 import { db } from "@/db";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { affiliate_accounts, seller_kyc, users } from "@/db/schema";
 import { asc, eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
@@ -85,7 +86,18 @@ export interface RunOcrForSellerResult {
 }
 
 /** Admin "Run OCR now" — synchronous single-row run (works even if the sweep flag is off). */
-export async function runKycOcrForSeller(sellerId: string): Promise<RunOcrForSellerResult> {
+export async function runKycOcrForSeller(sellerId: string) {
+    try {
+        return await runKycOcrForSellerInternal(sellerId);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menjalankan OCR.");
+        logger.warn("kyc_ocr:run_seller_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function runKycOcrForSellerInternal(sellerId: string) {
     await requireAdmin();
     if (!isOcrConfigured()) {
         throw new Error("Endpoint OCR belum dikonfigurasi (KYC_OCR_LLM_URL / KYC_OCR_LLM_MODEL).");
@@ -141,7 +153,18 @@ export async function runAffiliateOcrSweep(): Promise<KycOcrSweepResult> {
 }
 
 /** Admin "Run OCR now" for an affiliate enrollment (works even if the sweep flag is off). */
-export async function runAffiliateOcrForUser(affiliateUserId: string): Promise<RunOcrForSellerResult> {
+export async function runAffiliateOcrForUser(affiliateUserId: string) {
+    try {
+        return await runAffiliateOcrForUserInternal(affiliateUserId);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menjalankan OCR.");
+        logger.warn("kyc_ocr:run_affiliate_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function runAffiliateOcrForUserInternal(affiliateUserId: string) {
     await requireAdmin();
     if (!isOcrConfigured()) {
         throw new Error("Endpoint OCR belum dikonfigurasi (KYC_OCR_LLM_URL / KYC_OCR_LLM_MODEL).");

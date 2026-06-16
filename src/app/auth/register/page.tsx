@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Zap, ArrowRight, Lock, Mail, User, Loader2, CheckCircle, MailCheck } from "lucide-react";
+import Image from "next/image";
+import { ArrowRight, Lock, Mail, User, Loader2, CheckCircle, MailCheck } from "lucide-react";
 import { registerAccount } from "@/actions/auth-register";
 
 export default function RegisterPage() {
@@ -127,14 +128,24 @@ export default function RegisterPage() {
             <div className="max-w-md w-full bg-white dark:bg-surface-dark rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-8">
                 {/* Logo */}
                 <div className="flex justify-center mb-8">
-                    <div className="flex items-center gap-2">
-                        <div className="size-10 bg-brand-primary rounded-xl flex items-center justify-center shadow-lg shadow-brand-primary/25">
-                            <Zap className="text-white w-6 h-6 fill-current" />
-                        </div>
-                        <span className="text-2xl font-bold tracking-tight font-heading text-slate-900 dark:text-white">
-                            JUALBELIRAKET
-                        </span>
-                    </div>
+                    <Link href="/" className="flex items-center gap-2.5" aria-label="JualBeliRaket.com — Beranda">
+                        <Image
+                            src="/brand/jr.png"
+                            alt="JualBeliRaket"
+                            width={438}
+                            height={200}
+                            priority
+                            className="h-11 w-auto"
+                        />
+                        <Image
+                            src="/brand/jualbeliraket.png"
+                            alt="JualBeliRaket.com"
+                            width={697}
+                            height={128}
+                            priority
+                            className="h-7 w-auto"
+                        />
+                    </Link>
                 </div>
 
                 {/* Header */}

@@ -72,10 +72,14 @@ export function IntegrationCard({ integration }: IntegrationCardProps) {
         setMessage(null);
         startSaving(async () => {
             try {
-                await updateIntegration(integration.key, {
+                const res = await updateIntegration(integration.key, {
                     credentials,
                     config,
                 });
+                if (res && "success" in res && res.success === false) {
+                    setMessage({ type: "error", text: res.error || "Gagal memperbarui integrasi." });
+                    return;
+                }
                 setMessage({ type: "success", text: "Pengaturan berhasil disimpan" });
             } catch (err) {
                 setMessage({ type: "error", text: err instanceof Error ? err.message : "Gagal menyimpan" });

@@ -38,7 +38,7 @@ export function AddAddressButton() {
 
         startTransition(async () => {
             try {
-                await createAddress({
+                const res = await createAddress({
                     label: formData.label,
                     recipient_name: formData.recipient_name,
                     phone: formData.phone,
@@ -49,6 +49,10 @@ export function AddAddressButton() {
                     is_default_shipping: formData.is_default_shipping,
                     is_default_pickup: formData.is_default_pickup,
                 });
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal menyimpan alamat.");
+                    return;
+                }
                 setIsOpen(false);
                 setFormData({
                     label: "",

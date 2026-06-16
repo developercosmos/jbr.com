@@ -117,7 +117,7 @@ export default function FeeRulesClient({ initialRules, categories }: Props) {
         }
         startCreate(async () => {
             try {
-                await createFeeRule({
+                const res = await createFeeRule({
                     name: name.trim(),
                     scope_category_id: scopeCategoryId || null,
                     scope_seller_tier: (scopeTier || null) as Tier | null,
@@ -127,6 +127,10 @@ export default function FeeRulesClient({ initialRules, categories }: Props) {
                     default_value: numericDefault,
                     brackets: mode === "TIERED" ? brackets : undefined,
                 });
+                if (res && "success" in res && res.success === false) {
+                    setCreateError(res.error || "Gagal menyimpan aturan fee.");
+                    return;
+                }
                 setCreateSuccess(`Rule "${name}" berhasil dibuat.`);
                 setName("");
                 setDefaultValue("0");
@@ -164,6 +168,10 @@ export default function FeeRulesClient({ initialRules, categories }: Props) {
                     categoryId: simCategory || null,
                     sellerTier: simTier,
                 });
+                if (result && "success" in result && result.success === false) {
+                    setSimError(result.error || "Gagal menjalankan simulasi.");
+                    return;
+                }
                 setSimResult({
                     fee: result.fee,
                     breakdown: result.breakdown

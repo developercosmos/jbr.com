@@ -90,7 +90,7 @@ export function AddressCard({ address }: { address: Address }) {
 
         startTransition(async () => {
             try {
-                await updateAddress({
+                const res = await updateAddress({
                     id: address.id,
                     label: formData.label,
                     recipient_name: formData.recipient_name,
@@ -102,6 +102,10 @@ export function AddressCard({ address }: { address: Address }) {
                     is_default_shipping: formData.is_default_shipping,
                     is_default_pickup: formData.is_default_pickup,
                 });
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal menyimpan alamat.");
+                    return;
+                }
                 setIsEditOpen(false);
             } catch (err) {
                 setError(getErrorMessage(err, "Gagal mengubah alamat"));
@@ -113,7 +117,11 @@ export function AddressCard({ address }: { address: Address }) {
         setError("");
         startTransition(async () => {
             try {
-                await setDefaultAddress(address.id, type);
+                const res = await setDefaultAddress(address.id, type);
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal mengatur alamat utama.");
+                    return;
+                }
             } catch (err) {
                 setError(getErrorMessage(err, "Gagal mengubah alamat"));
             }
@@ -126,7 +134,11 @@ export function AddressCard({ address }: { address: Address }) {
         setError("");
         startTransition(async () => {
             try {
-                await deleteAddress(address.id);
+                const res = await deleteAddress(address.id);
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal menghapus alamat.");
+                    return;
+                }
             } catch (err) {
                 setError(getErrorMessage(err, "Gagal menghapus alamat"));
             }
@@ -420,9 +432,12 @@ export function AddressCard({ address }: { address: Address }) {
                 onSelect={(coords) => {
                     // Allow re-pinning straight from the preview: save the new point
                     // to this address (keeps "Gunakan Titik Ini" visible + working).
+                    setError("");
                     startTransition(async () => {
                         try {
-                            await updateAddress({
+                            // updateAddress RETURNS { success:false, error } on failure (no throw),
+                            // so the catch alone would silently swallow a failed pin-save.
+                            const res = await updateAddress({
                                 id: address.id,
                                 label: address.label,
                                 recipient_name: address.recipient_name,
@@ -434,6 +449,9 @@ export function AddressCard({ address }: { address: Address }) {
                                 is_default_shipping: Boolean(address.is_default_shipping),
                                 is_default_pickup: Boolean(address.is_default_pickup),
                             });
+                            if (res && "success" in res && res.success === false) {
+                                setError(res.error || "Gagal menyimpan titik lokasi");
+                            }
                         } catch (err) {
                             setError(getErrorMessage(err, "Gagal menyimpan titik lokasi"));
                         }

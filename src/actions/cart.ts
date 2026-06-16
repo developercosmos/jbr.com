@@ -1,6 +1,8 @@
 "use server";
 
 import { db } from "@/db";
+import { logger } from "@/lib/logger";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { carts, products } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -101,7 +103,7 @@ export async function addToCart(productId: string, quantity = 1, variantId?: str
             .returning();
 
         revalidatePath("/cart");
-        return { success: true, cartItem: updated };
+        return { success: true as const, cartItem: updated };
     }
 
     // Add new item
@@ -125,21 +127,43 @@ export async function addToCart(productId: string, quantity = 1, variantId?: str
     }
 
     revalidatePath("/cart");
-    return { success: true, cartItem };
+    return { success: true as const, cartItem };
 }
 
 // REC-03: move item between active cart and "saved for later" bucket.
 export async function moveCartItemToSaved(cartItemId: string) {
+    try {
+        return await moveCartItemToSavedInternal(cartItemId);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal memindahkan item.");
+        logger.warn("cart:move_to_saved_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function moveCartItemToSavedInternal(cartItemId: string) {
     const user = await getCurrentUser();
     await db
         .update(carts)
         .set({ saved_for_later: true, last_mutated_at: new Date() })
         .where(and(eq(carts.id, cartItemId), eq(carts.user_id, user.id)));
     revalidatePath("/cart");
-    return { success: true };
+    return { success: true as const };
 }
 
 export async function moveSavedItemToCart(cartItemId: string) {
+    try {
+        return await moveSavedItemToCartInternal(cartItemId);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal memindahkan item.");
+        logger.warn("cart:move_to_cart_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function moveSavedItemToCartInternal(cartItemId: string) {
     const user = await getCurrentUser();
     const item = await db.query.carts.findFirst({
         where: and(eq(carts.id, cartItemId), eq(carts.user_id, user.id)),
@@ -161,7 +185,7 @@ export async function moveSavedItemToCart(cartItemId: string) {
         .set({ saved_for_later: false, abandonment_state: null, last_mutated_at: new Date() })
         .where(and(eq(carts.id, cartItemId), eq(carts.user_id, user.id)));
     revalidatePath("/cart");
-    return { success: true };
+    return { success: true as const };
 }
 
 export async function updateCartItemQuantity(cartItemId: string, quantity: number) {
@@ -206,7 +230,7 @@ export async function updateCartItemQuantity(cartItemId: string, quantity: numbe
     }
 
     revalidatePath("/cart");
-    return { success: true, cartItem: updated };
+    return { success: true as const, cartItem: updated };
 }
 
 export async function removeFromCart(cartItemId: string) {
@@ -215,7 +239,7 @@ export async function removeFromCart(cartItemId: string) {
     await db.delete(carts).where(and(eq(carts.id, cartItemId), eq(carts.user_id, user.id)));
 
     revalidatePath("/cart");
-    return { success: true };
+    return { success: true as const };
 }
 
 export async function getCart() {
@@ -253,7 +277,7 @@ export async function clearCart() {
     await db.delete(carts).where(eq(carts.user_id, user.id));
 
     revalidatePath("/cart");
-    return { success: true };
+    return { success: true as const };
 }
 
 export async function getCartCount(): Promise<number> {

@@ -22,7 +22,11 @@ export default function ConfirmDeliveryButton({ orderId }: Props) {
         setError(null);
         startTransition(async () => {
             try {
-                await confirmDelivery(orderId);
+                const res = await confirmDelivery(orderId);
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal konfirmasi pengiriman.");
+                    return;
+                }
                 router.refresh();
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Gagal mengonfirmasi penerimaan barang.");

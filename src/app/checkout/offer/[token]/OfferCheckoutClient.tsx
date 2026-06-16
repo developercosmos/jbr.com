@@ -63,6 +63,10 @@ export default function OfferCheckoutClient({ token, amount, listing, expiresAt,
                     shipping_address_id: addressId,
                     shipping_courier: courier,
                 });
+                if (result && "success" in result && result.success === false) {
+                    setError(result.error || "Gagal membuat pesanan.");
+                    return;
+                }
                 router.push(`/payment/${result.orderId}`);
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Gagal membuat pesanan.");

@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/db";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import {
     affiliate_accounts,
     affiliate_attributions,
@@ -112,6 +113,17 @@ const enrollSchema = z.object({
 });
 
 export async function enrollAffiliate(input: z.infer<typeof enrollSchema>) {
+    try {
+        return await enrollAffiliateInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal mendaftar affiliate.");
+        logger.warn("affiliate:enroll_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function enrollAffiliateInternal(input: z.infer<typeof enrollSchema>) {
     const user = await getCurrentUser();
     const validated = enrollSchema.parse(input);
 
@@ -120,7 +132,7 @@ export async function enrollAffiliate(input: z.infer<typeof enrollSchema>) {
     });
 
     if (existing?.status === "ACTIVE" || existing?.status === "PENDING") {
-        return { success: true, code: existing.code, alreadyEnrolled: true };
+        return { success: true as const, code: existing.code, alreadyEnrolled: true };
     }
 
     if (existing?.status === "SUSPENDED") {
@@ -240,7 +252,7 @@ export async function enrollAffiliate(input: z.infer<typeof enrollSchema>) {
 
     revalidatePath("/affiliate");
     revalidatePath("/admin/affiliates");
-    return { success: true, code: saved.code };
+    return { success: true as const, code: saved.code };
 }
 
 export async function recordAffiliateClick(opts: {
@@ -266,7 +278,7 @@ export async function recordAffiliateClick(opts: {
         expires_at: expires,
     });
 
-    return { success: true };
+    return { success: true as const };
 }
 
 /**
@@ -542,6 +554,17 @@ export async function listAffiliatesForAdmin() {
 }
 
 export async function approveAffiliateApplication(affiliateUserId: string) {
+    try {
+        return await approveAffiliateApplicationInternal(affiliateUserId);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menyetujui affiliate.");
+        logger.warn("affiliate:approve_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function approveAffiliateApplicationInternal(affiliateUserId: string) {
     const admin = await requireAdmin();
 
     const [updated] = await db
@@ -590,10 +613,21 @@ export async function approveAffiliateApplication(affiliateUserId: string) {
 
     revalidatePath("/affiliate");
     revalidatePath("/admin/affiliates");
-    return { success: true };
+    return { success: true as const };
 }
 
 export async function rejectAffiliateApplication(affiliateUserId: string, notes: string) {
+    try {
+        return await rejectAffiliateApplicationInternal(affiliateUserId, notes);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menolak affiliate.");
+        logger.warn("affiliate:reject_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function rejectAffiliateApplicationInternal(affiliateUserId: string, notes: string) {
     const admin = await requireAdmin();
 
     const trimmedNotes = notes.trim();
@@ -646,7 +680,7 @@ export async function rejectAffiliateApplication(affiliateUserId: string, notes:
 
     revalidatePath("/affiliate");
     revalidatePath("/admin/affiliates");
-    return { success: true };
+    return { success: true as const };
 }
 
 const overrideRateSchema = z.object({
@@ -655,6 +689,17 @@ const overrideRateSchema = z.object({
 });
 
 export async function setAffiliateRateOverride(input: z.infer<typeof overrideRateSchema>) {
+    try {
+        return await setAffiliateRateOverrideInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal mengatur rate.");
+        logger.warn("affiliate:rate_override_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function setAffiliateRateOverrideInternal(input: z.infer<typeof overrideRateSchema>) {
     await requireAdmin();
     const validated = overrideRateSchema.parse(input);
     await db
@@ -665,7 +710,7 @@ export async function setAffiliateRateOverride(input: z.infer<typeof overrideRat
         })
         .where(eq(affiliate_accounts.user_id, validated.affiliateUserId));
     revalidatePath("/admin/affiliates");
-    return { success: true };
+    return { success: true as const };
 }
 
 export async function suspendAffiliate(affiliateUserId: string) {
@@ -675,10 +720,21 @@ export async function suspendAffiliate(affiliateUserId: string) {
         .set({ status: "SUSPENDED", updated_at: new Date() })
         .where(eq(affiliate_accounts.user_id, affiliateUserId));
     revalidatePath("/admin/affiliates");
-    return { success: true };
+    return { success: true as const };
 }
 
 export async function processAffiliatePayoutBatch() {
+    try {
+        return await processAffiliatePayoutBatchInternal();
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal memproses payout.");
+        logger.warn("affiliate:payout_batch_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function processAffiliatePayoutBatchInternal() {
     await requireAdmin();
 
     const batchId = randomUUID();
@@ -699,7 +755,7 @@ export async function processAffiliatePayoutBatch() {
         });
 
     if (cleared.length === 0) {
-        return { processed: 0, totalAmount: 0, lines: [] };
+        return { success: true as const, processed: 0, totalAmount: 0, lines: [] };
     }
 
     // Aggregate per affiliate for the batch payout summary.
@@ -735,6 +791,7 @@ export async function processAffiliatePayoutBatch() {
     }
 
     return {
+        success: true as const,
         processed: cleared.length,
         totalAmount: lines.reduce((sum, l) => sum + l.amount, 0),
         lines,

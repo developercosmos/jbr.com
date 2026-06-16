@@ -197,15 +197,19 @@ export function FeatureFlagsClient({
             try {
                 if (kind === "toggle") {
                     const nextEnabled = !flag.enabled;
-                    await toggleFeatureFlag(flag.key, nextEnabled, cleanReason, {
+                    const res = await toggleFeatureFlag(flag.key, nextEnabled, cleanReason, {
                         confirmationPhrase: phrase,
                     });
+                    if (res && "success" in res && res.success === false) {
+                        setMessage({ type: "error", text: res.error || "Gagal mengubah feature flag." });
+                        return;
+                    }
                     setMessage({
                         type: "success",
                         text: `${flag.key} → ${nextEnabled ? "ENABLED" : "DISABLED"}.`,
                     });
                 } else {
-                    await updateFeatureFlag({
+                    const res = await updateFeatureFlag({
                         key: flag.key,
                         reason: cleanReason,
                         rolloutPct: Number(draft.rolloutPct || 0),
@@ -222,6 +226,10 @@ export function FeatureFlagsClient({
                         variants: parseVariants(draft.variants),
                         confirmationPhrase: phrase,
                     });
+                    if (res && "success" in res && res.success === false) {
+                        setMessage({ type: "error", text: res.error || "Gagal memperbarui feature flag." });
+                        return;
+                    }
                     setMessage({ type: "success", text: `Konfigurasi ${flag.key} tersimpan.` });
                 }
                 setPendingChange(null);

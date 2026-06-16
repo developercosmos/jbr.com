@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/db";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { orders, order_items, carts, products, product_variants, reviews, addresses, users, seller_ratings, voucher_redemptions } from "@/db/schema";
 import { applyVoucher } from "@/actions/vouchers";
 import { auth } from "@/lib/auth";
@@ -79,6 +80,17 @@ const createOrderSchema = z.object({
 });
 
 export async function createOrderFromCart(input: z.infer<typeof createOrderSchema>) {
+    try {
+        return await createOrderFromCartInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal membuat pesanan.");
+        logger.warn("order:create_from_cart_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function createOrderFromCartInternal(input: z.infer<typeof createOrderSchema>) {
     const user = await getCurrentUser();
     const validated = createOrderSchema.parse(input);
 
@@ -406,7 +418,7 @@ export async function createOrderFromCart(input: z.infer<typeof createOrderSchem
     revalidatePath("/profile/orders");
     revalidatePath("/seller/orders");
 
-    return { success: true, orders: createdOrders };
+    return { success: true as const, orders: createdOrders };
 }
 
 // ============================================
@@ -422,6 +434,17 @@ const createOrderFromOfferSchema = z.object({
 });
 
 export async function createOrderFromOffer(input: z.infer<typeof createOrderFromOfferSchema>) {
+    try {
+        return await createOrderFromOfferInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal membuat pesanan.");
+        logger.warn("order:create_from_offer_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function createOrderFromOfferInternal(input: z.infer<typeof createOrderFromOfferSchema>) {
     const user = await getCurrentUser();
     const validated = createOrderFromOfferSchema.parse(input);
 
@@ -577,7 +600,7 @@ export async function createOrderFromOffer(input: z.infer<typeof createOrderFrom
     revalidatePath("/profile/orders");
     revalidatePath("/profile/offers");
 
-    return { success: true, orderId: order.id };
+    return { success: true as const, orderId: order.id };
 }
 
 export async function getBuyerOrders() {
@@ -677,7 +700,7 @@ export async function updateOrderStatus(
     revalidatePath("/seller/orders");
     revalidatePath("/profile/orders");
 
-    return { success: true, order: updated };
+    return { success: true as const, order: updated };
 }
 
 export async function getOrderById(orderId: string) {

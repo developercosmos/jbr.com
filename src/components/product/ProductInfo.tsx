@@ -438,6 +438,10 @@ export function ProductInfo({
                         amount: numericAmount,
                         returnPath: window.location.pathname,
                     });
+                    if (result && "success" in result && result.success === false) {
+                        setOfferMessage({ type: "error", text: result.error || "Gagal menyiapkan login untuk tawar." });
+                        return;
+                    }
                     router.push(result.loginUrl);
                 } catch (error) {
                     setOfferMessage({ type: "error", text: error instanceof Error ? error.message : "Gagal menyiapkan login untuk tawar." });

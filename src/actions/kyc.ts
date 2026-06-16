@@ -1,6 +1,8 @@
 "use server";
 
 import { db } from "@/db";
+import { logger } from "@/lib/logger";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { files, notifications, orders, seller_kyc, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { and, desc, eq, gte, ilike, inArray, lt, ne, sql } from "drizzle-orm";
@@ -324,6 +326,17 @@ export async function getSellerMonthlyGmvStatus(sellerId: string) {
 }
 
 export async function submitSellerKycApplication(input: z.infer<typeof submitSellerKycSchema>) {
+    try {
+        return await submitSellerKycApplicationInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal mengirim pengajuan KYC.");
+        logger.warn("kyc:submit_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function submitSellerKycApplicationInternal(input: z.infer<typeof submitSellerKycSchema>) {
     const sessionUser = await getCurrentUser();
     const validated = submitSellerKycSchema.parse(input);
 
@@ -566,6 +579,17 @@ function buildSafeKycFilename(slot: "ktp" | "selfie" | "business" | "statement",
 }
 
 export async function uploadKycDocument(formData: FormData) {
+    try {
+        return await uploadKycDocumentInternal(formData);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal mengunggah dokumen.");
+        logger.warn("kyc:upload_doc_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function uploadKycDocumentInternal(formData: FormData) {
     const sessionUser = await getCurrentUser();
 
     const file = formData.get("file") as File | null;
@@ -620,7 +644,7 @@ export async function uploadKycDocument(formData: FormData) {
         })
         .returning({ id: files.id });
 
-    return { fileId: savedFile.id, slot };
+    return { success: true as const, fileId: savedFile.id, slot };
 }
 
 export async function getCurrentSellerKyc() {
@@ -694,6 +718,17 @@ export async function getKycSubmissionCounts() {
 }
 
 export async function reviewSellerKycApplication(input: z.infer<typeof reviewSellerKycSchema>) {
+    try {
+        return await reviewSellerKycApplicationInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal memproses review KYC.");
+        logger.warn("kyc:review_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function reviewSellerKycApplicationInternal(input: z.infer<typeof reviewSellerKycSchema>) {
     const admin = await requireAdmin();
     const validated = reviewSellerKycSchema.parse(input);
     const trimmedNotes = validated.notes?.trim();
@@ -780,5 +815,5 @@ export async function reviewSellerKycApplication(input: z.infer<typeof reviewSel
     revalidatePath("/seller/settings");
     revalidatePath(`/store/${validated.sellerId}`);
 
-    return { success: true };
+    return { success: true as const };
 }

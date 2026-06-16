@@ -20,6 +20,8 @@
  */
 
 import { redirect } from "next/navigation";
+import { logger } from "@/lib/logger";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { revalidatePath } from "next/cache";
 import { postJournal, type JournalLineInput } from "@/actions/accounting/journals";
 import { requireAdminFinanceSession } from "@/lib/admin-finance";
@@ -72,7 +74,18 @@ function num(v: FormDataEntryValue | null): number {
     return Number.isFinite(n) ? n : 0;
 }
 
-export async function postManualJournalAction(formData: FormData): Promise<void> {
+export async function postManualJournalAction(formData: FormData) {
+    try {
+        return await postManualJournalActionInternal(formData);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal memposting jurnal.");
+        logger.warn("accounting:manual_journal_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function postManualJournalActionInternal(formData: FormData) {
     const session = await requireAdminFinanceSession();
 
     const description = String(formData.get("description") ?? "").trim();

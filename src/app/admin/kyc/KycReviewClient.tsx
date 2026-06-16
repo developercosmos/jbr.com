@@ -111,7 +111,11 @@ export default function KycReviewClient({ submissions, ocrConfigured }: Props) {
         setError(null);
         setOcrRunningId(sellerId);
         try {
-            await runKycOcrForSeller(sellerId);
+            const res = await runKycOcrForSeller(sellerId);
+            if (res && "success" in res && res.success === false) {
+                setError(res.error || "Gagal menjalankan OCR.");
+                return;
+            }
             router.refresh();
         } catch (err) {
             setError(err instanceof Error ? err.message : "Gagal menjalankan OCR.");
@@ -146,12 +150,16 @@ export default function KycReviewClient({ submissions, ocrConfigured }: Props) {
                 const approvedTier = decision === "APPROVED" && submission.tier !== "T0"
                     ? submission.tier
                     : undefined;
-                await reviewSellerKycApplication({
+                const res = await reviewSellerKycApplication({
                     sellerId: submission.userId,
                     decision,
                     approvedTier,
                     notes,
                 });
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal memproses review KYC.");
+                    return;
+                }
                 router.refresh();
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Gagal menyimpan keputusan KYC.");

@@ -1,6 +1,8 @@
 "use server";
 
 import { db } from "@/db";
+import { logger } from "@/lib/logger";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { platform_fee_rules, platform_fee_rule_brackets, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -180,6 +182,17 @@ const createFeeRuleSchema = z.object({
 });
 
 export async function createFeeRule(input: z.infer<typeof createFeeRuleSchema>) {
+    try {
+        return await createFeeRuleInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menyimpan aturan fee.");
+        logger.warn("fee:create_rule_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function createFeeRuleInternal(input: z.infer<typeof createFeeRuleSchema>) {
     await requireAdmin();
     const validated = createFeeRuleSchema.parse(input);
 
@@ -211,7 +224,7 @@ export async function createFeeRule(input: z.infer<typeof createFeeRuleSchema>) 
     }
 
     revalidatePath("/admin/fees");
-    return { success: true, ruleId: rule.id };
+    return { success: true as const, ruleId: rule.id };
 }
 
 export async function archiveFeeRule(ruleId: string) {
@@ -221,7 +234,7 @@ export async function archiveFeeRule(ruleId: string) {
         .set({ is_active: false, updated_at: new Date() })
         .where(eq(platform_fee_rules.id, ruleId));
     revalidatePath("/admin/fees");
-    return { success: true };
+    return { success: true as const };
 }
 
 export async function listFeeRules() {
@@ -243,13 +256,25 @@ const simulateSchema = z.object({
 });
 
 export async function simulateFee(input: z.infer<typeof simulateSchema>) {
+    try {
+        return await simulateFeeInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menjalankan simulasi.");
+        logger.warn("fee:simulate_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function simulateFeeInternal(input: z.infer<typeof simulateSchema>) {
     await requireAdmin();
     const validated = simulateSchema.parse(input);
-    return calculatePlatformFee({
+    const resolution = await calculatePlatformFee({
         price: validated.price,
         categoryId: validated.categoryId ?? null,
         sellerTier: validated.sellerTier,
     });
+    return { success: true as const, ...resolution };
 }
 
 // Suppress unused-import warnings for symbols reserved for follow-up tooling.

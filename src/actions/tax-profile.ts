@@ -4,6 +4,8 @@
 // pernyataan omzet <= Rp500jt, dan pelaporan saat omzet melewati ambang.
 
 import { db } from "@/db";
+import { logger } from "@/lib/logger";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { seller_kyc, seller_tax_profiles, tax_withholdings, users } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
@@ -79,6 +81,17 @@ const saveTaxProfileSchema = z.object({
 });
 
 export async function saveSellerTaxProfile(input: z.infer<typeof saveTaxProfileSchema>) {
+    try {
+        return await saveSellerTaxProfileInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menyimpan profil pajak.");
+        logger.warn("tax:save_profile_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function saveSellerTaxProfileInternal(input: z.infer<typeof saveTaxProfileSchema>) {
     const user = await getCurrentUser();
     const validated = saveTaxProfileSchema.parse(input);
 
@@ -114,6 +127,17 @@ export async function saveSellerTaxProfile(input: z.infer<typeof saveTaxProfileS
 
 /** Surat pernyataan omzet <= Rp500jt untuk tahun pajak berjalan (pengecualian PPh 22). */
 export async function declareOmzetUnderThreshold() {
+    try {
+        return await declareOmzetUnderThresholdInternal();
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menyimpan deklarasi.");
+        logger.warn("tax:declare_under_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function declareOmzetUnderThresholdInternal() {
     const user = await getCurrentUser();
     const year = new Date().getFullYear();
 
@@ -143,6 +167,17 @@ export async function declareOmzetUnderThreshold() {
 
 /** Pernyataan omzet tahun berjalan telah melewati ambang (pemungutan mulai bulan berikutnya). */
 export async function declareOmzetCrossedThreshold() {
+    try {
+        return await declareOmzetCrossedThresholdInternal();
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menyimpan deklarasi.");
+        logger.warn("tax:declare_crossed_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function declareOmzetCrossedThresholdInternal() {
     const user = await getCurrentUser();
     const year = new Date().getFullYear();
 

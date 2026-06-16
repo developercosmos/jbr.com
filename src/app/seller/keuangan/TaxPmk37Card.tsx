@@ -51,7 +51,11 @@ export default function TaxPmk37Card({ status }: { status: TaxStatus }) {
         setInfo(null);
         startTransition(async () => {
             try {
-                await fn();
+                const res = await fn();
+                if (res && typeof res === "object" && "success" in res && res.success === false) {
+                    setError(String((res as { error?: string }).error || "Gagal memproses."));
+                    return;
+                }
                 setInfo(okMsg);
                 router.refresh();
             } catch (e) {

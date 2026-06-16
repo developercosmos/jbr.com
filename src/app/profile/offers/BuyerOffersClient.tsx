@@ -91,7 +91,6 @@ export function BuyerOffersClient({ threads, expiryWarningEnabled }: Props) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [pendingId, setPendingId] = useState<string | null>(null);
-    const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
     // Deep-link from an offer email (?offer=<id>): scroll to + highlight the thread.
     const highlightId = useSearchParams().get("offer");
     useEffect(() => {
@@ -99,6 +98,7 @@ export function BuyerOffersClient({ threads, expiryWarningEnabled }: Props) {
         const el = document.getElementById(`offer-${highlightId}`);
         if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
     }, [highlightId]);
+    const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
     // Tick `now` every minute so the expiry banner stays accurate without
     // forcing a server round-trip per row.
     const [now, setNow] = useState(() => Date.now());
@@ -114,7 +114,11 @@ export function BuyerOffersClient({ threads, expiryWarningEnabled }: Props) {
         setMessage(null);
         startTransition(async () => {
             try {
-                await withdrawOffer(offerId);
+                const res = await withdrawOffer(offerId);
+                if (res && "success" in res && res.success === false) {
+                    setMessage({ type: "error", text: res.error || "Gagal menarik penawaran." });
+                    return;
+                }
                 setMessage({ type: "success", text: "Tawaran berhasil dibatalkan." });
                 router.refresh();
             } catch (error) {

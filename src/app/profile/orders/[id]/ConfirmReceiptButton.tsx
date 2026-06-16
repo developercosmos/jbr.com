@@ -37,7 +37,11 @@ export default function ConfirmReceiptButton({ orderId, releaseDueAt }: Props) {
         setError(null);
         startTransition(async () => {
             try {
-                await confirmReceipt(orderId);
+                const res = await confirmReceipt(orderId);
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal menyelesaikan pesanan.");
+                    return;
+                }
                 router.refresh();
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Gagal mengonfirmasi penerimaan.");

@@ -64,7 +64,11 @@ export default function ManualJournalForm({ accounts, okJournalNo }: Props) {
                 fd.set(`line[${i}][credit]`, ln.credit || "0");
                 fd.set(`line[${i}][memo]`, ln.memo);
             });
-            await postManualJournalAction(fd);
+            const res = await postManualJournalAction(fd);
+            if (res && "success" in res && res.success === false) {
+                setError(res.error || "Gagal memposting jurnal.");
+                return;
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
         } finally {

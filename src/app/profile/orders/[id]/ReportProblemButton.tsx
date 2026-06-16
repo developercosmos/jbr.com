@@ -50,7 +50,11 @@ export default function ReportProblemButton({ orderId, existing }: Props) {
         setError(null);
         startTransition(async () => {
             try {
-                await createOrderDispute({ orderId, type: type as never, description });
+                const res = await createOrderDispute({ orderId, type: type as never, description });
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal membuka sengketa.");
+                    return;
+                }
                 setOpen(false);
                 setDescription("");
                 router.refresh();

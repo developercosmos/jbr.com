@@ -47,7 +47,7 @@ export default function VouchersClient({ initialVouchers }: Props) {
         }
         startTransition(async () => {
             try {
-                await createVoucher({
+                const res = await createVoucher({
                     code: code.trim().toUpperCase(),
                     type,
                     value: numericValue,
@@ -57,6 +57,10 @@ export default function VouchersClient({ initialVouchers }: Props) {
                     valid_to: validTo ? new Date(validTo).toISOString() : undefined,
                     is_active: true,
                 });
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal membuat voucher.");
+                    return;
+                }
                 setSuccess(`Voucher ${code.toUpperCase()} dibuat.`);
                 setCode("");
                 router.refresh();

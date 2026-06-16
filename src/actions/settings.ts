@@ -1,6 +1,8 @@
 "use server";
 
 import { db } from "@/db";
+import { logger } from "@/lib/logger";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { integration_settings, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -76,6 +78,24 @@ export async function getIntegrationByKey(key: string) {
 // UPDATE INTEGRATION SETTINGS
 // ============================================
 export async function updateIntegration(
+    key: string,
+    data: {
+        enabled?: boolean;
+        credentials?: Record<string, string>;
+        config?: Record<string, unknown>;
+    }
+) {
+    try {
+        return await updateIntegrationInternal(key, data);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal memperbarui integrasi.");
+        logger.warn("integration:update_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function updateIntegrationInternal(
     key: string,
     data: {
         enabled?: boolean;
@@ -283,7 +303,7 @@ export async function seedDefaultIntegrations() {
     }
 
     revalidatePath("/admin/settings");
-    return { success: true };
+    return { success: true as const };
 }
 
 // ============================================

@@ -1,6 +1,8 @@
 "use server";
 
 import { db } from "@/db";
+import { logger } from "@/lib/logger";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { disputes, orders } from "@/db/schema";
 import { and, eq, isNotNull, lte, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
@@ -37,6 +39,17 @@ const createOrderDisputeSchema = z.object({
 const DISPUTABLE_ORDER_STATUSES = ["PAID", "PROCESSING", "SHIPPED", "DELIVERED"] as const;
 
 export async function createOrderDispute(input: z.infer<typeof createOrderDisputeSchema>) {
+    try {
+        return await createOrderDisputeInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal membuka sengketa.");
+        logger.warn("dispute:create_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function createOrderDisputeInternal(input: z.infer<typeof createOrderDisputeSchema>) {
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session?.user) throw new Error("Unauthorized");
     const validated = createOrderDisputeSchema.parse(input);
@@ -109,7 +122,7 @@ export async function createOrderDispute(input: z.infer<typeof createOrderDisput
     revalidatePath(`/profile/orders/${order.id}`);
     revalidatePath("/admin/disputes");
 
-    return { success: true, disputeId: created.id, disputeNumber: created.dispute_number };
+    return { success: true as const, disputeId: created.id, disputeNumber: created.dispute_number };
 }
 
 // Returns the current buyer's open/active ORDER dispute for an order, if any

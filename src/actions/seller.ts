@@ -1,6 +1,8 @@
 "use server";
 
 import { db } from "@/db";
+import { logger } from "@/lib/logger";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { addresses, notifications, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { canAccessSellerCenter, normalizeStoreSlug } from "@/lib/seller";
@@ -249,6 +251,17 @@ export async function activateSellerProfile(input: z.infer<typeof activateSeller
 }
 
 export async function resubmitSellerActivationReview() {
+    try {
+        return await resubmitSellerActivationReviewInternal();
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal mengajukan ulang review.");
+        logger.warn("seller:resubmit_review_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function resubmitSellerActivationReviewInternal() {
     const sessionUser = await getCurrentUser();
 
     const seller = await db.query.users.findFirst({

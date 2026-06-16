@@ -67,7 +67,11 @@ export function CartContent({ initialItems }: CartContentProps) {
         setMoveError(null);
         startTransition(async () => {
             try {
-                await moveCartItemToSaved(cartItemId);
+                const res = await moveCartItemToSaved(cartItemId);
+                if (res && "success" in res && res.success === false) {
+                    setMoveError(res.error || "Gagal memindahkan item.");
+                    return;
+                }
                 setItems((prev) => prev.map((i) => (i.id === cartItemId ? { ...i, saved_for_later: true } : i)));
             } catch (error) {
                 setMoveError(error instanceof Error ? error.message : "Gagal memindahkan item.");
@@ -79,7 +83,11 @@ export function CartContent({ initialItems }: CartContentProps) {
         setMoveError(null);
         startTransition(async () => {
             try {
-                await moveSavedItemToCart(cartItemId);
+                const res = await moveSavedItemToCart(cartItemId);
+                if (res && "success" in res && res.success === false) {
+                    setMoveError(res.error || "Gagal memindahkan item.");
+                    return;
+                }
                 setItems((prev) => prev.map((i) => (i.id === cartItemId ? { ...i, saved_for_later: false } : i)));
             } catch (error) {
                 setMoveError(error instanceof Error ? error.message : "Gagal memindahkan item.");

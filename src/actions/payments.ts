@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/db";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { payments, orders, order_items, products, product_variants } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -46,6 +47,17 @@ async function getCurrentUser() {
 // CREATE XENDIT INVOICE
 // ============================================
 export async function createPaymentInvoice(orderId: string, preferredMethod?: "BANK_TRANSFER" | "EWALLET" | "COD") {
+    try {
+        return await createPaymentInvoiceInternal(orderId, preferredMethod);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal membuat pembayaran.");
+        logger.warn("payment:create_invoice_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function createPaymentInvoiceInternal(orderId: string, preferredMethod?: "BANK_TRANSFER" | "EWALLET" | "COD") {
     const user = await getCurrentUser();
 
     // Get order with items
@@ -116,7 +128,7 @@ export async function createPaymentInvoice(orderId: string, preferredMethod?: "B
         revalidatePath("/profile/orders");
         revalidatePath("/seller/orders");
         return {
-            success: true,
+            success: true as const,
             cod: true,
             redirectUrl: `/profile/orders/${orderId}`,
         };
@@ -132,7 +144,7 @@ export async function createPaymentInvoice(orderId: string, preferredMethod?: "B
 
     if (existingPayment && existingPayment.xendit_invoice_url) {
         return {
-            success: true,
+            success: true as const,
             invoiceUrl: existingPayment.xendit_invoice_url,
             paymentId: existingPayment.id,
         };
@@ -235,7 +247,7 @@ export async function createPaymentInvoice(orderId: string, preferredMethod?: "B
     revalidatePath("/profile/orders");
 
     return {
-        success: true,
+        success: true as const,
         invoiceUrl: invoice.invoice_url,
         paymentId: payment.id,
     };
@@ -329,7 +341,7 @@ export async function handleXenditWebhook(data: {
 
         if (transitioned.length === 0) {
             // Already processed (or not in a payable state) — idempotent no-op.
-            return { success: true };
+            return { success: true as const };
         }
 
         // Get order with buyer info for email
@@ -422,7 +434,7 @@ export async function handleXenditWebhook(data: {
     revalidatePath("/profile/orders");
     revalidatePath("/seller/orders");
 
-    return { success: true };
+    return { success: true as const };
 }
 
 // Restore product/variant stock for every line item of an order. Used when an

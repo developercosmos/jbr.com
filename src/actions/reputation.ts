@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/db";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { logger } from "@/lib/logger";
 import {
     buyer_interaction_ratings,
@@ -194,6 +195,17 @@ async function recomputeBuyerScore(rateeId: string) {
 }
 
 export async function submitBuyerRating(input: z.infer<typeof submitBuyerRatingSchema>) {
+    try {
+        return await submitBuyerRatingInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menyimpan rating.");
+        logger.warn("reputation:buyer_rating_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function submitBuyerRatingInternal(input: z.infer<typeof submitBuyerRatingSchema>) {
     const user = await getCurrentUser();
     const validated = submitBuyerRatingSchema.parse(input);
 
@@ -259,7 +271,7 @@ export async function submitBuyerRating(input: z.infer<typeof submitBuyerRatingS
     revalidatePath(`/profile/orders/${validated.orderId}`);
     revalidatePath(`/seller/orders/${validated.orderId}`);
 
-    return { success: true, direction };
+    return { success: true as const, direction };
 }
 
 const submitBuyerInteractionRatingSchema = z.object({
@@ -571,6 +583,17 @@ export async function getSellerInteractionRatingForContext(contextType: Interact
 }
 
 export async function openBuyerRatingDispute(input: z.infer<typeof openBuyerRatingDisputeSchema>) {
+    try {
+        return await openBuyerRatingDisputeInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal membuka sengketa rating.");
+        logger.warn("reputation:rating_dispute_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function openBuyerRatingDisputeInternal(input: z.infer<typeof openBuyerRatingDisputeSchema>) {
     const user = await getCurrentUser();
     const validated = openBuyerRatingDisputeSchema.parse(input);
 
@@ -612,10 +635,21 @@ export async function openBuyerRatingDispute(input: z.infer<typeof openBuyerRati
 
     revalidatePath("/admin/disputes");
 
-    return { success: true, disputeId: created.id, disputeNumber: created.dispute_number };
+    return { success: true as const, disputeId: created.id, disputeNumber: created.dispute_number };
 }
 
 export async function moderateBuyerInteractionRating(input: z.infer<typeof moderateBuyerInteractionRatingSchema>) {
+    try {
+        return await moderateBuyerInteractionRatingInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal memoderasi rating.");
+        logger.warn("reputation:moderate_rating_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function moderateBuyerInteractionRatingInternal(input: z.infer<typeof moderateBuyerInteractionRatingSchema>) {
     const user = await getCurrentUser();
     if (user.role !== "ADMIN") {
         throw new Error("Admin access required.");
@@ -644,7 +678,7 @@ export async function moderateBuyerInteractionRating(input: z.infer<typeof moder
     revalidatePath("/admin/disputes");
     revalidatePath("/seller/orders");
 
-    return { success: true, buyerId: rating.buyer_id, invalidated: validated.invalidated };
+    return { success: true as const, buyerId: rating.buyer_id, invalidated: validated.invalidated };
 }
 
 export async function recomputeBuyerReputationSummary(buyerId: string) {

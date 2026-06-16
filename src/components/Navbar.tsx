@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Zap, Tag, Menu } from "lucide-react";
+import Image from "next/image";
+import { Tag, Menu } from "lucide-react";
 import { NavbarUserArea } from "./NavbarClient";
 import { ChatBadge } from "./ChatBadge";
 import { CartBadge } from "./CartBadge";
@@ -18,11 +19,23 @@ export function Navbar() {
             <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center justify-between h-16 gap-6">
                     {/* Logo Section */}
-                    <Link href="/" className="flex-shrink-0 flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity">
-                        <div className="size-8 bg-brand-primary rounded-lg flex items-center justify-center shadow-sm">
-                            <Zap className="text-white w-5 h-5 fill-current" />
-                        </div>
-                        <span className="text-brand-primary text-lg font-bold tracking-tight font-heading">JUALBELI RAKET.COM</span>
+                    <Link href="/" className="flex-shrink-0 flex items-center gap-2 cursor-pointer hover:opacity-90 transition-opacity" aria-label="JualBeliRaket.com — Beranda">
+                        <Image
+                            src="/brand/jr.png"
+                            alt="JualBeliRaket"
+                            width={438}
+                            height={200}
+                            priority
+                            className="h-9 w-auto"
+                        />
+                        <Image
+                            src="/brand/jualbeliraket.png"
+                            alt="JualBeliRaket.com"
+                            width={697}
+                            height={128}
+                            priority
+                            className="h-6 w-auto"
+                        />
                     </Link>
 
                     {/* Search Bar Section (Dominant) */}

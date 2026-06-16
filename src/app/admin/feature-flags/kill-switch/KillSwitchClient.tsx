@@ -31,7 +31,11 @@ export function KillSwitchClient({
         }
         startTransition(async () => {
             try {
-                await activateFeatureFlagKillSwitch({ scope, reason, confirmationPhrase: confirmText });
+                const res = await activateFeatureFlagKillSwitch({ scope, reason, confirmationPhrase: confirmText });
+                if (res && "success" in res && res.success === false) {
+                    setMessage({ type: "error", text: res.error || "Gagal mengaktifkan kill switch." });
+                    return;
+                }
                 setMessage({ type: "success", text: "Kill-switch berhasil diaktifkan." });
                 router.refresh();
             } catch (error) {
@@ -43,7 +47,11 @@ export function KillSwitchClient({
     function handleDeactivate() {
         startTransition(async () => {
             try {
-                await deactivateFeatureFlagKillSwitch(reason);
+                const res = await deactivateFeatureFlagKillSwitch(reason);
+                if (res && "success" in res && res.success === false) {
+                    setMessage({ type: "error", text: res.error || "Gagal menonaktifkan kill switch." });
+                    return;
+                }
                 setMessage({ type: "success", text: "Kill-switch berhasil dinonaktifkan." });
                 router.refresh();
             } catch (error) {

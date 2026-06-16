@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Loader2, Check, X, RotateCw } from "lucide-react";
@@ -48,15 +48,16 @@ export default function OffersInboxClient({ offers }: Props) {
     const [counterDraft, setCounterDraft] = useState<Record<string, string>>({});
     const [ratingDraft, setRatingDraft] = useState<Record<string, { rating: string; note: string }>>({});
     const [error, setError] = useState<string | null>(null);
-    // Deep-link from the seller's offer email (?offer=<id>): scroll to + highlight it.
+    const [info, setInfo] = useState<string | null>(null);
+    const [isPending, startTransition] = useTransition();
+
+    // Deep-link from the offer email (?offer=<id>): scroll to + highlight the card.
     const highlightId = useSearchParams().get("offer");
     useEffect(() => {
         if (!highlightId) return;
         const el = document.getElementById(`offer-${highlightId}`);
         if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
     }, [highlightId]);
-    const [info, setInfo] = useState<string | null>(null);
-    const [isPending, startTransition] = useTransition();
 
     function withTransition(fn: () => Promise<void>) {
         startTransition(() => fn());
@@ -69,6 +70,10 @@ export default function OffersInboxClient({ offers }: Props) {
         withTransition(async () => {
             try {
                 const result = await acceptOffer(offerId);
+                if (result && "success" in result && result.success === false) {
+                    setError(result.error || "Gagal menerima penawaran.");
+                    return;
+                }
                 setInfo(`Penawaran diterima. Buyer punya checkout token sampai ${formatDate(result.checkoutExpiresAt)}.`);
                 router.refresh();
             } catch (err) {
@@ -85,7 +90,11 @@ export default function OffersInboxClient({ offers }: Props) {
         setActiveId(offerId);
         withTransition(async () => {
             try {
-                await rejectOffer(offerId);
+                const res = await rejectOffer(offerId);
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal menolak penawaran.");
+                    return;
+                }
                 router.refresh();
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Gagal menolak penawaran.");
@@ -106,7 +115,11 @@ export default function OffersInboxClient({ offers }: Props) {
         setActiveId(offerId);
         withTransition(async () => {
             try {
-                await counterOffer({ parentOfferId: offerId, amount: numeric });
+                const res = await counterOffer({ parentOfferId: offerId, amount: numeric });
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal mengirim counter.");
+                    return;
+                }
                 setCounterDraft((prev) => ({ ...prev, [offerId]: "" }));
                 router.refresh();
             } catch (err) {

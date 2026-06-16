@@ -27,11 +27,15 @@ export function EditUserButton({ user }: { user: UserData }) {
 
         startTransition(async () => {
             try {
-                await updateUser(user.id, {
+                const res = await updateUser(user.id, {
                     name: formData.name,
                     email: formData.email,
                     role: formData.role,
                 });
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal memperbarui user.");
+                    return;
+                }
                 setIsOpen(false);
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Terjadi kesalahan");

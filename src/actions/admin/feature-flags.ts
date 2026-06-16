@@ -1,6 +1,8 @@
 "use server";
 
 import { db } from "@/db";
+import { logger } from "@/lib/logger";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { feature_flags, feature_flag_audit_log, feature_flag_kill_switch, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { invalidateFeatureFlagCache, listFeatureFlagDefinitions } from "@/lib/feature-flags";
@@ -218,6 +220,22 @@ export async function toggleFeatureFlag(
     reason: string,
     options?: { confirmationPhrase?: string }
 ) {
+    try {
+        return await toggleFeatureFlagInternal(key, enabled, reason, options);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal mengubah feature flag.");
+        logger.warn("flag:toggle_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function toggleFeatureFlagInternal(
+    key: string,
+    enabled: boolean,
+    reason: string,
+    options?: { confirmationPhrase?: string }
+) {
     const admin = await requireAdmin();
     const cleanReason = reason.trim();
     if (cleanReason.length < 3) {
@@ -258,6 +276,17 @@ export async function toggleFeatureFlag(
 }
 
 export async function updateFeatureFlag(input: z.infer<typeof updateFlagSchema>) {
+    try {
+        return await updateFeatureFlagInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal memperbarui feature flag.");
+        logger.warn("flag:update_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function updateFeatureFlagInternal(input: z.infer<typeof updateFlagSchema>) {
     const admin = await requireAdmin();
     const validated = updateFlagSchema.parse(input);
 
@@ -315,6 +344,17 @@ export async function updateFeatureFlag(input: z.infer<typeof updateFlagSchema>)
 }
 
 export async function activateFeatureFlagKillSwitch(input: z.infer<typeof killSwitchSchema>) {
+    try {
+        return await activateFeatureFlagKillSwitchInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal mengaktifkan kill switch.");
+        logger.warn("flag:kill_switch_on_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function activateFeatureFlagKillSwitchInternal(input: z.infer<typeof killSwitchSchema>) {
     const admin = await requireAdmin();
     const validated = killSwitchSchema.parse(input);
     if ((validated.confirmationPhrase ?? "").toUpperCase() !== "MATIKAN SEMUA") {
@@ -348,6 +388,17 @@ export async function activateFeatureFlagKillSwitch(input: z.infer<typeof killSw
 }
 
 export async function deactivateFeatureFlagKillSwitch(reason: string) {
+    try {
+        return await deactivateFeatureFlagKillSwitchInternal(reason);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menonaktifkan kill switch.");
+        logger.warn("flag:kill_switch_off_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function deactivateFeatureFlagKillSwitchInternal(reason: string) {
     const admin = await requireAdmin();
     const cleanReason = reason.trim();
     if (cleanReason.length < 3) {

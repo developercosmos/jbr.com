@@ -1,6 +1,8 @@
 "use server";
 
 import { db } from "@/db";
+import { logger } from "@/lib/logger";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { addresses } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -91,6 +93,17 @@ const createAddressSchema = z.object({
 });
 
 export async function createAddress(input: z.infer<typeof createAddressSchema>) {
+    try {
+        return await createAddressInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menyimpan alamat.");
+        logger.warn("address:create_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function createAddressInternal(input: z.infer<typeof createAddressSchema>) {
     const user = await getCurrentUser();
     const validated = createAddressSchema.parse(input);
 
@@ -131,7 +144,7 @@ export async function createAddress(input: z.infer<typeof createAddressSchema>) 
     revalidatePath("/profile/address");
     revalidatePath("/checkout");
 
-    return { success: true, address: newAddress };
+    return { success: true as const, address: newAddress };
 }
 
 // ============================================
@@ -154,6 +167,17 @@ const updateAddressSchema = z.object({
 });
 
 export async function updateAddress(input: z.infer<typeof updateAddressSchema>) {
+    try {
+        return await updateAddressInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menyimpan alamat.");
+        logger.warn("address:update_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function updateAddressInternal(input: z.infer<typeof updateAddressSchema>) {
     const user = await getCurrentUser();
     const validated = updateAddressSchema.parse(input);
 
@@ -206,13 +230,24 @@ export async function updateAddress(input: z.infer<typeof updateAddressSchema>) 
     revalidatePath("/profile/address");
     revalidatePath("/checkout");
 
-    return { success: true, address: updatedAddress };
+    return { success: true as const, address: updatedAddress };
 }
 
 // ============================================
 // DELETE ADDRESS
 // ============================================
 export async function deleteAddress(addressId: string) {
+    try {
+        return await deleteAddressInternal(addressId);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menghapus alamat.");
+        logger.warn("address:delete_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function deleteAddressInternal(addressId: string) {
     const user = await getCurrentUser();
 
     // Verify ownership and check if not default
@@ -236,13 +271,24 @@ export async function deleteAddress(addressId: string) {
     revalidatePath("/profile/address");
     revalidatePath("/checkout");
 
-    return { success: true };
+    return { success: true as const };
 }
 
 // ============================================
 // SET DEFAULT ADDRESS
 // ============================================
 export async function setDefaultAddress(addressId: string, type: "shipping" | "pickup") {
+    try {
+        return await setDefaultAddressInternal(addressId, type);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal mengatur alamat utama.");
+        logger.warn("address:set_default_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function setDefaultAddressInternal(addressId: string, type: "shipping" | "pickup") {
     const user = await getCurrentUser();
 
     // Verify ownership
@@ -283,5 +329,5 @@ export async function setDefaultAddress(addressId: string, type: "shipping" | "p
     revalidatePath("/profile/address");
     revalidatePath("/checkout");
 
-    return { success: true, address: updatedAddress };
+    return { success: true as const, address: updatedAddress };
 }

@@ -134,6 +134,10 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
                 fd.append("file", file);
                 fd.append("slot", slot);
                 const result = await uploadKycDocument(fd);
+                if (result && "success" in result && result.success === false) {
+                    setError(result.error || "Gagal mengunggah dokumen.");
+                    return;
+                }
                 setFileId(result.fileId);
             } catch (e) {
                 setError(e instanceof Error ? e.message : "Upload dokumen gagal");
@@ -180,7 +184,7 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
         setFieldErrors({});
         startTransition(async () => {
             try {
-                await enrollAffiliate({
+                const res = await enrollAffiliate({
                     fullName: fullName.trim(),
                     nik: nik.trim(),
                     phone: `+62${phone.trim()}`,
@@ -196,6 +200,10 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
                     payoutAccount: bankModal.bankAccountNumber,
                     referralCode: referralCode.toLowerCase(),
                 });
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal mendaftar affiliate.");
+                    return;
+                }
                 router.refresh();
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Gagal mendaftar afiliasi.");

@@ -56,12 +56,16 @@ export default function CounterpartyRating({
         }
         startTransition(async () => {
             try {
-                await submitBuyerRating({
+                const res = await submitBuyerRating({
                     orderId,
                     rating,
                     tags: tags.length > 0 ? tags : undefined,
                     comment: comment.trim() || undefined,
                 });
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal menyimpan rating.");
+                    return;
+                }
                 router.refresh();
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Gagal mengirim rating.");

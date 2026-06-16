@@ -236,6 +236,10 @@ export default function StoreSettingsForm({
         startTransition(async () => {
             try {
                 const res = await resubmitSellerActivationReview();
+                if (res && "success" in res && res.success === false) {
+                    showToast({ type: "error", message: res.error || "Gagal mengajukan ulang review." });
+                    return;
+                }
                 if (res.success) {
                     showToast({ type: "success", message: "Pengajuan review ulang berhasil dikirim" });
                     router.refresh();

@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/db";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { orders, disputes } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -157,6 +158,17 @@ async function completeOrder(orderId: string, autoReleased: boolean) {
 }
 
 export async function confirmReceipt(orderId: string) {
+    try {
+        return await confirmReceiptInternal(orderId);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menyelesaikan pesanan.");
+        logger.warn("escrow:confirm_receipt_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function confirmReceiptInternal(orderId: string) {
     const user = await getCurrentUser();
 
     const order = await db.query.orders.findFirst({
@@ -180,7 +192,7 @@ export async function confirmReceipt(orderId: string) {
     revalidatePath("/profile/orders");
     revalidatePath("/seller/orders");
 
-    return { success: true };
+    return { success: true as const };
 }
 
 export interface EscrowAutoReleaseResult {

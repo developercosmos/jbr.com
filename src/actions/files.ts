@@ -1,6 +1,8 @@
 "use server";
 
 import { db } from "@/db";
+import { logger } from "@/lib/logger";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { files, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -130,6 +132,17 @@ export async function getFileFolders() {
 // UPLOAD FILE
 // ============================================
 export async function uploadAdminFile(formData: FormData) {
+    try {
+        return await uploadAdminFileInternal(formData);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Upload gagal.");
+        logger.warn("file:admin_upload_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function uploadAdminFileInternal(formData: FormData) {
     const admin = await requireAdmin();
 
     const file = formData.get("file") as File | null;
@@ -215,7 +228,7 @@ export async function updateFileMetadata(
         .where(eq(files.id, fileId));
 
     revalidatePath("/admin/files");
-    return { success: true };
+    return { success: true as const };
 }
 
 // ============================================
@@ -245,7 +258,7 @@ export async function deleteAdminFile(fileId: string) {
     await db.delete(files).where(eq(files.id, fileId));
 
     revalidatePath("/admin/files");
-    return { success: true };
+    return { success: true as const };
 }
 
 // ============================================
@@ -253,7 +266,7 @@ export async function deleteAdminFile(fileId: string) {
 // ============================================
 export async function bulkDeleteFiles(fileIds: string[]) {
     await requireAdmin();
-    if (fileIds.length === 0) return { success: true, deletedCount: 0 };
+    if (fileIds.length === 0) return { success: true as const, deletedCount: 0 };
 
     // Get all files info
     const filesToDelete = await db.query.files.findMany({
@@ -273,7 +286,7 @@ export async function bulkDeleteFiles(fileIds: string[]) {
     await db.delete(files).where(inArray(files.id, fileIds));
 
     revalidatePath("/admin/files");
-    return { success: true, deletedCount: filesToDelete.length };
+    return { success: true as const, deletedCount: filesToDelete.length };
 }
 
 // ============================================

@@ -1,6 +1,8 @@
 "use server";
 
 import { db } from "@/db";
+import { logger } from "@/lib/logger";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { buyer_reputation_summary, offers, products, product_variants, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { isFeatureEnabled } from "@/lib/feature-flags";
@@ -198,6 +200,17 @@ async function assertOfferAllowed(buyerId: string, listingId: string) {
 }
 
 export async function prepareOfferLoginDraft(input: z.infer<typeof prepareOfferLoginSchema>) {
+    try {
+        return await prepareOfferLoginDraftInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menyiapkan login.");
+        logger.warn("offer:login_draft_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function prepareOfferLoginDraftInternal(input: z.infer<typeof prepareOfferLoginSchema>) {
     const validated = prepareOfferLoginSchema.parse(input);
     await setOfferDraftCookie({
         productId: validated.listingId,
@@ -423,13 +436,13 @@ export async function createOffer(input: z.infer<typeof createOfferSchema>) {
             autoCounterAmount = suggested;
             await notify({
                 event: "OFFER_RECEIVED",
-                audience: "buyer",
                 recipientUserId: offer.buyer_id,
                 offerId: counter.id,
                 productTitle: product.title,
                 amount: formatCurrency(suggested),
                 actorName: "JBR Auto Counter",
                 round: 2,
+                audience: "buyer",
             });
         }
     }
@@ -437,13 +450,13 @@ export async function createOffer(input: z.infer<typeof createOfferSchema>) {
     if (initialStatus === "PENDING" && !autoCounterOfferId) {
         await notify({
             event: "OFFER_RECEIVED",
-            audience: "seller",
             recipientUserId: product.seller_id,
             offerId: offer.id,
             productTitle: product.title,
             amount: formatCurrency(validated.amount),
             actorName: user.name || "Pembeli",
             round: 1,
+            audience: "seller",
         });
     }
 
@@ -453,7 +466,7 @@ export async function createOffer(input: z.infer<typeof createOfferSchema>) {
     await clearOfferDraftCookie();
 
     return {
-        success: true,
+        success: true as const,
         offerId: offer.id,
         status: initialStatus,
         autoDeclined: initialStatus === "REJECTED",
@@ -470,6 +483,17 @@ const counterOfferSchema = z.object({
 });
 
 export async function counterOffer(input: z.infer<typeof counterOfferSchema>) {
+    try {
+        return await counterOfferInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal mengirim counter.");
+        logger.warn("offer:counter_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function counterOfferInternal(input: z.infer<typeof counterOfferSchema>) {
     const user = await getCurrentUser();
     const validated = counterOfferSchema.parse(input);
 
@@ -540,22 +564,34 @@ export async function counterOffer(input: z.infer<typeof counterOfferSchema>) {
 
     await notify({
         event: "OFFER_RECEIVED",
-        audience: isSeller ? "buyer" : "seller",
         recipientUserId: recipientId,
         offerId: child.id,
         productTitle: product.title,
         amount: formatCurrency(validated.amount),
         actorName: user.name || (isSeller ? "Penjual" : "Pembeli"),
         round: nextRound,
+        // Recipient is the OTHER party: seller-initiated counter -> buyer, and vice versa.
+        audience: isSeller ? "buyer" : "seller",
     });
 
     revalidatePath("/seller/offers");
     revalidatePath("/profile/offers");
 
-    return { success: true, offerId: child.id, round: nextRound };
+    return { success: true as const, offerId: child.id, round: nextRound };
 }
 
 export async function acceptOffer(offerId: string) {
+    try {
+        return await acceptOfferInternal(offerId);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menerima penawaran.");
+        logger.warn("offer:accept_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function acceptOfferInternal(offerId: string) {
     const user = await getCurrentUser();
 
     const offer = await db.query.offers.findFirst({
@@ -625,10 +661,21 @@ export async function acceptOffer(offerId: string) {
     revalidatePath("/seller/offers");
     revalidatePath("/profile/offers");
 
-    return { success: true, checkoutToken: token, checkoutExpiresAt: checkoutExpiresAt.toISOString() };
+    return { success: true as const, checkoutToken: token, checkoutExpiresAt: checkoutExpiresAt.toISOString() };
 }
 
 export async function rejectOffer(offerId: string, notes?: string) {
+    try {
+        return await rejectOfferInternal(offerId, notes);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menolak penawaran.");
+        logger.warn("offer:reject_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function rejectOfferInternal(offerId: string, notes?: string) {
     const user = await getCurrentUser();
 
     const offer = await db.query.offers.findFirst({
@@ -662,10 +709,21 @@ export async function rejectOffer(offerId: string, notes?: string) {
     revalidatePath("/seller/offers");
     revalidatePath("/profile/offers");
 
-    return { success: true };
+    return { success: true as const };
 }
 
 export async function withdrawOffer(offerId: string) {
+    try {
+        return await withdrawOfferInternal(offerId);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menarik penawaran.");
+        logger.warn("offer:withdraw_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function withdrawOfferInternal(offerId: string) {
     const user = await getCurrentUser();
 
     const offer = await db.query.offers.findFirst({
@@ -693,7 +751,7 @@ export async function withdrawOffer(offerId: string) {
     revalidatePath("/seller/offers");
     revalidatePath("/profile/offers");
 
-    return { success: true };
+    return { success: true as const };
 }
 
 export interface OfferExpirySweepResult {
@@ -976,7 +1034,7 @@ export async function consumeCheckoutToken(offerId: string, orderId: string) {
             notes: sql`coalesce(${offers.notes}, '') || ' [used by order ' || ${orderId} || ']'`,
         })
         .where(eq(offers.id, offerId));
-    return { success: true };
+    return { success: true as const };
 }
 
 export async function getSellerNegotiationInsights() {

@@ -1,6 +1,8 @@
 "use server";
 
 import { db } from "@/db";
+import { logger } from "@/lib/logger";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { reviews, order_items, orders } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -84,6 +86,17 @@ const createReviewSchema = z.object({
 });
 
 export async function createReview(input: z.infer<typeof createReviewSchema>) {
+    try {
+        return await createReviewInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal mengirim review.");
+        logger.warn("review:create_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function createReviewInternal(input: z.infer<typeof createReviewSchema>) {
     const user = await getCurrentUser();
     const validated = createReviewSchema.parse(input);
 
@@ -172,7 +185,7 @@ export async function createReview(input: z.infer<typeof createReviewSchema>) {
     revalidatePath("/profile/orders");
     revalidatePath("/seller/reviews");
 
-    return { success: true, review };
+    return { success: true as const, review };
 }
 
 // ============================================
@@ -270,7 +283,7 @@ export async function replyToReview(reviewId: string, reply: string) {
 
     revalidatePath("/seller/reviews");
 
-    return { success: true, review: updated };
+    return { success: true as const, review: updated };
 }
 
 // ============================================

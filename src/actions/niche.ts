@@ -1,6 +1,8 @@
 "use server";
 
 import { db } from "@/db";
+import { logger } from "@/lib/logger";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { player_profiles, products, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -109,6 +111,17 @@ const upsertProfileSchema = z.object({
 });
 
 export async function upsertPlayerProfile(input: z.infer<typeof upsertProfileSchema>) {
+    try {
+        return await upsertPlayerProfileInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menyimpan profil pemain.");
+        logger.warn("niche:player_profile_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function upsertPlayerProfileInternal(input: z.infer<typeof upsertProfileSchema>) {
     const user = await getCurrentUser();
     const validated = upsertProfileSchema.parse(input);
 
@@ -139,7 +152,7 @@ export async function upsertPlayerProfile(input: z.infer<typeof upsertProfileSch
 
     revalidatePath("/profile/player");
     revalidatePath("/");
-    return { success: true };
+    return { success: true as const };
 }
 
 export async function getPlayerProfile(userId?: string) {
@@ -323,6 +336,17 @@ const stringServiceSchema = z.object({
 });
 
 export async function addStringServiceToOrderItem(input: z.infer<typeof stringServiceSchema>) {
+    try {
+        return await addStringServiceToOrderItemInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menambahkan layanan senar.");
+        logger.warn("niche:string_service_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function addStringServiceToOrderItemInternal(input: z.infer<typeof stringServiceSchema>) {
     await getCurrentUser();
     const validated = stringServiceSchema.parse(input);
     const { string_service_orders } = await import("@/db/schema");
@@ -334,7 +358,7 @@ export async function addStringServiceToOrderItem(input: z.infer<typeof stringSe
         service_fee: String(validated.serviceFee),
         status: "PENDING",
     });
-    return { success: true };
+    return { success: true as const };
 }
 
 // Suppress unused-import warnings reserved for follow-up surfaces.

@@ -41,11 +41,15 @@ export function ReviewModal({
         setError(null);
 
         try {
-            await createReview({
+            const res = await createReview({
                 order_item_id: orderItemId,
                 rating,
                 comment: comment.trim() || undefined,
             });
+            if (res && "success" in res && res.success === false) {
+                setError(res.error || "Gagal mengirim review.");
+                return;
+            }
             setIsSuccess(true);
             setTimeout(() => {
                 onSuccess?.();

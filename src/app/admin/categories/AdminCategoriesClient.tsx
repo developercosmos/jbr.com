@@ -87,7 +87,11 @@ export function AdminCategoriesClient({ initialCategories }: AdminCategoriesClie
 
         startTransition(async () => {
             try {
-                await deleteCategory(category.id);
+                const res = await deleteCategory(category.id);
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal menghapus kategori.");
+                    return;
+                }
                 setCategories(prev => prev.filter(c => c.id !== category.id));
                 setError("");
             } catch (err) {
@@ -115,6 +119,10 @@ export function AdminCategoriesClient({ initialCategories }: AdminCategoriesClie
                         icon: formData.icon.trim() || undefined,
                         image: formData.image.trim() || undefined,
                     });
+                    if (result && "success" in result && result.success === false) {
+                        setError(result.error || "Gagal memperbarui kategori.");
+                        return;
+                    }
                     setCategories(prev =>
                         prev.map(c =>
                             c.id === editingCategory.id
@@ -130,6 +138,10 @@ export function AdminCategoriesClient({ initialCategories }: AdminCategoriesClie
                         icon: formData.icon.trim() || undefined,
                         image: formData.image.trim() || undefined,
                     });
+                    if (result && "success" in result && result.success === false) {
+                        setError(result.error || "Gagal membuat kategori.");
+                        return;
+                    }
                     setCategories(prev => [
                         { ...result.category, productCount: 0 },
                         ...prev,

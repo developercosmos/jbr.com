@@ -42,18 +42,26 @@ export function BuyerRatingDisputeActions({ disputeId, targetRatingId, currentSt
 
         startTransition(async () => {
             try {
-                await moderateBuyerInteractionRating({
+                const res = await moderateBuyerInteractionRating({
                     interactionRatingId: targetRatingId,
                     invalidated,
                     reason: reason.trim(),
                 });
-                await updateDisputeStatus(
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal memoderasi rating.");
+                    return;
+                }
+                const res2 = await updateDisputeStatus(
                     disputeId,
                     "RESOLVED",
                     invalidated
                         ? `Rating dinyatakan tidak valid: ${reason.trim()}`
                         : `Rating dinyatakan valid setelah review: ${reason.trim()}`
                 );
+                if (res2 && "success" in res2 && res2.success === false) {
+                    setError(res2.error || "Gagal memperbarui sengketa.");
+                    return;
+                }
                 router.refresh();
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Gagal memutuskan dispute.");
@@ -64,7 +72,11 @@ export function BuyerRatingDisputeActions({ disputeId, targetRatingId, currentSt
     function handleAcknowledge() {
         startTransition(async () => {
             try {
-                await updateDisputeStatus(disputeId, "IN_PROGRESS");
+                const res = await updateDisputeStatus(disputeId, "IN_PROGRESS");
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal memperbarui sengketa.");
+                    return;
+                }
                 router.refresh();
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Gagal mengubah status.");

@@ -37,12 +37,16 @@ export default function StringingAddOnButton({ orderItemId, productTitle }: Prop
         }
         startTransition(async () => {
             try {
-                await addStringServiceToOrderItem({
+                const res = await addStringServiceToOrderItem({
                     orderItemId,
                     stringBrand: brand,
                     tensionLbs: tensionNum,
                     serviceFee: feeNum,
                 });
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal menambahkan layanan senar.");
+                    return;
+                }
                 setSuccess("Permintaan stringing terkirim ke penjual.");
                 setOpen(false);
                 router.refresh();

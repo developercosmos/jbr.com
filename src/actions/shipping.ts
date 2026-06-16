@@ -1,6 +1,8 @@
 "use server";
 
 import { db } from "@/db";
+import { logger } from "@/lib/logger";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { addresses, carts, integration_settings, orders } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -409,7 +411,7 @@ export async function getCheckoutShippingQuoteForUser(userId: string, addressId:
 
         const selectedOption = options.reduce((lowest, option) => (option.cost < lowest.cost ? option : lowest), options[0]);
         const sellerQuote: CheckoutShippingQuoteResult = {
-            success: true,
+            success: true as const,
             courier: validated.courier,
             totalCost: selectedOption.cost,
             quotesBySeller: [
@@ -440,7 +442,7 @@ export async function getCheckoutShippingQuoteForUser(userId: string, addressId:
     }
 
     return {
-        success: true,
+        success: true as const,
         courier: validated.courier,
         totalCost,
         quotesBySeller,
@@ -458,7 +460,7 @@ export async function getShippingCost(input: z.infer<typeof getShippingCostSchem
     const { options, usedFallback, warning } = await fetchShippingOptions(input);
 
     return {
-        success: true,
+        success: true as const,
         costs: options,
         usedFallback,
         warning,
@@ -500,7 +502,7 @@ export async function getCities(provinceId?: string) {
         const results = data.rajaongkir?.results || [];
 
         return {
-            success: true,
+            success: true as const,
             cities: results.map((city: { city_id: string; city_name: string; province: string }) => ({
                 id: city.city_id,
                 name: city.city_name,
@@ -587,7 +589,7 @@ export async function updateShippingInfo(input: z.infer<typeof updateShippingSch
     revalidatePath("/seller/orders");
     revalidatePath("/profile/orders");
 
-    return { success: true, order: updated };
+    return { success: true as const, order: updated };
 }
 
 // Helper to get tracking URL
@@ -617,6 +619,17 @@ function getTrackingUrl(provider: string, trackingNumber: string): string {
 // CONFIRM DELIVERY (Buyer)
 // ============================================
 export async function confirmDelivery(orderId: string) {
+    try {
+        return await confirmDeliveryInternal(orderId);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal konfirmasi pengiriman.");
+        logger.warn("shipping:confirm_delivery_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function confirmDeliveryInternal(orderId: string) {
     const user = await getCurrentUser();
 
     // Get order
@@ -677,5 +690,5 @@ export async function confirmDelivery(orderId: string) {
     revalidatePath("/seller/orders");
     revalidatePath("/profile/orders");
 
-    return { success: true, order: updated };
+    return { success: true as const, order: updated };
 }

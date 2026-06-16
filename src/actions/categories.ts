@@ -1,6 +1,8 @@
 "use server";
 
 import { db } from "@/db";
+import { logger } from "@/lib/logger";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { categories, products } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -84,6 +86,17 @@ type CreateCategoryInput = {
 };
 
 export async function createCategory(input: CreateCategoryInput) {
+    try {
+        return await createCategoryInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal membuat kategori.");
+        logger.warn("category:create_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function createCategoryInternal(input: CreateCategoryInput) {
     await requireAdmin();
 
     // Check if slug already exists
@@ -108,7 +121,7 @@ export async function createCategory(input: CreateCategoryInput) {
 
     revalidatePath("/admin/categories");
     revalidatePath("/");
-    return { success: true, category };
+    return { success: true as const, category };
 }
 
 type UpdateCategoryInput = {
@@ -121,6 +134,17 @@ type UpdateCategoryInput = {
 };
 
 export async function updateCategory(input: UpdateCategoryInput) {
+    try {
+        return await updateCategoryInternal(input);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal memperbarui kategori.");
+        logger.warn("category:update_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function updateCategoryInternal(input: UpdateCategoryInput) {
     await requireAdmin();
 
     const { id, ...updateData } = input;
@@ -152,10 +176,21 @@ export async function updateCategory(input: UpdateCategoryInput) {
 
     revalidatePath("/admin/categories");
     revalidatePath(`/category/${category.slug}`);
-    return { success: true, category };
+    return { success: true as const, category };
 }
 
 export async function deleteCategory(categoryId: string) {
+    try {
+        return await deleteCategoryInternal(categoryId);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal menghapus kategori.");
+        logger.warn("category:delete_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function deleteCategoryInternal(categoryId: string) {
     await requireAdmin();
 
     // Check if category has products
@@ -171,5 +206,5 @@ export async function deleteCategory(categoryId: string) {
 
     revalidatePath("/admin/categories");
     revalidatePath("/");
-    return { success: true };
+    return { success: true as const };
 }

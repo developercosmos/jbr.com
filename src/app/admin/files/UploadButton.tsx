@@ -56,7 +56,11 @@ export function UploadButton({ folders }: UploadButtonProps) {
                     formData.append("folder", targetFolder);
                     formData.append("isPublic", String(isPublic));
 
-                    await uploadAdminFile(formData);
+                    const res = await uploadAdminFile(formData);
+                    if (res && "success" in res && res.success === false) {
+                        setError(res.error || "Upload gagal.");
+                        return;
+                    }
                     uploaded++;
                     setProgress(Math.round((uploaded / files.length) * 100));
                 } catch (err) {

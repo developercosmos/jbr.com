@@ -1,6 +1,8 @@
 "use server";
 
 import { db } from "@/db";
+import { logger } from "@/lib/logger";
+import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
 import { users, products, orders, order_items, product_variants, notifications, product_events } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -168,7 +170,7 @@ export async function approveProduct(productId: string) {
 
     revalidatePath("/admin/products");
     revalidatePath("/seller/products");
-    return { success: true };
+    return { success: true as const };
 }
 
 export async function rejectProduct(productId: string, reason?: string) {
@@ -201,7 +203,7 @@ export async function rejectProduct(productId: string, reason?: string) {
 
     revalidatePath("/admin/products");
     revalidatePath("/seller/products");
-    return { success: true };
+    return { success: true as const };
 }
 
 // ============================================
@@ -326,7 +328,7 @@ export async function adminDeleteProduct(productId: string) {
     await db.delete(products).where(eq(products.id, productId));
 
     revalidatePath("/admin/products");
-    return { success: true };
+    return { success: true as const };
 }
 
 // ============================================
@@ -353,7 +355,7 @@ export async function banUser(userId: string) {
         .where(eq(users.id, userId));
 
     revalidatePath("/admin/users");
-    return { success: true };
+    return { success: true as const };
 }
 
 export async function unbanUser(userId: string) {
@@ -365,7 +367,7 @@ export async function unbanUser(userId: string) {
         .where(eq(users.id, userId));
 
     revalidatePath("/admin/users");
-    return { success: true };
+    return { success: true as const };
 }
 
 export async function approveSellerActivation(userId: string) {
@@ -424,7 +426,7 @@ export async function approveSellerActivation(userId: string) {
     revalidatePath("/admin/users");
     revalidatePath("/admin/kyc");
     revalidatePath("/seller/settings");
-    return { success: true, message: "Pengajuan seller berhasil di-approve." };
+    return { success: true as const, message: "Pengajuan seller berhasil di-approve." };
 }
 
 export async function rejectSellerActivation(userId: string, notes: string) {
@@ -488,7 +490,7 @@ export async function rejectSellerActivation(userId: string, notes: string) {
     revalidatePath("/admin/users");
     revalidatePath("/admin/kyc");
     revalidatePath("/seller/settings");
-    return { success: true, message: "Pengajuan seller berhasil di-reject." };
+    return { success: true as const, message: "Pengajuan seller berhasil di-reject." };
 }
 
 export async function deleteUser(userId: string) {
@@ -546,7 +548,7 @@ export async function deleteUser(userId: string) {
         await db.delete(users).where(eq(users.id, userId));
 
         revalidatePath("/admin/users");
-        return { success: true };
+        return { success: true as const };
     } catch (error) {
         console.error("[deleteUser] Error:", error);
         throw new Error("Gagal menghapus user. Pastikan tidak ada data terkait.");
@@ -567,10 +569,25 @@ export async function updateUserRole(userId: string, role: "USER" | "ADMIN") {
         .where(eq(users.id, userId));
 
     revalidatePath("/admin/users");
-    return { success: true };
+    return { success: true as const };
 }
 
 export async function updateUser(userId: string, data: {
+    name?: string;
+    email?: string;
+    role?: "USER" | "ADMIN";
+}) {
+    try {
+        return await updateUserInternal(userId, data);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal memperbarui user.");
+        logger.warn("admin:update_user_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function updateUserInternal(userId: string, data: {
     name?: string;
     email?: string;
     role?: "USER" | "ADMIN";
@@ -591,7 +608,7 @@ export async function updateUser(userId: string, data: {
         .where(eq(users.id, userId));
 
     revalidatePath("/admin/users");
-    return { success: true };
+    return { success: true as const };
 }
 
 export async function createUser(data: {
@@ -646,7 +663,7 @@ export async function createUser(data: {
     });
 
     revalidatePath("/admin/users");
-    return { success: true, userId: newUser.id };
+    return { success: true as const, userId: newUser.id };
 }
 
 // ============================================
@@ -853,6 +870,22 @@ export async function updateDisputeStatus(
     resolution?: string,
     options?: { refund?: boolean }
 ) {
+    try {
+        return await updateDisputeStatusInternal(disputeId, status, resolution, options);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal memperbarui sengketa.");
+        logger.warn("admin:update_dispute_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function updateDisputeStatusInternal(
+    disputeId: string,
+    status: string,
+    resolution?: string,
+    options?: { refund?: boolean }
+) {
     const admin = await getCurrentAdmin();
 
     const existing = await db.query.disputes.findFirst({
@@ -911,7 +944,7 @@ export async function updateDisputeStatus(
     }
 
     revalidatePath("/admin/disputes");
-    return { success: true, refunded };
+    return { success: true as const, refunded };
 }
 
 // ============================================
@@ -977,7 +1010,7 @@ export async function updateTicketStatus(ticketId: string, status: string) {
         .where(eq(support_tickets.id, ticketId));
 
     revalidatePath("/admin/support");
-    return { success: true };
+    return { success: true as const };
 }
 
 export async function replyToTicket(ticketId: string, message: string) {
@@ -997,7 +1030,7 @@ export async function replyToTicket(ticketId: string, message: string) {
         .where(eq(support_tickets.id, ticketId));
 
     revalidatePath("/admin/support");
-    return { success: true };
+    return { success: true as const };
 }
 
 export async function getTicketMessages(ticketId: string) {

@@ -17,27 +17,50 @@ export function DisputeActions({ disputeId, status }: DisputeActionsProps) {
     const [resolution, setResolution] = useState("");
     const [actionType, setActionType] = useState<string | null>(null);
     const [refund, setRefund] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const handleStatusChange = (newStatus: string) => {
         if (newStatus === "RESOLVED" || newStatus === "CLOSED") {
             setActionType(newStatus);
+            setError(null);
             setShowResolveModal(true);
             return;
         }
 
+        setError(null);
         startTransition(async () => {
-            await updateDisputeStatus(disputeId, newStatus);
-            router.refresh();
+            try {
+                // updateDisputeStatus RETURNS { success:false, error } on failure (no throw).
+                const res = await updateDisputeStatus(disputeId, newStatus);
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal memperbarui sengketa.");
+                    return;
+                }
+                router.refresh();
+            } catch (err) {
+                setError(err instanceof Error ? err.message : "Gagal memperbarui sengketa.");
+            }
         });
     };
 
     const handleResolve = () => {
+        setError(null);
         startTransition(async () => {
-            await updateDisputeStatus(disputeId, actionType!, resolution, { refund });
-            setShowResolveModal(false);
-            setResolution("");
-            setRefund(false);
-            router.refresh();
+            try {
+                // On failure (incl. refund errors) the action returns { success:false }
+                // rather than throwing — must NOT close the modal or refresh.
+                const res = await updateDisputeStatus(disputeId, actionType!, resolution, { refund });
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal menyelesaikan kasus.");
+                    return;
+                }
+                setShowResolveModal(false);
+                setResolution("");
+                setRefund(false);
+                router.refresh();
+            } catch (err) {
+                setError(err instanceof Error ? err.message : "Gagal menyelesaikan kasus.");
+            }
         });
     };
 
@@ -93,6 +116,10 @@ export function DisputeActions({ disputeId, status }: DisputeActionsProps) {
                         Kasus telah diselesaikan
                     </span>
                 )}
+
+                {error && !showResolveModal && (
+                    <p className="text-xs text-rose-600 dark:text-rose-400 text-center">{error}</p>
+                )}
             </div>
 
             {/* Resolution Modal */}
@@ -124,11 +151,15 @@ export function DisputeActions({ disputeId, status }: DisputeActionsProps) {
                                 dibalik, dan komisi afiliasi dibatalkan. Lakukan transfer dana manual/Xendit terpisah.
                             </span>
                         </label>
+                        {error && (
+                            <p className="text-sm text-rose-600 dark:text-rose-400 mb-3">{error}</p>
+                        )}
                         <div className="flex gap-2">
                             <button
                                 onClick={() => {
                                     setShowResolveModal(false);
                                     setResolution("");
+                                    setError(null);
                                 }}
                                 className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg font-medium"
                             >

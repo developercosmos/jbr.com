@@ -86,6 +86,10 @@ export default function KycSection({ profile, currentTier, gmv, t0Gates, account
             formData.append("file", file);
             formData.append("slot", slot);
             const result = await uploadKycDocument(formData);
+            if (result && "success" in result && result.success === false) {
+                setError(result.error || "Gagal mengunggah dokumen.");
+                return;
+            }
             setFileIds((prev) => ({ ...prev, [slot]: result.fileId }));
         } catch (err) {
             setError(err instanceof Error ? err.message : "Gagal mengunggah dokumen.");
@@ -129,6 +133,10 @@ export default function KycSection({ profile, currentTier, gmv, t0Gates, account
                     nik: cleanedNik,
                     notes: notes.trim() || undefined,
                 });
+                if (result && "success" in result && result.success === false) {
+                    setError(result.error || "Gagal mengirim pengajuan KYC.");
+                    return;
+                }
                 if (result.autoRejected) {
                     const reasons = result.screening?.flags
                         ?.filter((f) => f.severity === "high")

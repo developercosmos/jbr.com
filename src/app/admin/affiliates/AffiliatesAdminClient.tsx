@@ -69,7 +69,11 @@ export default function AffiliatesAdminClient({ initial, ocrConfigured }: Props)
         setError(null);
         setOcrRunningId(userId);
         try {
-            await runAffiliateOcrForUser(userId);
+            const res = await runAffiliateOcrForUser(userId);
+            if (res && "success" in res && res.success === false) {
+                setError(res.error || "Gagal menjalankan OCR.");
+                return;
+            }
             router.refresh();
         } catch (err) {
             setError(err instanceof Error ? err.message : "Gagal menjalankan OCR.");
@@ -94,7 +98,11 @@ export default function AffiliatesAdminClient({ initial, ocrConfigured }: Props)
         }
         startTransition(async () => {
             try {
-                await setAffiliateRateOverride({ affiliateUserId: userId, rate: parsed });
+                const res = await setAffiliateRateOverride({ affiliateUserId: userId, rate: parsed });
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal mengatur rate.");
+                    return;
+                }
                 router.refresh();
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Gagal update rate.");
@@ -118,7 +126,11 @@ export default function AffiliatesAdminClient({ initial, ocrConfigured }: Props)
         setError(null);
         startTransition(async () => {
             try {
-                await approveAffiliateApplication(userId);
+                const res = await approveAffiliateApplication(userId);
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal menyetujui affiliate.");
+                    return;
+                }
                 setInfo("Pengajuan affiliate berhasil di-approve.");
                 router.refresh();
             } catch (err) {
@@ -137,7 +149,11 @@ export default function AffiliatesAdminClient({ initial, ocrConfigured }: Props)
         setError(null);
         startTransition(async () => {
             try {
-                await rejectAffiliateApplication(userId, notes);
+                const res = await rejectAffiliateApplication(userId, notes);
+                if (res && "success" in res && res.success === false) {
+                    setError(res.error || "Gagal menolak affiliate.");
+                    return;
+                }
                 setInfo("Pengajuan affiliate berhasil di-reject.");
                 router.refresh();
             } catch (err) {
@@ -152,6 +168,10 @@ export default function AffiliatesAdminClient({ initial, ocrConfigured }: Props)
         startTransition(async () => {
             try {
                 const result = await processAffiliatePayoutBatch();
+                if (result && "success" in result && result.success === false) {
+                    setError(result.error || "Gagal memproses payout.");
+                    return;
+                }
                 setInfo(
                     result.processed === 0
                         ? "Tidak ada komisi CLEARED untuk dibayarkan."
