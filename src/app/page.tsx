@@ -13,11 +13,6 @@ export default function Home() {
     <main className="w-full max-w-[1440px] mx-auto pb-20">
       <Hero />
       <Categories />
-      {/* Personalized recommendations ("Cocok untuk Anda") — REC-01. Was built but
-          never mounted; renders its own empty/profile-prompt state when relevant. */}
-      <Suspense fallback={null}>
-        <PersonalizedSection />
-      </Suspense>
       {/* Recently-viewed strip — self-hydrates from localStorage + server data. */}
       <RecentlyViewedStrip />
       <Suspense fallback={
@@ -29,6 +24,12 @@ export default function Home() {
         <ProductGrid />
       </Suspense>
       <TrustSection />
+      {/* Personalized recommendations ("Cocok untuk Anda") — REC-01. Moved to the
+          bottom and collapsed by default; renders its own empty/profile-prompt
+          state when relevant. */}
+      <Suspense fallback={null}>
+        <PersonalizedSection />
+      </Suspense>
     </main>
   );
 }

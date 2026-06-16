@@ -4,6 +4,7 @@ import { Sparkles, ArrowRight } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getRecommendedRackets } from "@/actions/niche";
+import { CollapsibleHomeSection } from "./CollapsibleHomeSection";
 
 function formatPrice(price: string) {
     return new Intl.NumberFormat("id-ID", {
@@ -25,7 +26,11 @@ export async function PersonalizedSection() {
     const result = await getRecommendedRackets(session.user.id, 8);
     if (!result.recommendations || result.recommendations.length === 0) {
         return (
-            <section className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <CollapsibleHomeSection
+                eyebrow="Cocok untuk Anda"
+                title="Rekomendasi sesuai gaya main Anda"
+                subtitle="Lengkapi profil pemain untuk saran raket personal."
+            >
                 <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
                     <Sparkles className="w-8 h-8 mx-auto mb-2 text-brand-primary" />
                     <h3 className="font-bold text-slate-900">Dapatkan rekomendasi raket personal</h3>
@@ -39,24 +44,18 @@ export async function PersonalizedSection() {
                         Lengkapi Profil <ArrowRight className="w-4 h-4" />
                     </Link>
                 </div>
-            </section>
+            </CollapsibleHomeSection>
         );
     }
 
     return (
-        <section className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <div className="flex items-end justify-between mb-4">
-                <div>
-                    <div className="flex items-center gap-2 text-brand-primary text-xs font-bold uppercase tracking-wide">
-                        <Sparkles className="w-4 h-4" />
-                        Cocok untuk Anda
-                    </div>
-                    <h2 className="text-xl sm:text-2xl font-heading font-bold text-slate-900 mt-1">
-                        Rekomendasi sesuai gaya main Anda
-                    </h2>
-                    <p className="text-xs text-slate-500 mt-1">{result.explanation}</p>
-                </div>
-                <Link href="/search" className="text-sm text-brand-primary hover:underline font-medium hidden sm:inline">
+        <CollapsibleHomeSection
+            eyebrow="Cocok untuk Anda"
+            title="Rekomendasi sesuai gaya main Anda"
+            subtitle={result.explanation}
+        >
+            <div className="flex justify-end mb-3">
+                <Link href="/search" className="text-sm text-brand-primary hover:underline font-medium">
                     Lihat semua →
                 </Link>
             </div>
@@ -94,6 +93,6 @@ export async function PersonalizedSection() {
                     </Link>
                 ))}
             </div>
-        </section>
+        </CollapsibleHomeSection>
     );
 }
