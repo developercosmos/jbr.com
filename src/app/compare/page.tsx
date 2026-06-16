@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getCompareSet } from "@/actions/niche";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +34,12 @@ function formatValue(key: string, product: Record<string, unknown>): string {
 }
 
 export default async function ComparePage({ searchParams }: PageProps) {
+    // Compare is racket-only — hidden while dif.compare_mode is off. Direct hits
+    // (bookmark, shared link) bounce to home instead of showing the racket page.
+    if (!(await isFeatureEnabled("dif.compare_mode"))) {
+        redirect("/");
+    }
+
     const sp = await searchParams;
     const slugs = (sp.slugs ?? "").split(",").filter(Boolean).slice(0, 3);
     const products = slugs.length > 0 ? await getCompareSet(slugs) : [];

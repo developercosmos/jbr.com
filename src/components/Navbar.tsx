@@ -11,14 +11,16 @@ import { CartBadge } from "./CartBadge";
 import { NotificationBell } from "./NotificationBell";
 import { SearchBar } from "./SearchBar";
 import { useSession } from "@/lib/auth-client";
+import { useFlag } from "@/lib/use-flag";
 
-const NAV_LINKS = [
+const NAV_LINKS: { href: string; label: string; flag?: string }[] = [
     { href: "/feed", label: "Feed" },
     { href: "/men", label: "Men" },
     { href: "/women", label: "Women" },
     { href: "/equipment", label: "Equipment" },
     { href: "/brands", label: "Brands" },
-    { href: "/compare", label: "Compare" },
+    // Compare is racket-only — gated behind dif.compare_mode (hidden while off).
+    { href: "/compare", label: "Compare", flag: "dif.compare_mode" },
     { href: "/affiliate", label: "Affiliate" },
 ];
 
@@ -27,6 +29,9 @@ export function Navbar() {
     const isAuthenticated = Boolean(session?.user);
     const pathname = usePathname();
     const [mobileOpen, setMobileOpen] = useState(false);
+    const compareEnabled = useFlag("dif.compare_mode");
+    // Drop any flag-gated links whose flag is off.
+    const navLinks = NAV_LINKS.filter((l) => !l.flag || (l.flag === "dif.compare_mode" && compareEnabled));
 
     // Close the drawer on navigation.
     useEffect(() => {
@@ -137,9 +142,11 @@ export function Navbar() {
                     <Link href="/brands" className="hover:text-brand-primary hover:border-b-2 hover:border-slate-200 px-1 py-2.5 transition-all">
                         Brands
                     </Link>
-                    <Link href="/compare" className="hover:text-brand-primary hover:border-b-2 hover:border-slate-200 px-1 py-2.5 transition-all">
-                        Compare
-                    </Link>
+                    {compareEnabled && (
+                        <Link href="/compare" className="hover:text-brand-primary hover:border-b-2 hover:border-slate-200 px-1 py-2.5 transition-all">
+                            Compare
+                        </Link>
+                    )}
                     <Link href="/affiliate" className="hover:text-brand-primary hover:border-b-2 hover:border-slate-200 px-1 py-2.5 transition-all">
                         Affiliate
                     </Link>
@@ -179,7 +186,7 @@ export function Navbar() {
                             <SearchBar />
                         </div>
                         <nav className="flex flex-col p-2 overflow-y-auto">
-                            {NAV_LINKS.map((l) => (
+                            {navLinks.map((l) => (
                                 <Link
                                     key={l.href}
                                     href={l.href}
