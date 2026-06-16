@@ -8,6 +8,7 @@ import { SearchFiltersPanel } from "./SearchFiltersPanel";
 import { SearchPagination } from "./SearchPagination";
 import { SearchSortControl } from "./SearchSortControl";
 import { TrackedProductLink } from "@/components/product/TrackedProductLink";
+import { SellerBadgeIcon } from "@/components/seller/SellerBadges";
 
 interface SearchPageProps {
     searchParams: Promise<{
@@ -202,9 +203,16 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                                                     {formatPrice(product.price)}
                                                 </p>
                                                 {product.seller && (
-                                                    <p className="text-xs text-slate-500 mt-1 truncate">
-                                                        {product.seller.store_name || product.seller.name}
-                                                    </p>
+                                                    <div className="flex items-center gap-1 mt-1">
+                                                        <p className="text-xs text-slate-500 truncate min-w-0">
+                                                            {product.seller.store_name || product.seller.name}
+                                                        </p>
+                                                        {(product.seller.tier === "T1" || product.seller.tier === "T2") && (
+                                                            <span className="flex-shrink-0">
+                                                                <SellerBadgeIcon type="verified" size={13} />
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 )}
                                             </div>
                                         </TrackedProductLink>

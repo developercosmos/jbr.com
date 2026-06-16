@@ -115,7 +115,7 @@ async function searchProductsViaMeilisearch(filters: SearchFilters) {
         where: and(...conditions),
         with: {
             category: true,
-            seller: { columns: { id: true, name: true, image: true, store_name: true, store_slug: true } },
+            seller: { columns: { id: true, name: true, image: true, store_name: true, store_slug: true, tier: true } },
         },
     });
 
@@ -275,6 +275,7 @@ export async function searchProducts(filters: SearchFilters) {
                     image: true,
                     store_name: true,
                     store_slug: true,
+                    tier: true,
                 },
             },
             category: true,
