@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight, ShieldCheck, Zap } from "lucide-react";
 
 export function Hero() {
@@ -11,8 +12,15 @@ export function Hero() {
                         <span>Verified Authentic Gear</span>
                     </div>
                     <h1 className="text-5xl font-bold tracking-tight text-slate-900 sm:text-6xl lg:text-7xl font-heading mb-6">
-                        Upgrade Your Game with <br />
-                        <span className="text-brand-primary">JUALBELIRAKET.COM</span>
+                        Upgrade Your Game with
+                        <Image
+                            src="/brand/logo.png"
+                            alt="JualBeliRaket.com"
+                            width={788}
+                            height={403}
+                            priority
+                            className="mt-5 mx-auto w-auto h-24 sm:h-32 lg:h-40"
+                        />
                     </h1>
                     <p className="mt-4 text-xl text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed">
                         The most trusted marketplace for buying and selling used sports equipment.
