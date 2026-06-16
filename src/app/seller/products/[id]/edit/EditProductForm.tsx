@@ -12,6 +12,7 @@ import TierUpgradeModal, { isTierUpgradeError } from "@/components/seller/TierUp
 import FormErrorModal from "@/components/seller/FormErrorModal";
 import ProductVideoUpload from "@/components/seller/ProductVideoUpload";
 import { uploadToServer } from "@/lib/upload-client";
+import { SPORT_VALUES, SPORT_LABELS, type Sport } from "@/lib/sports";
 import { conditionGuidance } from "@/lib/condition-guidance";
 import VariantMatrixEditor, { type ComboVariant } from "@/components/seller/VariantMatrixEditor";
 
@@ -27,6 +28,7 @@ interface ProductData {
     description: string | null;
     brand: string | null;
     gender: "UNISEX" | "MEN" | "WOMEN";
+    sport?: Sport | null;
     price: string;
     condition: "NEW" | "PRELOVED";
     condition_rating: number | null;
@@ -99,6 +101,7 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
     const [categoryId, setCategoryId] = useState(product.category_id ?? "");
     const [brand, setBrand] = useState(product.brand ?? "");
     const [gender, setGender] = useState<"UNISEX" | "MEN" | "WOMEN">(product.gender);
+    const [sport, setSport] = useState<string>(product.sport ?? "");
     const [description, setDescription] = useState(product.description ?? "");
     const [condition, setCondition] = useState<"NEW" | "PRELOVED">(product.condition);
     const [conditionRating, setConditionRating] = useState(product.condition_rating ?? 8);
@@ -263,6 +266,7 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
                 description: description.trim() || undefined,
                 brand: brand || undefined,
                 gender,
+                sport: (sport || null) as Sport | null,
                 price: parseFloat(price),
                 condition,
                 condition_rating: condition === "PRELOVED" ? conditionRating : undefined,
@@ -509,6 +513,19 @@ export function EditProductForm({ product, categories, brands, videoLimits }: Ed
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-sm font-medium mb-2 text-slate-500 dark:text-slate-400">Olahraga</label>
+                                    <div className="relative">
+                                        <select className="w-full appearance-none rounded-lg bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-brand-primary focus:border-brand-primary py-3 px-4 pr-10" value={sport} onChange={(e) => setSport(e.target.value)}>
+                                            <option value="">Pilih olahraga (opsional)</option>
+                                            {SPORT_VALUES.map((s) => (
+                                                <option key={s} value={s}>{SPORT_LABELS[s]}</option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-slate-500"><ChevronDown className="w-4 h-4" /></div>
+                                    </div>
+                                    <p className="text-xs text-slate-400 mt-2">Grup &quot;Browse by Sport&quot; &amp; filter pencarian.</p>
+                                </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-2 text-slate-500 dark:text-slate-400">Target Gender</label>
                                     <div className="relative">

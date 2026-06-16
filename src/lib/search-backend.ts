@@ -29,6 +29,7 @@ export interface IndexableProduct {
     balance?: string | null;
     shaftFlex?: string | null;
     gripSize?: string | null;
+    sport?: string | null;
 }
 
 export interface SearchQueryResult {
@@ -140,6 +141,7 @@ class MeilisearchAdapter implements SearchBackend {
                     balance: product.balance ?? null,
                     shaftFlex: product.shaftFlex ?? null,
                     gripSize: product.gripSize ?? null,
+                    sport: product.sport ?? null,
                 },
             ]);
         } catch (error) {
@@ -171,6 +173,7 @@ class MeilisearchAdapter implements SearchBackend {
                     balance: p.balance ?? null,
                     shaftFlex: p.shaftFlex ?? null,
                     gripSize: p.gripSize ?? null,
+                    sport: p.sport ?? null,
                 }))
             );
         } catch (error) {

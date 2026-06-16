@@ -24,6 +24,7 @@ export const storeStatusEnum = pgEnum("store_status", ["ACTIVE", "PENDING_REVIEW
 export const sellerTierEnum = pgEnum("seller_tier", ["T0", "T1", "T2"]);
 export const kycStatusEnum = pgEnum("kyc_status", ["NOT_SUBMITTED", "PENDING_REVIEW", "APPROVED", "REJECTED"]);
 export const productConditionEnum = pgEnum("product_condition", ["NEW", "PRELOVED"]);
+export const productSportEnum = pgEnum("product_sport", ["PADEL", "PICKLEBALL", "TENNIS", "BADMINTON", "SQUASH", "SEPAK_BOLA", "OTHERS", "FASHION"]);
 export const productStatusEnum = pgEnum("product_status", ["DRAFT", "PUBLISHED", "ARCHIVED", "MODERATED"]);
 export const orderStatusEnum = pgEnum("order_status", [
     "PENDING_PAYMENT",
@@ -395,6 +396,9 @@ export const products = pgTable(
         description: text("description"),
         brand: text("brand"),
         gender: genderEnum("gender").default("UNISEX").notNull(),
+        // Sport group for Browse by Sport (null = belum dikategorikan; diperlakukan
+        // sebagai "Others" pada filter).
+        sport: productSportEnum("sport"),
         price: decimal("price", { precision: 12, scale: 2 }).notNull(),
         condition: productConditionEnum("condition").default("PRELOVED").notNull(),
         condition_rating: integer("condition_rating"),

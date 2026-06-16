@@ -2,7 +2,8 @@ import { Suspense } from "react";
 import { Search } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { searchProducts, getSearchFilters, getCategoryCounts } from "@/actions/search";
+import { searchProducts, getSearchFilters, getCategoryCounts, getSportCounts } from "@/actions/search";
+import { sportFromSlug, SPORT_LABELS } from "@/lib/sports";
 import { SearchFiltersPanel } from "./SearchFiltersPanel";
 import { SearchPagination } from "./SearchPagination";
 import { SearchSortControl } from "./SearchSortControl";
@@ -12,6 +13,7 @@ interface SearchPageProps {
     searchParams: Promise<{
         q?: string;
         category?: string;
+        sport?: string;
         minPrice?: string;
         maxPrice?: string;
         condition?: string;
@@ -37,7 +39,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     const query = params.q || "";
     const page = parseInt(params.page || "1", 10);
 
-    const nonCategoryFilters = {
+    const sport = sportFromSlug(params.sport);
+
+    const sharedFilters = {
         query,
         minPrice: params.minPrice ? parseFloat(params.minPrice) : undefined,
         maxPrice: params.maxPrice ? parseFloat(params.maxPrice) : undefined,
@@ -50,19 +54,21 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         minTensionLbs: params.minTension ? parseInt(params.minTension, 10) : undefined,
     };
 
-    const [results, filters, categoryCounts] = await Promise.all([
+    const [results, filters, categoryCounts, sportCounts] = await Promise.all([
         searchProducts({
-            ...nonCategoryFilters,
+            ...sharedFilters,
             category: params.category,
+            sport,
             sortBy: (params.sort as "relevance" | "price_asc" | "price_desc" | "newest" | "popular") || "relevance",
             page,
             // Match the dedicated category page (limit 48) so counts stay consistent.
             limit: 48,
         }),
         getSearchFilters(),
-        // Facet counts per category respect the active query but NOT the selected
-        // category — so the sidebar shows "Raket (17)" even while a category is picked.
-        getCategoryCounts(nonCategoryFilters),
+        // Each facet excludes its OWN dimension but reflects the others — so the
+        // sidebar shows "Raket (17)"/"Padel (12)" consistent with the results.
+        getCategoryCounts({ ...sharedFilters, sport }),
+        getSportCounts({ ...sharedFilters, category: params.category }),
     ]);
 
     const formatPrice = (price: string) => {
@@ -75,6 +81,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
     // Build current filter summary
     const activeFilters: string[] = [];
+    if (sport) activeFilters.push(`Olahraga: ${SPORT_LABELS[sport]}`);
     if (params.category) activeFilters.push(`Kategori: ${params.category}`);
     if (params.condition) activeFilters.push(`Kondisi: ${params.condition}`);
     if (params.gender) activeFilters.push(`Gender: ${params.gender}`);
@@ -107,6 +114,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                                 currentFilters={params}
                                 facetCounts={results.facets}
                                 categoryCounts={categoryCounts}
+                                sportCounts={sportCounts}
                             />
                         </Suspense>
                     </aside>

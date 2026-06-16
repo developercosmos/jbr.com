@@ -43,6 +43,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
                 description: product.description,
                 brand: product.brand,
                 gender: (product.gender ?? "UNISEX") as "UNISEX" | "MEN" | "WOMEN",
+                sport: product.sport ?? null,
                 price: product.price,
                 condition: product.condition as "NEW" | "PRELOVED",
                 condition_rating: product.condition_rating,

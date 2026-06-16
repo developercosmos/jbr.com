@@ -2,6 +2,7 @@
 
 import { db } from "@/db";
 import { categories, products, product_variants, order_items, users } from "@/db/schema";
+import { SPORT_VALUES } from "@/lib/sports";
 import { ensureCurrentUserCanSell } from "@/actions/seller";
 import { ensureCompanyHasT2Application, ensureSellerCanPriceProduct } from "@/actions/kyc";
 import { auth } from "@/lib/auth";
@@ -40,6 +41,7 @@ const createProductSchema = z.object({
     description: z.string().optional(),
     brand: z.string().optional(),
     gender: z.enum(["UNISEX", "MEN", "WOMEN"]).default("UNISEX"),
+    sport: z.enum(SPORT_VALUES).optional().nullable(),
     video_url: z.string().max(512).optional().nullable(),
     video_position: z.number().int().min(0).max(60).optional(),
     price: z.number().positive(),
@@ -173,6 +175,7 @@ async function syncProductToIndex(productId: string, op: "upsert" | "delete") {
             balance: row.balance,
             shaftFlex: row.shaft_flex,
             gripSize: row.grip_size,
+            sport: row.sport,
         });
     } catch {
         // Sync errors are non-fatal — the nightly reconcile will fix drift.

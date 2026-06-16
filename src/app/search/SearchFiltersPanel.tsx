@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Filter, ChevronDown, ChevronUp } from "lucide-react";
+import { SPORT_VALUES, SPORT_LABELS, SPORT_SLUGS } from "@/lib/sports";
 
 interface Category {
     id: string;
@@ -24,6 +25,7 @@ interface SearchFiltersPanelProps {
     currentFilters: {
         q?: string;
         category?: string;
+        sport?: string;
         minPrice?: string;
         maxPrice?: string;
         condition?: string;
@@ -46,6 +48,8 @@ interface SearchFiltersPanelProps {
      * so the count is consistent with the dedicated category page.
      */
     categoryCounts?: Record<string, number>;
+    /** Per-sport product counts (enum value -> count) for the current query. */
+    sportCounts?: Record<string, number>;
 }
 
 const WEIGHT_OPTIONS: FilterOption[] = [
@@ -76,6 +80,7 @@ const GRIP_OPTIONS: FilterOption[] = [
 export function SearchFiltersPanel({
     categories,
     categoryCounts,
+    sportCounts,
     conditions,
     genders,
     priceRange,
@@ -91,6 +96,7 @@ export function SearchFiltersPanel({
     const router = useRouter();
     const searchParams = useSearchParams();
     const [openSections, setOpenSections] = useState({
+        sport: true,
         category: true,
         price: true,
         condition: true,
@@ -164,6 +170,59 @@ export function SearchFiltersPanel({
             <div className="p-4 border-b border-slate-100 flex items-center gap-2">
                 <Filter className="w-5 h-5 text-slate-600" />
                 <h2 className="font-bold text-slate-900">Filter</h2>
+            </div>
+
+            {/* Sport Filter */}
+            <div className="border-b border-slate-100">
+                <button
+                    onClick={() => toggleSection("sport")}
+                    className="w-full p-4 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                >
+                    <span className="font-medium text-slate-700">Olahraga</span>
+                    {openSections.sport ? (
+                        <ChevronUp className="w-4 h-4 text-slate-400" />
+                    ) : (
+                        <ChevronDown className="w-4 h-4 text-slate-400" />
+                    )}
+                </button>
+                {openSections.sport && (
+                    <div className="px-4 pb-4 space-y-2">
+                        <button
+                            onClick={() => applyFilter("sport", null)}
+                            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${!currentFilters.sport
+                                    ? "bg-brand-primary text-white"
+                                    : "hover:bg-slate-100 text-slate-700"
+                                }`}
+                        >
+                            Semua Olahraga
+                        </button>
+                        {SPORT_VALUES.map((s) => {
+                            const slug = SPORT_SLUGS[s];
+                            const count = sportCounts?.[s];
+                            const isActive = currentFilters.sport === slug;
+                            const isEmpty = count === 0 && !isActive;
+                            return (
+                                <button
+                                    key={s}
+                                    onClick={() => applyFilter("sport", slug)}
+                                    className={`w-full flex items-center justify-between gap-2 text-left px-3 py-2 rounded-lg text-sm transition-colors ${isActive
+                                            ? "bg-brand-primary text-white"
+                                            : isEmpty
+                                              ? "text-slate-400 hover:bg-slate-100"
+                                              : "hover:bg-slate-100 text-slate-700"
+                                        }`}
+                                >
+                                    <span>{SPORT_LABELS[s]}</span>
+                                    {count !== undefined && (
+                                        <span className={`text-xs tabular-nums ${isActive ? "text-white/80" : "text-slate-400"}`}>
+                                            {count}
+                                        </span>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
 
             {/* Category Filter */}

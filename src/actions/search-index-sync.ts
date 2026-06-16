@@ -25,6 +25,7 @@ export async function runSearchIndexReconcile() {
                 balance: true,
                 shaft_flex: true,
                 grip_size: true,
+                sport: true,
             },
         });
         return rows.map((r) => ({
@@ -38,6 +39,7 @@ export async function runSearchIndexReconcile() {
             balance: r.balance,
             shaftFlex: r.shaft_flex,
             gripSize: r.grip_size,
+            sport: r.sport,
         }));
     });
 }

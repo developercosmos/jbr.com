@@ -2,9 +2,17 @@
 
 import { db } from "@/db";
 import { products, categories, users } from "@/db/schema";
-import { eq, ne, ilike, or, and, sql, desc, asc, inArray, gte, isNotNull } from "drizzle-orm";
+import { eq, ne, ilike, or, and, sql, desc, asc, inArray, gte, isNotNull, isNull } from "drizzle-orm";
 import { getSearchBackend } from "@/lib/search-backend";
 import { logger } from "@/lib/logger";
+import type { Sport } from "@/lib/sports";
+
+/** A product matches sport S when sport=S; "OTHERS" also captures NULL (belum diisi). */
+function sportCondition(sport: Sport) {
+    return sport === "OTHERS"
+        ? or(eq(products.sport, "OTHERS"), isNull(products.sport))!
+        : eq(products.sport, sport);
+}
 
 function isMeilisearchActive() {
     return process.env.SEARCH_BACKEND === "meilisearch" && !!process.env.MEILISEARCH_HOST;
@@ -34,6 +42,7 @@ function getSearchVariants(query: string): string[] {
 interface SearchFilters {
     query: string;
     category?: string;
+    sport?: Sport;
     minPrice?: number;
     maxPrice?: number;
     condition?: "NEW" | "PRELOVED";
@@ -100,6 +109,7 @@ async function searchProductsViaMeilisearch(filters: SearchFilters) {
         const categoryRecord = await db.query.categories.findFirst({ where: eq(categories.slug, filters.category) });
         if (categoryRecord) conditions.push(eq(products.category_id, categoryRecord.id));
     }
+    if (filters.sport) conditions.push(sportCondition(filters.sport));
 
     const rows = await db.query.products.findMany({
         where: and(...conditions),
@@ -124,7 +134,11 @@ async function searchProductsViaMeilisearch(filters: SearchFilters) {
 }
 
 export async function searchProducts(filters: SearchFilters) {
-    if (isMeilisearchActive()) {
+    // Meilisearch only adds value when there's a text query to rank. For pure
+    // browse (sport/category/price filters with no query) use Postgres so the
+    // filtering and total count are EXACT — fixes the lossy post-filter where
+    // browsing a category/sport showed too few items.
+    if (isMeilisearchActive() && filters.query.trim()) {
         try {
             return await searchProductsViaMeilisearch(filters);
         } catch (error) {
@@ -136,6 +150,7 @@ export async function searchProducts(filters: SearchFilters) {
     const {
         query,
         category,
+        sport,
         minPrice,
         maxPrice,
         condition,
@@ -180,6 +195,11 @@ export async function searchProducts(filters: SearchFilters) {
         if (categoryRecord) {
             conditions.push(eq(products.category_id, categoryRecord.id));
         }
+    }
+
+    // Sport filter
+    if (sport) {
+        conditions.push(sportCondition(sport));
     }
 
     // Price range
@@ -464,7 +484,7 @@ export async function getSearchFilters() {
 export async function getCategoryCounts(
     filters: Pick<
         SearchFilters,
-        "query" | "minPrice" | "maxPrice" | "condition" | "gender" | "weightClass" | "balance" | "shaftFlex" | "gripSize" | "minTensionLbs"
+        "query" | "sport" | "minPrice" | "maxPrice" | "condition" | "gender" | "weightClass" | "balance" | "shaftFlex" | "gripSize" | "minTensionLbs"
     >
 ): Promise<Record<string, number>> {
     const conditions = [eq(products.status, "PUBLISHED")];
@@ -483,6 +503,7 @@ export async function getCategoryCounts(
             conditions.push(or(...wordConditions)!);
         }
     }
+    if (filters.sport) conditions.push(sportCondition(filters.sport));
     if (filters.minPrice !== undefined) conditions.push(sql`CAST(${products.price} AS NUMERIC) >= ${filters.minPrice}`);
     if (filters.maxPrice !== undefined) conditions.push(sql`CAST(${products.price} AS NUMERIC) <= ${filters.maxPrice}`);
     if (filters.condition) conditions.push(eq(products.condition, filters.condition));
@@ -507,5 +528,60 @@ export async function getCategoryCounts(
         const slug = idToSlug.get(r.categoryId);
         if (slug) out[slug] = (out[slug] ?? 0) + Number(r.count);
     }
+    return out;
+}
+
+/**
+ * Per-sport product counts for the current query + filters (the sport filter
+ * itself is NOT applied — standard facet behaviour). Products with no sport are
+ * counted under "OTHERS". Returns enum value -> count. Always Postgres.
+ */
+export async function getSportCounts(
+    filters: Pick<
+        SearchFilters,
+        "query" | "category" | "minPrice" | "maxPrice" | "condition" | "gender" | "weightClass" | "balance" | "shaftFlex" | "gripSize" | "minTensionLbs"
+    >
+): Promise<Record<string, number>> {
+    const conditions = [eq(products.status, "PUBLISHED")];
+
+    if (filters.query?.trim()) {
+        const variants = getSearchVariants(filters.query);
+        if (variants.length > 0) {
+            conditions.push(
+                or(
+                    ...variants.map((variant) =>
+                        or(
+                            ilike(products.title, `%${variant}%`),
+                            ilike(products.description, `%${variant}%`),
+                            ilike(products.brand, `%${variant}%`),
+                            sql`REPLACE(LOWER(${products.brand}), ' ', '') LIKE ${`%${variant.replace(/\s+/g, "")}%`}`
+                        )
+                    )
+                )!
+            );
+        }
+    }
+    if (filters.category) {
+        const categoryRecord = await db.query.categories.findFirst({ where: eq(categories.slug, filters.category) });
+        if (categoryRecord) conditions.push(eq(products.category_id, categoryRecord.id));
+    }
+    if (filters.minPrice !== undefined) conditions.push(sql`CAST(${products.price} AS NUMERIC) >= ${filters.minPrice}`);
+    if (filters.maxPrice !== undefined) conditions.push(sql`CAST(${products.price} AS NUMERIC) <= ${filters.maxPrice}`);
+    if (filters.condition) conditions.push(eq(products.condition, filters.condition));
+    if (filters.gender) conditions.push(eq(products.gender, filters.gender));
+    if (filters.weightClass && filters.weightClass.length > 0) conditions.push(inArray(products.weight_class, filters.weightClass));
+    if (filters.balance && filters.balance.length > 0) conditions.push(inArray(products.balance, filters.balance));
+    if (filters.shaftFlex && filters.shaftFlex.length > 0) conditions.push(inArray(products.shaft_flex, filters.shaftFlex));
+    if (filters.gripSize && filters.gripSize.length > 0) conditions.push(inArray(products.grip_size, filters.gripSize));
+    if (filters.minTensionLbs !== undefined) conditions.push(gte(products.max_string_tension_lbs, filters.minTensionLbs));
+
+    const rows = await db
+        .select({ sport: sql<string>`COALESCE(${products.sport}, 'OTHERS')`, count: sql<number>`COUNT(*)` })
+        .from(products)
+        .where(and(...conditions))
+        .groupBy(sql`COALESCE(${products.sport}, 'OTHERS')`);
+
+    const out: Record<string, number> = {};
+    for (const r of rows) out[r.sport] = Number(r.count);
     return out;
 }

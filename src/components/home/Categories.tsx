@@ -3,26 +3,20 @@ import Link from "next/link";
 import { GiPaddles, GiTennisRacket, GiShuttlecock, GiSoccerBall } from "react-icons/gi";
 import { IoShirtOutline } from "react-icons/io5";
 import { TbPackage } from "react-icons/tb";
+import { SPORT_VALUES, SPORT_LABELS, SPORT_SLUGS, type Sport } from "@/lib/sports";
 
-// "Browse by Sport" — top-level sport groups. Until products carry a dedicated
-// `sport` attribute, each chip routes to a search for that sport so it works
-// immediately; the labels/order are the source of truth here.
-type SportChip = {
-    label: string;
-    href: string;
-    Icon: React.ComponentType<{ className?: string }>;
+// "Browse by Sport" — top-level sport groups backed by the product `sport`
+// attribute. Each chip filters the catalogue via /search?sport=<slug>.
+const SPORT_ICONS: Record<Sport, React.ComponentType<{ className?: string }>> = {
+    PADEL: GiPaddles,
+    PICKLEBALL: GiPaddles,
+    TENNIS: GiTennisRacket,
+    BADMINTON: GiShuttlecock,
+    SQUASH: GiTennisRacket,
+    SEPAK_BOLA: GiSoccerBall,
+    OTHERS: TbPackage,
+    FASHION: IoShirtOutline,
 };
-
-const SPORTS: SportChip[] = [
-    { label: "Padel", href: "/search?q=padel", Icon: GiPaddles },
-    { label: "Pickleball", href: "/search?q=pickleball", Icon: GiPaddles },
-    { label: "Tennis", href: "/search?q=tennis", Icon: GiTennisRacket },
-    { label: "Badminton", href: "/search?q=badminton", Icon: GiShuttlecock },
-    { label: "Squash", href: "/search?q=squash", Icon: GiTennisRacket },
-    { label: "Sepak Bola", href: "/search?q=sepak%20bola", Icon: GiSoccerBall },
-    { label: "Others", href: "/search", Icon: TbPackage },
-    { label: "Fashion & Accessories", href: "/search?q=fashion", Icon: IoShirtOutline },
-];
 
 export function Categories() {
     return (
@@ -32,19 +26,19 @@ export function Categories() {
                     Browse by Sport
                 </h2>
                 <Link
-                    href="/equipment"
+                    href="/search"
                     className="text-brand-primary text-sm font-semibold hover:underline flex items-center gap-1"
                 >
                     View All <ArrowRight className="w-[18px] h-[18px]" />
                 </Link>
             </div>
             <div className="flex gap-3 overflow-x-auto no-scrollbar py-2 -mx-4 px-4 md:mx-0 md:px-0">
-                {SPORTS.map((sport, index) => {
-                    const Icon = sport.Icon;
+                {SPORT_VALUES.map((sport, index) => {
+                    const Icon = SPORT_ICONS[sport];
                     return (
                         <Link
-                            key={sport.label}
-                            href={sport.href}
+                            key={sport}
+                            href={`/search?sport=${SPORT_SLUGS[sport]}`}
                             className={`flex shrink-0 items-center gap-2 rounded-full px-5 py-3 transition-all hover:scale-105 ${index === 0
                                 ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900"
                                 : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-slate-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
@@ -52,7 +46,7 @@ export function Categories() {
                         >
                             <Icon className="w-5 h-5" />
                             <span className={`text-sm whitespace-nowrap ${index === 0 ? "font-bold" : "font-medium"}`}>
-                                {sport.label}
+                                {SPORT_LABELS[sport]}
                             </span>
                         </Link>
                     );
