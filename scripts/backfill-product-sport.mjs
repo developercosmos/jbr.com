@@ -22,20 +22,30 @@ if (!DATABASE_URL) {
 }
 
 /** Returns an enum sport, or null to leave the row uncategorised. */
-function inferSport(title, categoryName) {
+function inferSport(title, brand, categoryName) {
     const t = (title || "").toLowerCase();
+    const b = (brand || "").toLowerCase();
     const c = (categoryName || "").toLowerCase();
+    const tb = `${t} ${b}`;
 
-    if (/pickle\s?ball/.test(t)) return "PICKLEBALL";
-    if (/padel|bullpadel/.test(t)) return "PADEL";
-    if (/squash/.test(t)) return "SQUASH";
-    if (/badminton|shuttle\s?cock|\bkok\b/.test(t)) return "BADMINTON";
-    if (/\btennis\b/.test(t) && !/table\s?tennis|tenis\s?meja|ping\s?pong/.test(t)) return "TENNIS";
-    if (/futsal|sepak\s?bola|\bsoccer\b|\bbola\b/.test(t)) return "SEPAK_BOLA";
+    // 1) Explicit sport keywords win (in title or brand).
+    if (/pickle\s?ball/.test(tb)) return "PICKLEBALL";
+    if (/padel|bullpadel/.test(tb)) return "PADEL";
+    if (/squash/.test(tb)) return "SQUASH";
+    if (/futsal|sepak\s?bola|\bsoccer\b/.test(tb)) return "SEPAK_BOLA";
+    if (/badminton|shuttle\s?cock|\bkok\b/.test(tb)) return "BADMINTON";
+    if (/\btennis\b/.test(tb) && !/table\s?tennis|tenis\s?meja|ping\s?pong/.test(tb)) return "TENNIS";
 
-    // Clothing / accessories / bags / shoes → Fashion & Accessories.
-    if (/pakaian|aksesoris|aksesori|tas\b|sepatu|fashion|apparel|jersey|jaket/.test(c)) return "FASHION";
-    if (/jersey|kaos|kaus|jaket|topi|tas\b|sepatu|sandal/.test(t)) return "FASHION";
+    // 2) Apparel & soft accessories → Fashion (regardless of brand/sport).
+    if (/jersey|game\s?shirt|polo|t-?shirt|kaos|kaus|jacket|jaket|short|skort|dress|pants|track\s?suit|tank\s?top|\bcap\b|topi|headband|wrist\s?band|wristband|\bsock|kaos\s?kaki|towel|sandal/.test(t)) {
+        return "FASHION";
+    }
+
+    // 3) Badminton-dominant brands → Badminton (rackets, shoes, bags, supports).
+    if (/yonex|li-?ning|victor/.test(b) || /yonex|li-?ning|victor/.test(t)) return "BADMINTON";
+
+    // 4) Generic apparel/accessory category with no sport signal → Fashion.
+    if (/pakaian|aksesoris|aksesori|\btas\b|sepatu|fashion|apparel/.test(c)) return "FASHION";
 
     return null;
 }
@@ -44,7 +54,7 @@ const sql = postgres(DATABASE_URL, { max: 2 });
 
 try {
     const rows = await sql`
-        SELECT p.id, p.title, c.name AS category_name
+        SELECT p.id, p.title, p.brand, c.name AS category_name
         FROM products p
         LEFT JOIN categories c ON c.id = p.category_id
         WHERE p.sport IS NULL
@@ -53,7 +63,7 @@ try {
     const tally = {};
     const updates = [];
     for (const r of rows) {
-        const sport = inferSport(r.title, r.category_name);
+        const sport = inferSport(r.title, r.brand, r.category_name);
         if (!sport) continue;
         tally[sport] = (tally[sport] ?? 0) + 1;
         updates.push({ id: r.id, sport, title: r.title });
