@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Loader2, CheckCircle2, XCircle, Clock, ShoppingBag, ArrowRight, AlertTriangle } from "lucide-react";
 import { acceptOffer, withdrawOffer } from "@/actions/offers";
@@ -92,6 +92,13 @@ export function BuyerOffersClient({ threads, expiryWarningEnabled }: Props) {
     const [isPending, startTransition] = useTransition();
     const [pendingId, setPendingId] = useState<string | null>(null);
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+    // Deep-link from an offer email (?offer=<id>): scroll to + highlight the thread.
+    const highlightId = useSearchParams().get("offer");
+    useEffect(() => {
+        if (!highlightId) return;
+        const el = document.getElementById(`offer-${highlightId}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, [highlightId]);
     // Tick `now` every minute so the expiry banner stays accurate without
     // forcing a server round-trip per row.
     const [now, setNow] = useState(() => Date.now());
@@ -172,8 +179,15 @@ export function BuyerOffersClient({ threads, expiryWarningEnabled }: Props) {
                         : null;
                 const showExpiryWarning = !!expiry?.isUrgent && !expiry.hasExpired;
 
+                const isHighlighted = !!highlightId && rounds.some((r) => r.id === highlightId);
                 return (
-                    <div key={latest.id} className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                    <div
+                        key={latest.id}
+                        id={isHighlighted ? `offer-${highlightId}` : undefined}
+                        className={`rounded-xl border bg-white overflow-hidden transition-shadow ${
+                            isHighlighted ? "border-brand-primary ring-2 ring-brand-primary/30" : "border-slate-200"
+                        }`}
+                    >
                         {showExpiryWarning && expiry && (
                             <div className="bg-rose-50 border-b border-rose-200 px-4 py-2.5 flex items-start gap-2">
                                 <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />

@@ -148,6 +148,8 @@ type NotifyInput =
         amount: string;
         actorName: string;
         round: number;
+        // Who receives this — drives the email deep-link (seller inbox vs buyer offers).
+        audience: "buyer" | "seller";
         idempotencyKey?: string;
     }
     | {
@@ -290,10 +292,15 @@ function ctaForEvent(input: NotifyInput): { url: string; label: string } | undef
             const path = input.audience === "admin" ? `/admin` : input.audience === "seller" ? `/seller/orders/${input.orderId}` : `/profile/orders/${input.orderId}`;
             return { url: `${base}${path}`, label: "Lihat Sengketa" };
         }
-        case "OFFER_RECEIVED":
+        case "OFFER_RECEIVED": {
+            // Route to the recipient's own offer surface and deep-link the offer.
+            const path = input.audience === "seller" ? "/seller/offers" : "/profile/offers";
+            return { url: `${base}${path}?offer=${input.offerId}`, label: "Lihat Penawaran" };
+        }
         case "OFFER_ACCEPTED":
         case "OFFER_SLA_REMINDER":
-            return { url: `${base}/profile/offers`, label: "Lihat Penawaran" };
+            // Always sent to the buyer (their accepted offer → checkout).
+            return { url: `${base}/profile/offers?offer=${input.offerId}`, label: "Lihat Penawaran" };
         case "REVIEW_RECEIVED":
             return { url: `${base}/seller/reviews`, label: "Lihat Ulasan" };
         case "REVIEW_REPLY":

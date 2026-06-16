@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Loader2, Check, X, RotateCw } from "lucide-react";
 import { acceptOffer, counterOffer, rejectOffer } from "@/actions/offers";
@@ -48,6 +48,13 @@ export default function OffersInboxClient({ offers }: Props) {
     const [counterDraft, setCounterDraft] = useState<Record<string, string>>({});
     const [ratingDraft, setRatingDraft] = useState<Record<string, { rating: string; note: string }>>({});
     const [error, setError] = useState<string | null>(null);
+    // Deep-link from the seller's offer email (?offer=<id>): scroll to + highlight it.
+    const highlightId = useSearchParams().get("offer");
+    useEffect(() => {
+        if (!highlightId) return;
+        const el = document.getElementById(`offer-${highlightId}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, [highlightId]);
     const [info, setInfo] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
 
@@ -178,7 +185,12 @@ export default function OffersInboxClient({ offers }: Props) {
                 return (
                     <div
                         key={offer.id}
-                        className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 p-5"
+                        id={`offer-${offer.id}`}
+                        className={`bg-white dark:bg-surface-dark rounded-xl border p-5 transition-shadow ${
+                            highlightId === offer.id
+                                ? "border-brand-primary ring-2 ring-brand-primary/30"
+                                : "border-slate-200 dark:border-slate-800"
+                        }`}
                     >
                         <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0 space-y-1 text-sm">

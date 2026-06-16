@@ -423,6 +423,7 @@ export async function createOffer(input: z.infer<typeof createOfferSchema>) {
             autoCounterAmount = suggested;
             await notify({
                 event: "OFFER_RECEIVED",
+                audience: "buyer",
                 recipientUserId: offer.buyer_id,
                 offerId: counter.id,
                 productTitle: product.title,
@@ -436,6 +437,7 @@ export async function createOffer(input: z.infer<typeof createOfferSchema>) {
     if (initialStatus === "PENDING" && !autoCounterOfferId) {
         await notify({
             event: "OFFER_RECEIVED",
+            audience: "seller",
             recipientUserId: product.seller_id,
             offerId: offer.id,
             productTitle: product.title,
@@ -538,6 +540,7 @@ export async function counterOffer(input: z.infer<typeof counterOfferSchema>) {
 
     await notify({
         event: "OFFER_RECEIVED",
+        audience: isSeller ? "buyer" : "seller",
         recipientUserId: recipientId,
         offerId: child.id,
         productTitle: product.title,
