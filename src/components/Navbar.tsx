@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Tag, Menu } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import { Tag, Menu, X } from "lucide-react";
 import { NavbarUserArea } from "./NavbarClient";
 import { ChatBadge } from "./ChatBadge";
 import { CartBadge } from "./CartBadge";
@@ -10,9 +12,41 @@ import { NotificationBell } from "./NotificationBell";
 import { SearchBar } from "./SearchBar";
 import { useSession } from "@/lib/auth-client";
 
+const NAV_LINKS = [
+    { href: "/feed", label: "Feed" },
+    { href: "/men", label: "Men" },
+    { href: "/women", label: "Women" },
+    { href: "/equipment", label: "Equipment" },
+    { href: "/brands", label: "Brands" },
+    { href: "/compare", label: "Compare" },
+    { href: "/affiliate", label: "Affiliate" },
+];
+
 export function Navbar() {
     const { data: session, isPending } = useSession();
     const isAuthenticated = Boolean(session?.user);
+    const pathname = usePathname();
+    const [mobileOpen, setMobileOpen] = useState(false);
+
+    // Close the drawer on navigation.
+    useEffect(() => {
+        setMobileOpen(false);
+    }, [pathname]);
+
+    // Lock scroll + close on Escape while the drawer is open.
+    useEffect(() => {
+        if (!mobileOpen) return;
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setMobileOpen(false);
+        };
+        window.addEventListener("keydown", onKey);
+        return () => {
+            document.body.style.overflow = prev;
+            window.removeEventListener("keydown", onKey);
+        };
+    }, [mobileOpen]);
 
     return (
         <nav className="sticky top-0 z-50 w-full bg-white border-b border-slate-200 shadow-sm">
@@ -74,8 +108,14 @@ export function Navbar() {
                         />
 
                         {/* Mobile Menu Button */}
-                        <button className="md:hidden p-2 text-slate-500 hover:text-brand-primary">
-                            <Menu className="w-6 h-6" />
+                        <button
+                            type="button"
+                            onClick={() => setMobileOpen((o) => !o)}
+                            aria-label={mobileOpen ? "Tutup menu" : "Buka menu"}
+                            aria-expanded={mobileOpen}
+                            className="md:hidden p-2 text-slate-500 hover:text-brand-primary"
+                        >
+                            {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                         </button>
                     </div>
                 </div>
@@ -112,6 +152,55 @@ export function Navbar() {
                     </Link>
                 </div>
             </div>
+
+            {/* Mobile drawer (the burger menu) */}
+            {mobileOpen && (
+                <div className="md:hidden fixed inset-0 z-[60]">
+                    <div
+                        className="absolute inset-0 bg-black/40"
+                        onClick={() => setMobileOpen(false)}
+                        aria-hidden="true"
+                    />
+                    <div className="absolute inset-y-0 right-0 w-72 max-w-[85%] bg-white shadow-xl flex flex-col">
+                        <div className="flex items-center justify-between h-16 px-4 border-b border-slate-100">
+                            <span className="text-sm font-bold uppercase tracking-wide text-slate-900 font-heading">
+                                Menu
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setMobileOpen(false)}
+                                aria-label="Tutup menu"
+                                className="p-2 text-slate-500 hover:text-brand-primary"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-4 border-b border-slate-100">
+                            <SearchBar />
+                        </div>
+                        <nav className="flex flex-col p-2 overflow-y-auto">
+                            {NAV_LINKS.map((l) => (
+                                <Link
+                                    key={l.href}
+                                    href={l.href}
+                                    onClick={() => setMobileOpen(false)}
+                                    className="px-3 py-3 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-brand-primary transition-colors"
+                                >
+                                    {l.label}
+                                </Link>
+                            ))}
+                            <Link
+                                href="/seller/products/add"
+                                onClick={() => setMobileOpen(false)}
+                                className="mt-1 px-3 py-3 rounded-lg text-sm font-bold text-orange-600 hover:bg-orange-50 flex items-center gap-2 transition-colors"
+                            >
+                                <Tag className="w-4 h-4" />
+                                Sell Item
+                            </Link>
+                        </nav>
+                    </div>
+                </div>
+            )}
         </nav>
 
     );
