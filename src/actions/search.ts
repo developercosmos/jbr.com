@@ -273,6 +273,8 @@ export async function searchProducts(filters: SearchFilters) {
                     id: true,
                     name: true,
                     image: true,
+                    store_name: true,
+                    store_slug: true,
                 },
             },
             category: true,

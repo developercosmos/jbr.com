@@ -203,7 +203,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                                                 </p>
                                                 {product.seller && (
                                                     <p className="text-xs text-slate-500 mt-1 truncate">
-                                                        {product.seller.name}
+                                                        {product.seller.store_name || product.seller.name}
                                                     </p>
                                                 )}
                                             </div>
