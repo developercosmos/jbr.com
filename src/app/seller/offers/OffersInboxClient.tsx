@@ -332,7 +332,7 @@ export default function OffersInboxClient({ offers }: Props) {
                                     >
                                         <option value="">Pilih rating 1–5…</option>
                                         {BUYER_RATING_OPTIONS.map((o) => (
-                                            <option key={o.value} value={o.value}>{o.label}</option>
+                                            <option key={o.value} value={o.value} title={o.tooltip}>{o.label}</option>
                                         ))}
                                     </select>
                                     <input

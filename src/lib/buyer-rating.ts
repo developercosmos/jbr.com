@@ -51,11 +51,13 @@ export const BUYER_RATING_LEVELS: BuyerRatingLevel[] = [
     },
 ];
 
-/** Options for a <select> (value + "1 — Pembeli Hit & Run" label + short title). */
+/** Options for a <select> (value + "1 — Pembeli Hit & Run" label + short title).
+ *  `tooltip` is meant for the <option title=…> so the description shows on hover. */
 export const BUYER_RATING_OPTIONS = BUYER_RATING_LEVELS.map((l) => ({
     value: l.value,
     label: `${l.value} — ${l.title}`,
     short: l.title,
+    tooltip: `${l.english} — ${l.description}`,
 }));
 
 /** One-line helper shown next to the rating control. */

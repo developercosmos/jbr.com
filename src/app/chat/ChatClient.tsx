@@ -587,7 +587,7 @@ export function ChatClient({
                                     >
                                         <option value="">Nilai buyer…</option>
                                         {BUYER_RATING_OPTIONS.map((o) => (
-                                            <option key={o.value} value={o.value}>{o.label}</option>
+                                            <option key={o.value} value={o.value} title={o.tooltip}>{o.label}</option>
                                         ))}
                                     </select>
                                     <input
