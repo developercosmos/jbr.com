@@ -509,6 +509,9 @@ export const carts = pgTable(
             .references(() => products.id, { onDelete: "cascade" }),
         variant_id: uuid("variant_id").references(() => product_variants.id, { onDelete: "set null" }),
         quantity: integer("quantity").default(1).notNull(),
+        // Set when this line came from an accepted offer — locks the negotiated
+        // price + 24h checkout window (read from the linked offer).
+        offer_id: uuid("offer_id").references(() => offers.id, { onDelete: "set null" }),
         saved_for_later: boolean("saved_for_later").default(false).notNull(),
         abandonment_state: text("abandonment_state"),
         last_mutated_at: timestamp("last_mutated_at").defaultNow().notNull(),
@@ -1296,6 +1299,10 @@ export const cartsRelations = relations(carts, ({ one }) => ({
     variant: one(product_variants, {
         fields: [carts.variant_id],
         references: [product_variants.id],
+    }),
+    offer: one(offers, {
+        fields: [carts.offer_id],
+        references: [offers.id],
     }),
 }));
 

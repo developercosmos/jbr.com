@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Trash2, Minus, Plus, Store, Verified, Loader2, Tag, ShieldCheck, BookmarkPlus, ShoppingCart } from "lucide-react";
+import { Trash2, Minus, Plus, Store, Verified, Loader2, Tag, ShieldCheck, BookmarkPlus, ShoppingCart, Clock } from "lucide-react";
 import { removeFromCart, updateCartItemQuantity, clearCart, moveCartItemToSaved, moveSavedItemToCart } from "@/actions/cart";
 
 // Define the cart item type based on getCart return
@@ -11,6 +11,14 @@ interface CartItemType {
     id: string;
     quantity: number;
     saved_for_later: boolean;
+    offer_id: string | null;
+    offer: {
+        id: string;
+        amount: string;
+        status: string;
+        checkout_token: string | null;
+        checkout_token_expires_at: string | Date | null;
+    } | null;
     variant: {
         id: string;
         name: string;
@@ -45,10 +53,29 @@ export function CartContent({ initialItems }: CartContentProps) {
     const [isPending, startTransition] = useTransition();
     const [moveError, setMoveError] = useState<string | null>(null);
 
+    // Tick once a minute so the offer countdown stays roughly live.
+    const [now, setNow] = useState(() => Date.now());
+    useEffect(() => {
+        const t = setInterval(() => setNow(Date.now()), 60_000);
+        return () => clearInterval(t);
+    }, []);
+
     // REC-03: split active cart from saved-for-later. Subtotal/checkout uses
-    // only active items; saved bucket appears below as a separate panel.
-    const activeItems = items.filter((i) => !i.saved_for_later);
+    // only active items. Accepted-offer items (locked nego price + 24h window)
+    // are pulled into their own section and excluded from the bulk checkout.
+    const offerItems = items.filter((i) => i.offer_id && i.offer && !i.saved_for_later);
+    const activeItems = items.filter((i) => !i.saved_for_later && !i.offer_id);
     const savedItems = items.filter((i) => i.saved_for_later);
+
+    const formatRemaining = (expiresAt: string | Date | null): string | null => {
+        if (!expiresAt) return null;
+        const ms = new Date(expiresAt).getTime() - now;
+        if (ms <= 0) return "kedaluwarsa";
+        const mins = Math.floor(ms / 60_000);
+        const h = Math.floor(mins / 60);
+        const m = mins % 60;
+        return h > 0 ? `${h} jam ${m} menit` : `${m} menit`;
+    };
 
     // Group active items by seller
     const itemsBySeller = activeItems.reduce((acc, item) => {
@@ -176,6 +203,67 @@ export function CartContent({ initialItems }: CartContentProps) {
                 {moveError && (
                     <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
                         {moveError}
+                    </div>
+                )}
+
+                {/* Accepted-offer items: locked nego price + 24h window, checkout
+                    via the locked-price flow (kept out of the bulk checkout). */}
+                {offerItems.length > 0 && (
+                    <div className="bg-white rounded-xl shadow-sm border border-emerald-200 overflow-hidden">
+                        <div className="p-4 border-b border-emerald-100 bg-emerald-50/60 flex items-center gap-2">
+                            <Tag className="w-4 h-4 text-emerald-600" />
+                            <h3 className="font-bold text-emerald-800">Penawaran Diterima ({offerItems.length})</h3>
+                            <span className="text-xs text-emerald-700">harga nego terkunci · checkout dalam 24 jam</span>
+                        </div>
+                        {offerItems.map((item) => {
+                            const remaining = formatRemaining(item.offer?.checkout_token_expires_at ?? null);
+                            const negoPrice = item.offer ? parseFloat(item.offer.amount) : parseFloat(item.product.price);
+                            const token = item.offer?.checkout_token;
+                            return (
+                                <div key={item.id} className="p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center border-t border-emerald-100 first:border-t-0">
+                                    <Link href={`/product/${item.product.slug}`}>
+                                        <div className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden border border-slate-200 bg-white">
+                                            <Image alt={item.product.title} className="object-cover" src={item.product.images?.[0] || "/placeholder.png"} fill />
+                                        </div>
+                                    </Link>
+                                    <div className="flex-1 flex flex-col min-w-0 gap-1">
+                                        <Link href={`/product/${item.product.slug}`}>
+                                            <h4 className="text-slate-800 text-base font-semibold line-clamp-2 hover:text-brand-primary transition-colors">{item.product.title}</h4>
+                                        </Link>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-emerald-700 text-lg font-bold">{formatPrice(negoPrice)}</span>
+                                            {parseFloat(item.product.price) > negoPrice && (
+                                                <span className="text-sm text-slate-400 line-through">{formatPrice(parseFloat(item.product.price))}</span>
+                                            )}
+                                            <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">Harga Nego</span>
+                                        </div>
+                                        {item.variant && <p className="text-sm text-slate-500">Varian: {item.variant.name}</p>}
+                                        <div className={`flex items-center gap-1 text-xs ${remaining === "kedaluwarsa" ? "text-rose-600" : "text-amber-600"}`}>
+                                            <Clock className="w-3.5 h-3.5" />
+                                            {remaining === "kedaluwarsa" ? "Penawaran kedaluwarsa" : `Kedaluwarsa dalam ${remaining}`}
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col items-stretch gap-2 w-full sm:w-auto">
+                                        {token && remaining !== "kedaluwarsa" ? (
+                                            <Link href={`/checkout/offer/${token}`}>
+                                                <button className="w-full px-4 py-2.5 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors">
+                                                    Lanjut Checkout
+                                                </button>
+                                            </Link>
+                                        ) : (
+                                            <button disabled className="w-full px-4 py-2.5 rounded-lg bg-slate-200 text-slate-500 text-sm font-semibold">Kedaluwarsa</button>
+                                        )}
+                                        <button
+                                            onClick={() => handleRemove(item.id)}
+                                            disabled={isPending}
+                                            className="text-xs text-slate-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                                        >
+                                            Hapus dari keranjang
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
 

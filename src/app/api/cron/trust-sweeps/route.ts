@@ -8,6 +8,7 @@ import { runOfferExpirySweep, runOfferSlaFollowupSweep } from "@/actions/offers"
 import { clearAttributionsForCompletedOrders } from "@/actions/affiliate";
 import { runWishlistPriceDropSweep } from "@/actions/wishlist-alerts";
 import { runCartAbandonmentSweep } from "@/actions/cart-abandonment";
+import { runExpiredOfferCartSweep } from "@/actions/cart";
 import { runProductEventRollup } from "@/actions/product-events";
 import { runSearchTermRollup } from "@/actions/search-terms";
 import { runSellerWeeklyDigestSweep } from "@/actions/seller-digest";
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
             presencePrune,
             paymentsReconcile,
             chatReminders,
+            expiredOfferCart,
         ] = await Promise.all([
             runEscrowAutoRelease(),
             runDisputeSlaSweep(),
@@ -75,6 +77,7 @@ export async function POST(request: NextRequest) {
             runPresencePruneSweep(),
             reconcilePendingPayments(),
             runUnansweredChatReminderSweep(),
+            runExpiredOfferCartSweep(),
         ]);
 
         return NextResponse.json({
@@ -98,6 +101,7 @@ export async function POST(request: NextRequest) {
             presencePrune,
             paymentsReconcile,
             chatReminders,
+            expiredOfferCart,
             ranAt: new Date().toISOString(),
         });
     } catch (error) {

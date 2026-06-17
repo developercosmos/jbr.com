@@ -3,13 +3,13 @@
 import { db } from "@/db";
 import { logger } from "@/lib/logger";
 import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
-import { buyer_reputation_summary, offers, products, product_variants, users } from "@/db/schema";
+import { buyer_reputation_summary, carts, offers, products, product_variants, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { clearOfferDraftCookie, setOfferDraftCookie } from "@/lib/offer-draft";
 import { computeAutoCounterAmount, shouldTriggerAutoCounter } from "@/lib/offer-auto-counter";
 import { headers } from "next/headers";
-import { and, desc, eq, gte, isNotNull, lte, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, isNull, lte, ne, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { randomBytes, randomUUID } from "crypto";
 import { z } from "zod";
@@ -650,9 +650,46 @@ async function acceptOfferInternal(offerId: string) {
         })
         .where(eq(offers.id, offer.id));
 
+    // Move the item into the buyer's cart, linked to this offer (locks the
+    // negotiated price + 24h window). Reuse an existing cart line for the same
+    // product/variant if present; otherwise insert a fresh one.
+    const existingCartLine = await db.query.carts.findFirst({
+        where: and(
+            eq(carts.user_id, offer.buyer_id),
+            eq(carts.product_id, listing.id),
+            offer.variant_id ? eq(carts.variant_id, offer.variant_id) : isNull(carts.variant_id)
+        ),
+        columns: { id: true },
+    });
+    if (existingCartLine) {
+        await db
+            .update(carts)
+            .set({ offer_id: offer.id, quantity: 1, saved_for_later: false, last_mutated_at: new Date() })
+            .where(eq(carts.id, existingCartLine.id));
+    } else {
+        await db.insert(carts).values({
+            user_id: offer.buyer_id,
+            product_id: listing.id,
+            variant_id: offer.variant_id,
+            quantity: 1,
+            offer_id: offer.id,
+        });
+    }
+
+    // Buyer: offer accepted → item waiting in cart, expires in 24h.
     await notify({
         event: "OFFER_ACCEPTED",
+        audience: "buyer",
         recipientUserId: offer.buyer_id,
+        offerId: offer.id,
+        productTitle: listing.title,
+        amount: formatCurrency(Number(offer.amount)),
+    });
+    // Seller: confirmation that the item was moved to the buyer's cart (24h).
+    await notify({
+        event: "OFFER_ACCEPTED",
+        audience: "seller",
+        recipientUserId: offer.seller_id,
         offerId: offer.id,
         productTitle: listing.title,
         amount: formatCurrency(Number(offer.amount)),
@@ -660,6 +697,7 @@ async function acceptOfferInternal(offerId: string) {
 
     revalidatePath("/seller/offers");
     revalidatePath("/profile/offers");
+    revalidatePath("/cart");
 
     return { success: true as const, checkoutToken: token, checkoutExpiresAt: checkoutExpiresAt.toISOString() };
 }
@@ -1034,6 +1072,8 @@ export async function consumeCheckoutToken(offerId: string, orderId: string) {
             notes: sql`coalesce(${offers.notes}, '') || ' [used by order ' || ${orderId} || ']'`,
         })
         .where(eq(offers.id, offerId));
+    // Offer is now ordered — drop its locked line from the buyer's cart.
+    await db.delete(carts).where(eq(carts.offer_id, offerId));
     return { success: true as const };
 }
 

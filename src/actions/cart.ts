@@ -6,7 +6,7 @@ import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result"
 import { carts, products } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 // Get current user
@@ -265,10 +265,39 @@ export async function getCart() {
                 },
             },
             variant: true,
+            // Locked-offer context: negotiated price + 24h checkout window.
+            offer: {
+                columns: {
+                    id: true,
+                    amount: true,
+                    status: true,
+                    checkout_token: true,
+                    checkout_token_expires_at: true,
+                    checkout_token_used_at: true,
+                },
+            },
         },
     });
 
-    return cartItems;
+    // Auto-expire offer lines whose 24h window has passed (or whose offer is no
+    // longer accepted) — they drop out of the cart, as promised to the seller.
+    const now = Date.now();
+    const expiredIds = cartItems
+        .filter((i) => {
+            if (!i.offer_id) return false;
+            if (!i.offer || i.offer.status !== "ACCEPTED") return true;
+            if (i.offer.checkout_token_used_at) return true; // already ordered
+            const exp = i.offer.checkout_token_expires_at;
+            return !exp || new Date(exp).getTime() <= now;
+        })
+        .map((i) => i.id);
+
+    if (expiredIds.length > 0) {
+        await db.delete(carts).where(inArray(carts.id, expiredIds));
+        revalidatePath("/cart");
+    }
+
+    return cartItems.filter((i) => !expiredIds.includes(i.id));
 }
 
 export async function clearCart() {
@@ -301,5 +330,25 @@ export async function getCartCount(): Promise<number> {
         console.error("getCartCount failed:", error);
         return 0;
     }
+}
+
+/**
+ * Cron: drop accepted-offer cart lines whose 24h window passed (or whose offer
+ * is no longer ACCEPTED — e.g. already checked out). Keeps the item from
+ * lingering for buyers who never reopen their cart.
+ */
+export async function runExpiredOfferCartSweep(): Promise<{ removed: number }> {
+    const res = await db.execute(sql`
+        DELETE FROM carts
+        WHERE offer_id IS NOT NULL
+          AND offer_id IN (
+            SELECT id FROM offers
+            WHERE status <> 'ACCEPTED'
+               OR checkout_token_used_at IS NOT NULL
+               OR checkout_token_expires_at IS NULL
+               OR checkout_token_expires_at <= now()
+          )
+    `);
+    return { removed: (res as { rowCount?: number }).rowCount ?? 0 };
 }
 

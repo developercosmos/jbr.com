@@ -154,6 +154,8 @@ type NotifyInput =
     }
     | {
         event: "OFFER_ACCEPTED";
+        // buyer: item moved to their cart (24h); seller: confirmation.
+        audience: "buyer" | "seller";
         recipientUserId: string;
         offerId: string;
         productTitle: string;
@@ -298,8 +300,11 @@ function ctaForEvent(input: NotifyInput): { url: string; label: string } | undef
             return { url: `${base}${path}?offer=${input.offerId}`, label: "Lihat Penawaran" };
         }
         case "OFFER_ACCEPTED":
+            // Buyer: item is now in their cart → send them there. Seller: their offers inbox.
+            return input.audience === "seller"
+                ? { url: `${base}/seller/offers?offer=${input.offerId}`, label: "Lihat Penawaran" }
+                : { url: `${base}/cart`, label: "Lihat Keranjang" };
         case "OFFER_SLA_REMINDER":
-            // Always sent to the buyer (their accepted offer → checkout).
             return { url: `${base}/profile/offers?offer=${input.offerId}`, label: "Lihat Penawaran" };
         case "REVIEW_RECEIVED":
             return { url: `${base}/seller/reviews`, label: "Lihat Ulasan" };
@@ -488,8 +493,10 @@ export async function notify(input: NotifyInput) {
             break;
         case "OFFER_ACCEPTED":
             type = "OFFER_ACCEPTED";
-            title = "Penawaran Diterima";
-            message = `Penawaran ${input.amount} untuk ${input.productTitle} disetujui. Selesaikan checkout sebelum waktu habis.`;
+            title = input.audience === "seller" ? "Penawaran Diterima — masuk keranjang pembeli" : "Penawaran Diterima";
+            message = input.audience === "seller"
+                ? `Penawaran ${input.amount} untuk ${input.productTitle} Anda terima. Barang otomatis masuk keranjang pembeli dan akan kedaluwarsa otomatis dalam 24 jam bila tidak di-checkout.`
+                : `Penawaran ${input.amount} untuk ${input.productTitle} disetujui. Barang sudah masuk keranjang Anda — selesaikan checkout dalam 24 jam sebelum kedaluwarsa.`;
             data = {
                 offer_id: input.offerId,
                 product_title: input.productTitle,
