@@ -6,8 +6,8 @@ import Link from "next/link";
 import { Loader2, Check, X, RotateCw } from "lucide-react";
 import { acceptOffer, counterOffer, rejectOffer } from "@/actions/offers";
 import { submitBuyerInteractionRating } from "@/actions/reputation";
-import { BUYER_RATING_OPTIONS } from "@/lib/buyer-rating";
 import { BuyerRatingLegend } from "@/components/seller/BuyerRatingLegend";
+import { BuyerRatingSelect } from "@/components/seller/BuyerRatingSelect";
 import { CurrencyInput } from "@/components/CurrencyInput";
 
 type Status = "PENDING" | "ACCEPTED" | "REJECTED" | "COUNTERED" | "EXPIRED" | "WITHDRAWN";
@@ -317,24 +317,19 @@ export default function OffersInboxClient({ offers }: Props) {
                                 </p>
                                 <BuyerRatingLegend />
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <select
+                                    <BuyerRatingSelect
                                         value={ratingDraft[offer.id]?.rating ?? ""}
-                                        onChange={(e) =>
+                                        onChange={(rating) =>
                                             setRatingDraft((prev) => ({
                                                 ...prev,
                                                 [offer.id]: {
-                                                    rating: e.target.value,
+                                                    rating,
                                                     note: prev[offer.id]?.note ?? "",
                                                 },
                                             }))
                                         }
-                                        className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-xs"
-                                    >
-                                        <option value="">Pilih rating 1–5…</option>
-                                        {BUYER_RATING_OPTIONS.map((o) => (
-                                            <option key={o.value} value={o.value} title={o.tooltip}>{o.label}</option>
-                                        ))}
-                                    </select>
+                                        className="w-48"
+                                    />
                                     <input
                                         type="text"
                                         placeholder="Catatan singkat (opsional)"

@@ -7,7 +7,7 @@ import { Search, Edit, MoreVertical, Paperclip, Smile, Send, Check, CheckCheck, 
 import { cn } from "@/lib/utils";
 import { getMessages, sendMessage, getConversations, getChatBuyerReputation } from "@/actions/chat";
 import { submitBuyerInteractionRating } from "@/actions/reputation";
-import { BUYER_RATING_OPTIONS, BUYER_RATING_HELP } from "@/lib/buyer-rating";
+import { BuyerRatingSelect } from "@/components/seller/BuyerRatingSelect";
 import { ChatSuggestionChips } from "@/components/chat/ChatSuggestionChips";
 import { getChatSuggestions } from "@/lib/chat-suggestions";
 import { useFlag } from "@/lib/use-flag";
@@ -579,17 +579,12 @@ export function ChatClient({
                             <div className="flex items-center gap-2 text-slate-400">
                                 <div className="hidden lg:flex items-center gap-1.5 border border-slate-200 rounded-lg px-2 py-1 bg-slate-50">
                                     <Star className="w-3.5 h-3.5 text-amber-500" />
-                                    <select
+                                    <BuyerRatingSelect
                                         value={chatRatingDraft.rating}
-                                        onChange={(e) => setChatRatingDraft((prev) => ({ ...prev, rating: e.target.value }))}
-                                        title={BUYER_RATING_HELP}
-                                        className="text-xs bg-transparent text-slate-700 outline-none"
-                                    >
-                                        <option value="">Nilai buyer…</option>
-                                        {BUYER_RATING_OPTIONS.map((o) => (
-                                            <option key={o.value} value={o.value} title={o.tooltip}>{o.label}</option>
-                                        ))}
-                                    </select>
+                                        onChange={(rating) => setChatRatingDraft((prev) => ({ ...prev, rating }))}
+                                        placeholder="Nilai buyer…"
+                                        triggerClassName="flex items-center gap-1 text-xs bg-transparent text-slate-700 outline-none whitespace-nowrap"
+                                    />
                                     <input
                                         value={chatRatingDraft.note}
                                         onChange={(e) => setChatRatingDraft((prev) => ({ ...prev, note: e.target.value }))}
