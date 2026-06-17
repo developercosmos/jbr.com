@@ -13,6 +13,7 @@ import { addToWishlist } from "@/actions/wishlist";
 import { MyOfferStatusPanel } from "@/components/product/MyOfferStatusPanel";
 import { VariantSelector } from "@/components/product/VariantSelector";
 import MakeOfferButton from "@/components/product/MakeOfferButton";
+import { CurrencyInput } from "@/components/CurrencyInput";
 import { LowStockBadge } from "@/components/product/LowStockBadge";
 import { ShareProduct } from "@/components/product/ShareProduct";
 import { SellerBadge } from "@/components/seller/SellerBadges";
@@ -632,7 +633,7 @@ export function ProductInfo({
                         <div className="flex gap-2">
                             <div className="flex-1 relative">
                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">Rp</span>
-                                <input type="number" value={offerAmount} onFocus={handleOfferFocus} onChange={(event) => setOfferAmount(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-9 py-3 text-sm" placeholder="Nominal tawaran" />
+                                <CurrencyInput value={offerAmount} onFocus={handleOfferFocus} onValueChange={setOfferAmount} className="w-full rounded-xl border border-slate-200 bg-white px-9 py-3 text-sm" placeholder="Nominal tawaran" />
                             </div>
                             <button type="button" disabled={isOfferPending} onClick={handleOfferSubmit} className="px-4 py-3 rounded-xl bg-amber-500 text-white font-semibold hover:bg-amber-600 transition-colors disabled:opacity-60">
                                 {isOfferPending ? <Loader2 className="w-4 h-4 animate-spin" /> : isAuthenticated ? "Kirim" : "Sign in"}

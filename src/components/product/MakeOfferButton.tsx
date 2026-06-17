@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Tag } from "lucide-react";
 import { createOffer } from "@/actions/offers";
+import { CurrencyInput } from "@/components/CurrencyInput";
 
 interface Props {
     listingId: string;
@@ -81,10 +82,9 @@ export default function MakeOfferButton({ listingId, listingPrice, autoDeclineBe
                         </div>
                         <div>
                             <label className="block text-xs font-medium text-slate-600 mb-1">Nominal Penawaran (Rp)</label>
-                            <input
-                                type="number"
+                            <CurrencyInput
                                 value={amount}
-                                onChange={(e) => setAmount(e.target.value)}
+                                onValueChange={setAmount}
                                 className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20"
                             />
                         </div>

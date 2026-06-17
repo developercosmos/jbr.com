@@ -7,6 +7,7 @@ import { Loader2, Check, X, RotateCw } from "lucide-react";
 import { acceptOffer, counterOffer, rejectOffer } from "@/actions/offers";
 import { submitBuyerInteractionRating } from "@/actions/reputation";
 import { BUYER_RATING_OPTIONS, BUYER_RATING_HELP } from "@/lib/buyer-rating";
+import { CurrencyInput } from "@/components/CurrencyInput";
 
 type Status = "PENDING" | "ACCEPTED" | "REJECTED" | "COUNTERED" | "EXPIRED" | "WITHDRAWN";
 
@@ -263,12 +264,11 @@ export default function OffersInboxClient({ offers }: Props) {
 
                         {canDecide && (
                             <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2">
-                                <input
-                                    type="number"
+                                <CurrencyInput
                                     placeholder="Counter (Rp)"
                                     value={counterDraft[offer.id] ?? ""}
-                                    onChange={(e) =>
-                                        setCounterDraft((prev) => ({ ...prev, [offer.id]: e.target.value }))
+                                    onValueChange={(raw) =>
+                                        setCounterDraft((prev) => ({ ...prev, [offer.id]: raw }))
                                     }
                                     className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-sm w-40"
                                 />
