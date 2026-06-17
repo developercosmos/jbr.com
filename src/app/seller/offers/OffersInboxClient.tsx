@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Loader2, Check, X, RotateCw } from "lucide-react";
 import { acceptOffer, counterOffer, rejectOffer } from "@/actions/offers";
 import { submitBuyerInteractionRating } from "@/actions/reputation";
+import { BUYER_RATING_OPTIONS, BUYER_RATING_HELP } from "@/lib/buyer-rating";
 
 type Status = "PENDING" | "ACCEPTED" | "REJECTED" | "COUNTERED" | "EXPIRED" | "WITHDRAWN";
 
@@ -313,6 +314,9 @@ export default function OffersInboxClient({ offers }: Props) {
                                 <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                                     Penilaian Calon Buyer (konteks offer)
                                 </p>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                                    {BUYER_RATING_HELP}
+                                </p>
                                 <div className="flex flex-wrap items-center gap-2">
                                     <select
                                         value={ratingDraft[offer.id]?.rating ?? ""}
@@ -327,12 +331,10 @@ export default function OffersInboxClient({ offers }: Props) {
                                         }
                                         className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-xs"
                                     >
-                                        <option value="">Rating 1-5</option>
-                                        <option value="1">1</option>
-                                        <option value="2">2</option>
-                                        <option value="3">3</option>
-                                        <option value="4">4</option>
-                                        <option value="5">5</option>
+                                        <option value="">Pilih rating 1–5…</option>
+                                        {BUYER_RATING_OPTIONS.map((o) => (
+                                            <option key={o.value} value={o.value}>{o.label}</option>
+                                        ))}
                                     </select>
                                     <input
                                         type="text"

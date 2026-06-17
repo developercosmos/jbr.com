@@ -7,6 +7,7 @@ import { Search, Edit, MoreVertical, Paperclip, Smile, Send, Check, CheckCheck, 
 import { cn } from "@/lib/utils";
 import { getMessages, sendMessage, getConversations, getChatBuyerReputation } from "@/actions/chat";
 import { submitBuyerInteractionRating } from "@/actions/reputation";
+import { BUYER_RATING_OPTIONS, BUYER_RATING_HELP } from "@/lib/buyer-rating";
 import { ChatSuggestionChips } from "@/components/chat/ChatSuggestionChips";
 import { getChatSuggestions } from "@/lib/chat-suggestions";
 import { useFlag } from "@/lib/use-flag";
@@ -581,14 +582,13 @@ export function ChatClient({
                                     <select
                                         value={chatRatingDraft.rating}
                                         onChange={(e) => setChatRatingDraft((prev) => ({ ...prev, rating: e.target.value }))}
+                                        title={BUYER_RATING_HELP}
                                         className="text-xs bg-transparent text-slate-700 outline-none"
                                     >
-                                        <option value="">Rate</option>
-                                        <option value="1">1</option>
-                                        <option value="2">2</option>
-                                        <option value="3">3</option>
-                                        <option value="4">4</option>
-                                        <option value="5">5</option>
+                                        <option value="">Nilai buyer…</option>
+                                        {BUYER_RATING_OPTIONS.map((o) => (
+                                            <option key={o.value} value={o.value}>{o.label}</option>
+                                        ))}
                                     </select>
                                     <input
                                         value={chatRatingDraft.note}
