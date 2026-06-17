@@ -990,7 +990,7 @@ export async function listBuyerOffers() {
         where: eq(offers.buyer_id, user.id),
         orderBy: [desc(offers.created_at)],
         with: {
-            listing: { columns: { id: true, title: true, slug: true, price: true } },
+            listing: { columns: { id: true, title: true, slug: true, price: true, max_offer_rounds: true } },
             seller: { columns: { id: true, name: true, store_name: true } },
         },
     });

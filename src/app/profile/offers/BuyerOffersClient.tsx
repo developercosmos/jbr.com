@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { Loader2, CheckCircle2, XCircle, Clock, ShoppingBag, ArrowRight, AlertTriangle } from "lucide-react";
-import { acceptOffer, withdrawOffer } from "@/actions/offers";
+import { acceptOffer, withdrawOffer, counterOffer } from "@/actions/offers";
 
 const EXPIRY_WARNING_THRESHOLD_HOURS = 6;
 
@@ -26,6 +26,7 @@ type OfferRow = {
         title: string;
         slug: string;
         price: string;
+        max_offer_rounds: number | null;
     } | null;
     seller: {
         id: string;
@@ -99,6 +100,9 @@ export function BuyerOffersClient({ threads, expiryWarningEnabled }: Props) {
         if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
     }, [highlightId]);
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+    // Counter-back: which thread's counter input is open + its draft amount.
+    const [counteringId, setCounteringId] = useState<string | null>(null);
+    const [counterAmount, setCounterAmount] = useState("");
     // Tick `now` every minute so the expiry banner stays accurate without
     // forcing a server round-trip per row.
     const [now, setNow] = useState(() => Date.now());
@@ -149,6 +153,37 @@ export function BuyerOffersClient({ threads, expiryWarningEnabled }: Props) {
         });
     }
 
+    function handleCounter(parentOfferId: string, listingPrice: string) {
+        const amount = Number(counterAmount);
+        if (Number.isNaN(amount) || amount <= 0) {
+            setMessage({ type: "error", text: "Nominal tawaran balik harus angka positif." });
+            return;
+        }
+        if (amount >= Number(listingPrice)) {
+            setMessage({ type: "error", text: "Tawaran balik harus lebih rendah dari harga listing." });
+            return;
+        }
+        setPendingId(parentOfferId);
+        setMessage(null);
+        startTransition(async () => {
+            try {
+                const res = await counterOffer({ parentOfferId, amount });
+                if (res && "success" in res && res.success === false) {
+                    setMessage({ type: "error", text: res.error || "Gagal mengirim tawaran balik." });
+                    return;
+                }
+                setCounteringId(null);
+                setCounterAmount("");
+                setMessage({ type: "success", text: "Tawaran balik terkirim ke penjual." });
+                router.refresh();
+            } catch (error) {
+                setMessage({ type: "error", text: error instanceof Error ? error.message : "Gagal mengirim tawaran balik." });
+            } finally {
+                setPendingId(null);
+            }
+        });
+    }
+
     return (
         <div className="space-y-4">
             {message && (
@@ -164,15 +199,23 @@ export function BuyerOffersClient({ threads, expiryWarningEnabled }: Props) {
                 const latest = rounds[0];
                 const product = latest.listing;
                 const seller = latest.seller;
-                const statusMeta = STATUS_META[latest.status] ?? STATUS_META.PENDING;
+                // A seller counter is a fresh PENDING offer with actor_role "seller".
+                // Show it as COUNTERED ("your turn") rather than the misleading
+                // "Menunggu Respon" PENDING copy.
+                const isSellerCounter = latest.status === "PENDING" && latest.actor_role === "seller";
+                const statusMeta = isSellerCounter
+                    ? STATUS_META.COUNTERED
+                    : STATUS_META[latest.status] ?? STATUS_META.PENDING;
                 const StatusIcon = statusMeta.icon;
 
                 // Buyer can withdraw only when latest is PENDING from buyer side.
                 const canWithdraw =
                     latest.status === "PENDING" && latest.actor_role === "buyer";
                 // Buyer can accept when latest is PENDING from seller side (counter).
-                const canAcceptCounter =
-                    latest.status === "PENDING" && latest.actor_role === "seller";
+                const canAcceptCounter = isSellerCounter;
+                // Buyer can counter back while a round remains (server enforces the cap too).
+                const maxRounds = latest.listing?.max_offer_rounds ?? 3;
+                const canCounterBack = isSellerCounter && latest.round < maxRounds;
                 // Buyer can checkout when ACCEPTED with token.
                 const canCheckout =
                     latest.status === "ACCEPTED" && !!latest.checkout_token;
@@ -264,6 +307,20 @@ export function BuyerOffersClient({ threads, expiryWarningEnabled }: Props) {
                                             Terima Counter
                                         </button>
                                     )}
+                                    {canCounterBack && (
+                                        <button
+                                            type="button"
+                                            disabled={isPending && pendingId === latest.id}
+                                            onClick={() => {
+                                                setMessage(null);
+                                                setCounteringId((prev) => (prev === latest.id ? null : latest.id));
+                                                setCounterAmount("");
+                                            }}
+                                            className="px-3 py-1.5 text-xs rounded-lg border border-amber-300 text-amber-700 font-semibold hover:bg-amber-50 disabled:opacity-60"
+                                        >
+                                            {counteringId === latest.id ? "Tutup" : "Tawar Balik"}
+                                        </button>
+                                    )}
                                     {canWithdraw && (
                                         <button
                                             type="button"
@@ -277,6 +334,33 @@ export function BuyerOffersClient({ threads, expiryWarningEnabled }: Props) {
                                 </div>
                             </div>
                         </div>
+
+                        {counteringId === latest.id && product && (
+                            <div className="px-4 py-3 bg-amber-50/60 border-b border-amber-100 flex flex-col sm:flex-row sm:items-end gap-2">
+                                <div className="flex-1">
+                                    <label className="text-xs font-medium text-slate-600">Nominal tawaran balik Anda</label>
+                                    <div className="relative mt-1">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">Rp</span>
+                                        <input
+                                            type="number"
+                                            value={counterAmount}
+                                            onChange={(e) => setCounterAmount(e.target.value)}
+                                            onWheel={(e) => e.currentTarget.blur()}
+                                            placeholder="Di bawah harga listing"
+                                            className="w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 py-2 text-sm"
+                                        />
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    disabled={isPending && pendingId === latest.id}
+                                    onClick={() => handleCounter(latest.id, product.price)}
+                                    className="px-4 py-2 rounded-lg bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 disabled:opacity-60 inline-flex items-center justify-center gap-1"
+                                >
+                                    {isPending && pendingId === latest.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Kirim Tawaran Balik"}
+                                </button>
+                            </div>
+                        )}
 
                         {rounds.length > 1 && (
                             <details className="bg-slate-50">

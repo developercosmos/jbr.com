@@ -100,7 +100,12 @@ export function MyOfferStatusPanel({ productId, isAuthenticated }: Props) {
     }
     if (!offer) return null;
 
-    const meta = STATUS_COPY[offer.status] ?? STATUS_COPY.PENDING;
+    // A seller counter is stored as a fresh PENDING offer with actorRole "seller".
+    // Surface that as COUNTERED ("your turn") instead of the misleading
+    // "waiting for seller" PENDING copy.
+    const effectiveStatus =
+        offer.status === "PENDING" && offer.actorRole === "seller" ? "COUNTERED" : offer.status;
+    const meta = STATUS_COPY[effectiveStatus] ?? STATUS_COPY.PENDING;
     const Icon = meta.icon;
 
     // Cosmetic: use solid amber tone for active threads, muted slate for closed.
