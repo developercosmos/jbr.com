@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, Loader2, MessageCircle, Scale, ShieldCheck, ShoppingCart, Tag, Truck } from "lucide-react";
+import { Loader2, MessageCircle, Scale, ShieldCheck, ShoppingCart, Tag, Truck } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -9,7 +9,7 @@ import { addToCart } from "@/actions/cart";
 import { startConversation } from "@/actions/chat";
 import { createOffer, getOfferWinProbability, prepareOfferLoginDraft } from "@/actions/offers";
 import { recordProductEvent } from "@/actions/product-events";
-import { addToWishlist } from "@/actions/wishlist";
+import { WishlistButton } from "@/components/product/WishlistButton";
 import { MyOfferStatusPanel } from "@/components/product/MyOfferStatusPanel";
 import { VariantSelector } from "@/components/product/VariantSelector";
 import MakeOfferButton from "@/components/product/MakeOfferButton";
@@ -141,10 +141,8 @@ export function ProductInfo({
 
     const [isPending, startTransition] = useTransition();
     const [isChatPending, startChatTransition] = useTransition();
-    const [isWishlistPending, startWishlistTransition] = useTransition();
     const [isOfferPending, startOfferTransition] = useTransition();
     const [added, setAdded] = useState(false);
-    const [wishlisted, setWishlisted] = useState(false);
     const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
     const [offerAmount, setOfferAmount] = useState<string>(() => initialOfferAmount ?? product.auto_decline_below ?? String(Math.round(parseFloat(product.price) * 0.9)));
     const [offerMessage, setOfferMessage] = useState<{
@@ -359,27 +357,6 @@ export function ProductInfo({
         });
     };
 
-    const handleAddToWishlist = () => {
-        startWishlistTransition(async () => {
-            try {
-                const result = await addToWishlist(product.id);
-
-                if (!result.success && result.error) {
-                    if (result.error === "unauthorized") {
-                        router.push(`/auth/login?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
-                    } else if (result.error === "own_product") {
-                        alert("Anda tidak dapat menambahkan produk sendiri ke wishlist");
-                    }
-                    return;
-                }
-
-                setWishlisted(true);
-                setTimeout(() => setWishlisted(false), 2000);
-            } catch (error) {
-                console.error("Failed to add to wishlist:", error);
-            }
-        });
-    };
 
     const handleCompare = () => {
         try {
@@ -672,9 +649,7 @@ export function ProductInfo({
                 ) : null}
 
                 <div className="flex gap-3">
-                    <button onClick={handleAddToWishlist} disabled={isWishlistPending} className="flex-1 flex items-center justify-center gap-2 text-slate-600 hover:text-red-500 py-2.5 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium disabled:opacity-50">
-                        {isWishlistPending ? <Loader2 className="w-4 h-4 animate-spin" /> : wishlisted ? <><Heart className="w-4 h-4 fill-red-500 text-red-500" />Ditambahkan!</> : <><Heart className="w-4 h-4" />Add to Wishlist</>}
-                    </button>
+                    <WishlistButton productId={product.id} isAuthenticated={isAuthenticated} />
                     <div className="flex-1 flex items-center justify-center">
                         <ShareProduct productTitle={product.title} productUrl={`/product/${product.slug}`} />
                     </div>

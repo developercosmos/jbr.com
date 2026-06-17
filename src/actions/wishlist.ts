@@ -70,11 +70,14 @@ export async function addToWishlist(productId: string) {
 }
 
 export async function removeFromWishlist(productId: string) {
-    const user = await getCurrentUser();
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) {
+        return { success: false, error: "unauthorized" };
+    }
 
     await db
         .delete(wishlists)
-        .where(and(eq(wishlists.user_id, user.id), eq(wishlists.product_id, productId)));
+        .where(and(eq(wishlists.user_id, session.user.id), eq(wishlists.product_id, productId)));
 
     revalidatePath("/profile/wishlist");
     return { success: true };
@@ -106,13 +109,27 @@ export async function getWishlist() {
 }
 
 export async function isInWishlist(productId: string): Promise<boolean> {
-    const user = await getCurrentUser();
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) return false;
 
     const existing = await db.query.wishlists.findFirst({
-        where: and(eq(wishlists.user_id, user.id), eq(wishlists.product_id, productId)),
+        where: and(eq(wishlists.user_id, session.user.id), eq(wishlists.product_id, productId)),
     });
 
     return !!existing;
+}
+
+/** Product IDs in the current user's wishlist (empty for guests). For marking
+ *  product cards/lists in one query instead of N per-card lookups. */
+export async function getWishlistedProductIds(): Promise<string[]> {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) return [];
+
+    const rows = await db.query.wishlists.findMany({
+        where: eq(wishlists.user_id, session.user.id),
+        columns: { product_id: true },
+    });
+    return rows.map((r) => r.product_id);
 }
 
 export async function getWishlistCount() {

@@ -1,13 +1,22 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Heart } from "lucide-react";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
 import { getPublishedProducts } from "@/actions/products";
+import { getWishlistedProductIds } from "@/actions/wishlist";
 import { TrackedProductLink } from "@/components/product/TrackedProductLink";
 import { LowStockText } from "@/components/product/LowStockBadge";
 import { SellerBadgeIcon } from "@/components/seller/SellerBadges";
+import { WishlistButton } from "@/components/product/WishlistButton";
 
 export async function ProductGrid() {
-    const products = await getPublishedProducts(8);
+    const [products, session, wishlistedIds] = await Promise.all([
+        getPublishedProducts(8),
+        auth.api.getSession({ headers: await headers() }),
+        getWishlistedProductIds(),
+    ]);
+    const isAuthenticated = Boolean(session?.user);
+    const wishlistedSet = new Set(wishlistedIds);
 
     const formatPrice = (price: string) => {
         return new Intl.NumberFormat("id-ID", {
@@ -59,9 +68,12 @@ export async function ProductGrid() {
                                     <span className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm text-slate-700 text-xs font-bold px-2 py-1 rounded shadow-sm z-10">
                                         {getConditionLabel(product.condition, product.condition_rating)}
                                     </span>
-                                    <button className="absolute top-3 right-3 p-1.5 bg-white/60 backdrop-blur-sm rounded-full text-slate-600 hover:bg-red-50 hover:text-red-500 transition-colors z-10">
-                                        <Heart className="w-4 h-4" />
-                                    </button>
+                                    <WishlistButton
+                                        variant="icon"
+                                        productId={product.id}
+                                        isAuthenticated={isAuthenticated}
+                                        initialWishlisted={wishlistedSet.has(product.id)}
+                                    />
                                     {product.images && product.images.length > 0 ? (
                                         <Image
                                             src={product.images[0]}
