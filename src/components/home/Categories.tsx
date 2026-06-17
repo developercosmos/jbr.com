@@ -1,15 +1,16 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { GiPaddles, GiTennisRacket, GiShuttlecock, GiSoccerBall } from "react-icons/gi";
+import { GiTennisRacket, GiShuttlecock, GiSoccerBall } from "react-icons/gi";
 import { IoShirtOutline } from "react-icons/io5";
 import { TbPackage } from "react-icons/tb";
+import { PadelIcon, PickleballIcon } from "@/components/icons/RacketIcons";
 import { SPORT_VALUES, SPORT_LABELS, SPORT_SLUGS, type Sport } from "@/lib/sports";
 
 // "Browse by Sport" — top-level sport groups backed by the product `sport`
 // attribute. Each chip filters the catalogue via /search?sport=<slug>.
 const SPORT_ICONS: Record<Sport, React.ComponentType<{ className?: string }>> = {
-    PADEL: GiPaddles,
-    PICKLEBALL: GiPaddles,
+    PADEL: PadelIcon,
+    PICKLEBALL: PickleballIcon,
     TENNIS: GiTennisRacket,
     BADMINTON: GiShuttlecock,
     SQUASH: GiTennisRacket,
