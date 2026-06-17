@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, Loader2, Star } from "lucide-react";
 import { openBuyerRatingDispute, submitBuyerInteractionRating } from "@/actions/reputation";
-import { BUYER_RATING_OPTIONS } from "@/lib/buyer-rating";
+import { BUYER_RATING_OPTIONS, BUYER_RATING_LEVELS } from "@/lib/buyer-rating";
+import { BuyerRatingLegend } from "@/components/seller/BuyerRatingLegend";
 
 const BEHAVIOR_TAGS = [
     { value: "EXTREME_LOWBALL", label: "Lowball Ekstrem" },
@@ -161,12 +162,16 @@ export default function BuyerInteractionRatingCard({
                 })}
             </div>
 
-            <p className="text-xs text-slate-500 dark:text-slate-400 -mt-2 mb-4">
-                {rating >= 1 && rating <= 5 ? (
-                    <>Dipilih: <span className="font-semibold text-slate-700 dark:text-slate-300">{BUYER_RATING_OPTIONS[rating - 1].short}</span> · </>
-                ) : null}
-                1 = sangat buruk, 5 = sangat baik
-            </p>
+            {rating >= 1 && rating <= 5 && (
+                <div className="-mt-2 mb-3 text-xs">
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                        Bintang {rating} — {BUYER_RATING_LEVELS[rating - 1].title}
+                    </span>
+                    <span className="text-slate-400"> ({BUYER_RATING_LEVELS[rating - 1].english})</span>
+                    <p className="text-slate-500 dark:text-slate-400 mt-0.5">{BUYER_RATING_LEVELS[rating - 1].description}</p>
+                </div>
+            )}
+            <BuyerRatingLegend className="mb-4" />
 
             <div className="flex flex-wrap gap-2 mb-4">
                 {BEHAVIOR_TAGS.map((tag) => {

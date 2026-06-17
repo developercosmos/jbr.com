@@ -6,7 +6,8 @@ import Link from "next/link";
 import { Loader2, Check, X, RotateCw } from "lucide-react";
 import { acceptOffer, counterOffer, rejectOffer } from "@/actions/offers";
 import { submitBuyerInteractionRating } from "@/actions/reputation";
-import { BUYER_RATING_OPTIONS, BUYER_RATING_HELP } from "@/lib/buyer-rating";
+import { BUYER_RATING_OPTIONS } from "@/lib/buyer-rating";
+import { BuyerRatingLegend } from "@/components/seller/BuyerRatingLegend";
 import { CurrencyInput } from "@/components/CurrencyInput";
 
 type Status = "PENDING" | "ACCEPTED" | "REJECTED" | "COUNTERED" | "EXPIRED" | "WITHDRAWN";
@@ -314,9 +315,7 @@ export default function OffersInboxClient({ offers }: Props) {
                                 <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                                     Penilaian Calon Buyer (konteks offer)
                                 </p>
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
-                                    {BUYER_RATING_HELP}
-                                </p>
+                                <BuyerRatingLegend />
                                 <div className="flex flex-wrap items-center gap-2">
                                     <select
                                         value={ratingDraft[offer.id]?.rating ?? ""}
