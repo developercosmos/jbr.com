@@ -768,13 +768,21 @@ export async function getSellerStats() {
         },
     });
 
-    // Calculate stats
+    // Settled = buyer has paid (revenue realized). PENDING_PAYMENT is only
+    // POTENTIAL until paid; CANCELLED/REFUNDED never count.
+    const SETTLED_STATUSES = new Set(["PAID", "PROCESSING", "SHIPPED", "DELIVERED", "COMPLETED"]);
+    const isSettled = (status: string) => SETTLED_STATUSES.has(status);
+
+    // Calculate stats — Total Pendapatan = settled only.
     const totalRevenue = allOrders.reduce((sum, order) => {
-        if (order.status !== "CANCELLED") {
-            return sum + parseFloat(order.total);
-        }
-        return sum;
+        return isSettled(order.status) ? sum + parseFloat(order.total) : sum;
     }, 0);
+
+    // Potensial: pesanan yang belum dibayar (menunggu pembayaran).
+    const potentialRevenue = allOrders.reduce((sum, order) => {
+        return order.status === "PENDING_PAYMENT" ? sum + parseFloat(order.total) : sum;
+    }, 0);
+    const potentialOrdersCount = allOrders.filter((o) => o.status === "PENDING_PAYMENT").length;
 
     const todayOrders = allOrders.filter(order => {
         const orderDate = new Date(order.created_at);
@@ -783,21 +791,18 @@ export async function getSellerStats() {
 
     const newOrdersCount = todayOrders.length;
     const todayRevenue = todayOrders.reduce((sum, order) => {
-        if (order.status !== "CANCELLED") {
-            return sum + parseFloat(order.total);
-        }
-        return sum;
+        return isSettled(order.status) ? sum + parseFloat(order.total) : sum;
     }, 0);
 
     const pendingShipment = allOrders.filter(order =>
         order.status === "PROCESSING" || order.status === "PENDING_PAYMENT"
     ).length;
 
+    // Item terjual = hanya dari pesanan yang sudah dibayar (settled).
     const totalItemsSold = allOrders.reduce((sum, order) => {
-        if (order.status !== "CANCELLED") {
-            return sum + order.items.reduce((itemSum, item) => itemSum + item.quantity, 0);
-        }
-        return sum;
+        return isSettled(order.status)
+            ? sum + order.items.reduce((itemSum, item) => itemSum + item.quantity, 0)
+            : sum;
     }, 0);
 
     // Get seller's products count
@@ -822,6 +827,8 @@ export async function getSellerStats() {
 
     return {
         totalRevenue,
+        potentialRevenue,
+        potentialOrdersCount,
         todayRevenue,
         newOrdersCount,
         pendingShipment,

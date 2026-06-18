@@ -39,9 +39,12 @@ export default async function SellerAnalyticsPage() {
         ? await getSellerNegotiationInsights()
         : null;
 
-    // Get top products from recent orders
+    // Get top products from PAID (settled) orders only — unpaid orders are not
+    // real sales yet, so they must not inflate the best-seller counts.
+    const SETTLED_ORDER_STATUSES = new Set(["PAID", "PROCESSING", "SHIPPED", "DELIVERED", "COMPLETED"]);
     const productSales: Record<string, { title: string; image: string | null; count: number }> = {};
     recentOrders.forEach(order => {
+        if (!SETTLED_ORDER_STATUSES.has(order.status)) return;
         order.items.forEach(item => {
             const productId = item.product.id;
             if (!productSales[productId]) {
@@ -101,11 +104,16 @@ export default async function SellerAnalyticsPage() {
                             </div>
                             <span className="flex items-center gap-1 text-xs font-bold text-green-600 bg-green-50 dark:bg-green-900/10 px-2 py-1 rounded-full">
                                 <ArrowUpRight className="w-3 h-3" />
-                                Aktif
+                                Settle
                             </span>
                         </div>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Total Pendapatan</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1">Pendapatan (Sudah Dibayar)</p>
                         <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{formatPrice(stats.totalRevenue)}</h3>
+                        {stats.potentialRevenue > 0 && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1.5">
+                                + Potensial {formatPrice(stats.potentialRevenue)} ({stats.potentialOrdersCount} belum dibayar)
+                            </p>
+                        )}
                     </div>
                     {/* Orders */}
                     <div className="bg-white dark:bg-surface-dark rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
