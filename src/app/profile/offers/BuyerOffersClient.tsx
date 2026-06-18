@@ -28,6 +28,7 @@ type OfferRow = {
         slug: string;
         price: string;
         max_offer_rounds: number | null;
+        images: string[] | null;
     } | null;
     seller: {
         id: string;
@@ -252,9 +253,19 @@ export function BuyerOffersClient({ threads, expiryWarningEnabled }: Props) {
                         <div className="p-4 flex flex-col sm:flex-row gap-4 border-b border-slate-100">
                             <Link
                                 href={product ? `/product/${product.slug}` : "#"}
-                                className="flex-shrink-0 w-20 h-20 rounded-lg bg-slate-100 overflow-hidden flex items-center justify-center"
+                                className="relative flex-shrink-0 w-20 h-20 rounded-lg bg-slate-100 overflow-hidden flex items-center justify-center"
                             >
-                                <ShoppingBag className="w-8 h-8 text-slate-300" />
+                                {product?.images && product.images[0] ? (
+                                    <Image
+                                        src={product.images[0]}
+                                        alt={product.title}
+                                        fill
+                                        sizes="80px"
+                                        className="object-cover"
+                                    />
+                                ) : (
+                                    <ShoppingBag className="w-8 h-8 text-slate-300" />
+                                )}
                             </Link>
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap mb-1">
