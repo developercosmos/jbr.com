@@ -10,6 +10,7 @@ import CounterpartyRating from "./CounterpartyRating";
 import StringingAddOnButton from "./StringingAddOnButton";
 import OrderItemReviewButton from "./OrderItemReviewButton";
 import ReportProblemButton from "./ReportProblemButton";
+import { CancelOrderButton } from "./CancelOrderButton";
 import { getOrderRatingPair } from "@/actions/reputation";
 import { getReviewedItemIdsForOrder } from "@/actions/reviews";
 import { getOrderDisputeForBuyer } from "@/actions/disputes";
@@ -343,13 +344,16 @@ export default async function OrderDetailPage({ params }: PageProps) {
                                 </span>
                             </div>
                             {order.status === "PENDING_PAYMENT" && (
-                                <Link
-                                    href={`/payment/${order.id}`}
-                                    className="mt-4 w-full flex items-center justify-center gap-2 px-6 py-3 bg-brand-primary hover:bg-blue-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-brand-primary/25"
-                                >
-                                    <CreditCard className="w-5 h-5" />
-                                    Bayar Sekarang
-                                </Link>
+                                <>
+                                    <Link
+                                        href={`/payment/${order.id}`}
+                                        className="mt-4 w-full flex items-center justify-center gap-2 px-6 py-3 bg-brand-primary hover:bg-blue-600 text-white font-bold rounded-xl transition-all shadow-lg shadow-brand-primary/25"
+                                    >
+                                        <CreditCard className="w-5 h-5" />
+                                        Bayar Sekarang
+                                    </Link>
+                                    <CancelOrderButton orderId={order.id} />
+                                </>
                             )}
                             {order.status === "SHIPPED" && (
                                 <ConfirmDeliveryButton orderId={order.id} />

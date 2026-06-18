@@ -486,6 +486,85 @@ async function restockOrder(orderId: string) {
     }
 }
 
+// Best-effort: expire a live Xendit invoice so a cancelled order can't be paid.
+async function expireXenditInvoice(invoiceId: string): Promise<void> {
+    const key = await getXenditSecretKey();
+    if (!key) return;
+    try {
+        await fetch(`${XENDIT_API_URL}/invoices/${invoiceId}/expire!`, {
+            method: "POST",
+            headers: { "Authorization": `Basic ${Buffer.from(key + ":").toString("base64")}` },
+        });
+    } catch (error) {
+        logger.warn("payment:expire_invoice_failed", { invoiceId, error: String(error) });
+    }
+}
+
+/**
+ * Buyer-initiated cancellation of an UNPAID order. Atomically flips
+ * PENDING_PAYMENT → CANCELLED (so a concurrent payment callback can't both win),
+ * restores stock exactly once, and kills any open invoice. Paid/processing
+ * orders are NOT cancellable here — those go through the dispute/refund flow.
+ */
+export async function cancelMyOrder(orderId: string) {
+    try {
+        return await cancelMyOrderInternal(orderId);
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal membatalkan pesanan.");
+        logger.warn("order:cancel_failed", { error: message });
+        return { success: false as const, error: message };
+    }
+}
+
+async function cancelMyOrderInternal(orderId: string) {
+    const user = await getCurrentUser();
+
+    const order = await db.query.orders.findFirst({
+        where: and(eq(orders.id, orderId), eq(orders.buyer_id, user.id)),
+        columns: { id: true, status: true },
+    });
+    if (!order) throw new Error("Pesanan tidak ditemukan.");
+    if (order.status !== "PENDING_PAYMENT") {
+        throw new Error("Hanya pesanan yang belum dibayar yang dapat dibatalkan.");
+    }
+
+    const cancelled = await db
+        .update(orders)
+        .set({ status: "CANCELLED", updated_at: new Date() })
+        .where(and(eq(orders.id, orderId), eq(orders.status, "PENDING_PAYMENT")))
+        .returning({ id: orders.id });
+    if (cancelled.length === 0) {
+        throw new Error("Pesanan tidak dapat dibatalkan pada status saat ini.");
+    }
+
+    await restockOrder(orderId);
+
+    // Invalidate any open payment/invoice so the buyer can't pay a cancelled order.
+    try {
+        const pendingPayment = await db.query.payments.findFirst({
+            where: and(eq(payments.order_id, orderId), eq(payments.status, "PENDING")),
+            columns: { id: true, xendit_invoice_id: true },
+        });
+        if (pendingPayment) {
+            if (pendingPayment.xendit_invoice_id) {
+                await expireXenditInvoice(pendingPayment.xendit_invoice_id);
+            }
+            await db
+                .update(payments)
+                .set({ status: "EXPIRED", updated_at: new Date() })
+                .where(eq(payments.id, pendingPayment.id));
+        }
+    } catch (error) {
+        logger.warn("order:cancel_invoice_cleanup_failed", { orderId, error: String(error) });
+    }
+
+    revalidatePath("/profile/orders");
+    revalidatePath(`/profile/orders/${orderId}`);
+    revalidatePath("/seller/orders");
+    return { success: true as const };
+}
+
 // ============================================
 // SERVER-SIDE RECONCILIATION (cron)
 // ============================================
