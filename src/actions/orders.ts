@@ -421,31 +421,10 @@ async function createOrderFromCartInternal(input: z.infer<typeof createOrderSche
             total: formatCurrency(orderTotal),
         });
 
-        const seller = await db.query.users.findFirst({
-            where: eq(users.id, sellerId),
-            columns: { id: true, email: true, name: true, store_name: true },
-        });
-
-        if (seller?.email) {
-            const sellerItems = items.map((item: CartItemWithProduct) => ({
-                name: item.product.title,
-                quantity: item.quantity,
-                price: effectiveUnitPrice(item) * item.quantity,
-            }));
-
-            await notify({
-                event: "ORDER_CREATED",
-                audience: "seller",
-                recipientUserId: sellerId,
-                recipientEmail: seller.email,
-                recipientName: seller.store_name || seller.name || "Penjual",
-                orderId: order.id,
-                orderNumber: order.order_number,
-                buyerName: buyer.name || "Pembeli",
-                items: sellerItems,
-                total: orderTotal,
-            });
-        }
+        // NOTE: the seller is intentionally NOT notified here — the order is still
+        // PENDING_PAYMENT. The "Pesanan Baru — perlu diproses" notice fires only
+        // once payment succeeds (handleXenditWebhook) or a COD order is confirmed
+        // to PROCESSING (createPaymentInvoice), so sellers never chase unpaid orders.
     }
 
     // Clear only the checked-out lines (offer lines already removed on consume).
@@ -614,20 +593,8 @@ async function createOrderFromOfferInternal(input: z.infer<typeof createOrderFro
         });
     }
 
-    if (sellerUser.email) {
-        await notify({
-            event: "ORDER_CREATED",
-            audience: "seller",
-            recipientUserId: sellerUser.id,
-            recipientEmail: sellerUser.email,
-            recipientName: sellerUser.store_name || sellerUser.name || "Penjual",
-            orderId: order.id,
-            orderNumber: order.order_number,
-            buyerName: buyer?.name || "Pembeli",
-            items: [{ name: productRow.title, quantity: 1, price: subtotal }],
-            total: orderTotal,
-        });
-    }
+    // Seller is notified only once the order is paid (webhook) or COD-confirmed —
+    // not while it is still PENDING_PAYMENT. See createOrderFromCart.
 
     logger.info("order:created_from_offer", {
         offerId: resolved.offerId,

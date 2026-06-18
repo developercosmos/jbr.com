@@ -70,6 +70,7 @@ async function createPaymentInvoiceInternal(orderId: string, preferredMethod?: "
                 },
             },
             buyer: true,
+            seller: true,
         },
     });
 
@@ -121,6 +122,26 @@ async function createPaymentInvoiceInternal(orderId: string, preferredMethod?: "
                     subtotal: formatCurrency(parseFloat(order.subtotal)),
                     shippingCost: formatCurrency(parseFloat(order.shipping_cost || "0")),
                     total: formatCurrency(parseFloat(order.total)),
+                });
+            }
+            // COD has no online payment step → notify the seller now (order is
+            // PROCESSING and must be fulfilled; buyer pays the courier on delivery).
+            if (order.seller?.email) {
+                await notify({
+                    event: "ORDER_CREATED",
+                    audience: "seller",
+                    recipientUserId: order.seller_id,
+                    recipientEmail: order.seller.email,
+                    recipientName: order.seller.store_name || order.seller.name || "Penjual",
+                    orderId: order.id,
+                    orderNumber: order.order_number,
+                    buyerName: order.buyer?.name || "Pembeli",
+                    items: order.items.map((item: typeof order.items[number]) => ({
+                        name: item.product.title,
+                        quantity: item.quantity,
+                        price: parseFloat(item.price) * item.quantity,
+                    })),
+                    total: parseFloat(order.total),
                 });
             }
         }
