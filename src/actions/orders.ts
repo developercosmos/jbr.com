@@ -6,7 +6,7 @@ import { orders, order_items, carts, products, product_variants, reviews, addres
 import { applyVoucher } from "@/actions/vouchers";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { eq, desc, and, sql, gte } from "drizzle-orm";
+import { eq, desc, and, sql, gte, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getCheckoutShippingQuoteForUser } from "@/actions/shipping";
@@ -18,6 +18,7 @@ import { notify } from "@/lib/notify";
 import { formatCurrency } from "@/lib/format";
 import { logger } from "@/lib/logger";
 import { buildOrderItemSnapshot } from "@/lib/order-snapshot";
+import { effectiveUnitPrice, effectiveUnitPriceString, isOfferLineActive } from "@/lib/offer-cart";
 import { offers as offersTable, product_variants as productVariantsTable } from "@/db/schema";
 import { resolveCheckoutToken, consumeCheckoutToken } from "@/actions/offers";
 import { getCheckoutShippingQuoteForUser as _getQuote } from "@/actions/shipping";
@@ -77,6 +78,8 @@ const createOrderSchema = z.object({
     shipping_courier: z.string().trim().toLowerCase().regex(/^[a-z&_-]{2,24}$/),
     notes: z.string().optional(),
     voucher_code: z.string().trim().min(3).max(40).optional(),
+    // Subset of cart lines to check out (the user's ticked items). Omitted = all.
+    cart_item_ids: z.array(z.string().uuid()).optional(),
 });
 
 export async function createOrderFromCart(input: z.infer<typeof createOrderSchema>) {
@@ -101,7 +104,8 @@ async function createOrderFromCartInternal(input: z.infer<typeof createOrderSche
     const shippingQuote = await getCheckoutShippingQuoteForUser(
         user.id,
         validated.shipping_address_id,
-        validated.shipping_courier
+        validated.shipping_courier,
+        validated.cart_item_ids
     );
 
     const shippingQuoteBySeller = new Map(
@@ -120,7 +124,11 @@ async function createOrderFromCartInternal(input: z.infer<typeof createOrderSche
     }
 
     // Get cart items
-    const cartItems = await db.query.carts.findMany({
+    const selectedIds = validated.cart_item_ids && validated.cart_item_ids.length > 0
+        ? new Set(validated.cart_item_ids)
+        : null;
+
+    const allCartItems = await db.query.carts.findMany({
         where: eq(carts.user_id, user.id),
         with: {
             product: {
@@ -136,11 +144,33 @@ async function createOrderFromCartInternal(input: z.infer<typeof createOrderSche
                 },
             },
             variant: true,
+            // Locked-offer context: negotiated price overrides list price.
+            offer: {
+                columns: {
+                    id: true,
+                    amount: true,
+                    status: true,
+                    checkout_token_expires_at: true,
+                    checkout_token_used_at: true,
+                },
+            },
         },
     });
 
+    // Honor the buyer's selection (ticked cart lines); fall back to all.
+    const cartItems = selectedIds
+        ? allCartItems.filter((i) => selectedIds.has(i.id))
+        : allCartItems;
+
     if (cartItems.length === 0) {
-        throw new Error("Cart is empty");
+        throw new Error("Tidak ada item terpilih untuk checkout.");
+    }
+
+    // Offer lines must still be valid (ACCEPTED, unused, inside the 24h window).
+    for (const item of cartItems) {
+        if (item.offer_id && !isOfferLineActive(item.offer)) {
+            throw new Error(`Penawaran untuk "${item.product.title}" sudah kedaluwarsa atau sudah diproses. Muat ulang keranjang.`);
+        }
     }
 
     // Group cart items by seller
@@ -179,8 +209,7 @@ async function createOrderFromCartInternal(input: z.infer<typeof createOrderSche
     for (const sellerId of Object.keys(itemsBySeller)) {
         const items = itemsBySeller[sellerId];
         const subtotal = items.reduce((sum: number, item: CartItemWithProduct) => {
-            const linePrice = parseFloat(item.variant?.price ?? item.product.price);
-            return sum + linePrice * item.quantity;
+            return sum + effectiveUnitPrice(item) * item.quantity;
         }, 0);
         const sellerShippingQuote = shippingQuoteBySeller.get(sellerId);
 
@@ -252,7 +281,7 @@ async function createOrderFromCartInternal(input: z.infer<typeof createOrderSche
                 .returning();
 
             for (const item of items) {
-                const linePrice = item.variant?.price ?? item.product.price;
+                const linePrice = effectiveUnitPriceString(item);
 
                 // MON-01: snapshot platform fee per item using the calculator.
                 const unitPrice = parseFloat(linePrice);
@@ -354,6 +383,14 @@ async function createOrderFromCartInternal(input: z.infer<typeof createOrderSche
 
         createdOrders.push(order);
 
+        // Consume the locked offer for any nego line in this order (marks the
+        // token used + removes its cart line so it can't be reordered).
+        for (const item of items) {
+            if (item.offer_id) {
+                await consumeCheckoutToken(item.offer_id, order.id);
+            }
+        }
+
         // AFF-02: try affiliate attribution from cookie. Idempotent on order.id.
         try {
             await tryAttributeOrderFromCookie(order.id, user.id, orderTotal);
@@ -367,7 +404,7 @@ async function createOrderFromCartInternal(input: z.infer<typeof createOrderSche
         const buyerItems = items.map((item: CartItemWithProduct) => ({
             title: item.product.title,
             quantity: item.quantity,
-            price: formatCurrency(parseFloat(item.variant?.price ?? item.product.price) * item.quantity),
+            price: formatCurrency(effectiveUnitPrice(item) * item.quantity),
         }));
 
         await notify({
@@ -393,7 +430,7 @@ async function createOrderFromCartInternal(input: z.infer<typeof createOrderSche
             const sellerItems = items.map((item: CartItemWithProduct) => ({
                 name: item.product.title,
                 quantity: item.quantity,
-                price: parseFloat(item.variant?.price ?? item.product.price) * item.quantity,
+                price: effectiveUnitPrice(item) * item.quantity,
             }));
 
             await notify({
@@ -411,8 +448,9 @@ async function createOrderFromCartInternal(input: z.infer<typeof createOrderSche
         }
     }
 
-    // Clear cart
-    await db.delete(carts).where(eq(carts.user_id, user.id));
+    // Clear only the checked-out lines (offer lines already removed on consume).
+    const checkedOutIds = cartItems.map((i) => i.id);
+    await db.delete(carts).where(and(eq(carts.user_id, user.id), inArray(carts.id, checkedOutIds)));
 
     revalidatePath("/cart");
     revalidatePath("/profile/orders");

@@ -50,6 +50,8 @@ const courierCodeSchema = z
 const getCheckoutShippingQuoteSchema = z.object({
     addressId: z.string().uuid(),
     courier: courierCodeSchema,
+    // Ticked cart lines (empty/omitted = whole cart).
+    cartItemIds: z.array(z.string().uuid()).optional(),
 });
 
 type ShippingCourier = string;
@@ -295,7 +297,7 @@ function buildQuoteCacheKey(provider: string, userId: string, addressId: string,
     return `${provider}:${userId}:${addressId}:${courier}:${sellerId}:${signature}`;
 }
 
-export async function getCheckoutShippingQuoteForUser(userId: string, addressId: string, courier: ShippingCourier): Promise<CheckoutShippingQuoteResult> {
+export async function getCheckoutShippingQuoteForUser(userId: string, addressId: string, courier: ShippingCourier, cartItemIds?: string[]): Promise<CheckoutShippingQuoteResult> {
     const validated = getCheckoutShippingQuoteSchema.parse({ addressId, courier });
     const provider = await resolveActiveShippingProvider();
 
@@ -323,12 +325,17 @@ export async function getCheckoutShippingQuoteForUser(userId: string, addressId:
     // Biteship destination: coordinates from the map picker, else postal code.
     const biteshipDestination = shippingAddress ? addressToBiteshipLocation(shippingAddress) : null;
 
-    const cartItems = await db.query.carts.findMany({
+    const allCartItems = await db.query.carts.findMany({
         where: eq(carts.user_id, userId),
         with: {
             product: true,
         },
     });
+
+    // Quote shipping only for the ticked lines so unselected items don't inflate
+    // (or split) the per-seller shipping cost.
+    const selected = cartItemIds && cartItemIds.length > 0 ? new Set(cartItemIds) : null;
+    const cartItems = selected ? allCartItems.filter((i) => selected.has(i.id)) : allCartItems;
 
     if (cartItems.length === 0) {
         throw new Error("Cart is empty");
@@ -453,7 +460,7 @@ export async function getCheckoutShippingQuoteForUser(userId: string, addressId:
 
 export async function getCheckoutShippingQuote(input: z.infer<typeof getCheckoutShippingQuoteSchema>) {
     const user = await getCurrentUser();
-    return getCheckoutShippingQuoteForUser(user.id, input.addressId, input.courier);
+    return getCheckoutShippingQuoteForUser(user.id, input.addressId, input.courier, input.cartItemIds);
 }
 
 export async function getShippingCost(input: z.infer<typeof getShippingCostSchema>) {

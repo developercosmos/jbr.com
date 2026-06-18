@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Lock, Home, Verified, MapPin, CreditCard, ClipboardCheck } from "lucide-react";
 import { CheckoutForm } from "@/components/checkout/CheckoutForm";
+import { effectiveUnitPrice } from "@/lib/offer-cart";
 import { getAvailableShippingCouriers, getCheckoutShippingQuote } from "@/actions/shipping";
 
 type CheckoutAddress = {
@@ -20,6 +21,13 @@ type CheckoutAddress = {
 type CheckoutCartItem = {
     id: string;
     quantity: number;
+    offer_id: string | null;
+    offer: {
+        amount: string;
+        status: string;
+        checkout_token_used_at: string | Date | null;
+        checkout_token_expires_at: string | Date | null;
+    } | null;
     variant: {
         id: string;
         name: string;
@@ -149,6 +157,7 @@ export function CheckoutPageClient({
                 const result = await getCheckoutShippingQuote({
                     addressId: selectedAddressId,
                     courier: selectedCourier,
+                    cartItemIds: cartItems.map((i) => i.id),
                 });
 
                 if (!cancelled) {
@@ -382,7 +391,7 @@ export function CheckoutPageClient({
                                         <div className="flex justify-between items-start">
                                             <h3 className="text-slate-900 text-lg font-bold">{item.product.title}</h3>
                                             <p className="text-slate-900 text-lg font-bold">
-                                                {formatPrice(parseFloat(item.variant?.price ?? item.product.price) * item.quantity)}
+                                                {formatPrice(effectiveUnitPrice(item) * item.quantity)}
                                             </p>
                                         </div>
                                         <p className="text-slate-500 text-sm mt-1">Qty: {item.quantity}</p>
@@ -482,6 +491,7 @@ export function CheckoutPageClient({
                             paymentMethod={paymentMethod}
                             shippingCourier={selectedCourier}
                             canCheckout={canCheckout}
+                            cartItemIds={cartItems.map((i) => i.id)}
                         />
 
                         {hasVariantResolutionErrors && (

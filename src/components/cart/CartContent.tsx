@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Trash2, Minus, Plus, Store, Verified, Loader2, Tag, ShieldCheck, BookmarkPlus, ShoppingCart, Clock } from "lucide-react";
 import { removeFromCart, updateCartItemQuantity, clearCart, moveCartItemToSaved, moveSavedItemToCart } from "@/actions/cart";
+import { effectiveUnitPrice } from "@/lib/offer-cart";
 
 // Define the cart item type based on getCart return
 interface CartItemType {
@@ -49,6 +51,7 @@ interface CartContentProps {
 }
 
 export function CartContent({ initialItems }: CartContentProps) {
+    const router = useRouter();
     const [items, setItems] = useState<CartItemType[]>(initialItems);
     const [isPending, startTransition] = useTransition();
     const [moveError, setMoveError] = useState<string | null>(null);
@@ -60,12 +63,51 @@ export function CartContent({ initialItems }: CartContentProps) {
         return () => clearInterval(t);
     }, []);
 
-    // REC-03: split active cart from saved-for-later. Subtotal/checkout uses
-    // only active items. Accepted-offer items (locked nego price + 24h window)
-    // are pulled into their own section and excluded from the bulk checkout.
+    // REC-03: split active cart from saved-for-later. Accepted-offer items
+    // (locked nego price + 24h window) shown in their own section but checked
+    // out together with the rest via the per-item checkboxes.
     const offerItems = items.filter((i) => i.offer_id && i.offer && !i.saved_for_later);
     const activeItems = items.filter((i) => !i.saved_for_later && !i.offer_id);
     const savedItems = items.filter((i) => i.saved_for_later);
+
+    // Checkbox selection (Tokopedia/Shopee style): all checkable lines, ticked
+    // by default; the total + "Beli" follow what's ticked.
+    const checkableIds = useMemo(
+        () => [...offerItems, ...activeItems].map((i) => i.id),
+        [offerItems, activeItems]
+    );
+    const [checked, setChecked] = useState<Set<string>>(() => new Set(checkableIds));
+    // Keep selection in sync as lines come/go: prune removed ids, keep the user's
+    // choices for survivors, and default-check brand-new lines.
+    const knownIdsRef = useRef<Set<string>>(new Set(checkableIds));
+    useEffect(() => {
+        setChecked((prev) => {
+            const next = new Set<string>();
+            for (const id of checkableIds) {
+                if (!knownIdsRef.current.has(id) || prev.has(id)) next.add(id);
+            }
+            return next;
+        });
+        knownIdsRef.current = new Set(checkableIds);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [checkableIds.join(",")]);
+
+    const toggleItem = (id: string) =>
+        setChecked((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    const allChecked = checkableIds.length > 0 && checkableIds.every((id) => checked.has(id));
+    const toggleAll = () => setChecked(allChecked ? new Set() : new Set(checkableIds));
+
+    const checkedItems = [...offerItems, ...activeItems].filter((i) => checked.has(i.id));
+    const checkedSubtotal = checkedItems.reduce((sum, i) => sum + effectiveUnitPrice(i) * i.quantity, 0);
+    const checkedCount = checkedItems.length;
+    const goToCheckout = () => {
+        if (checkedCount === 0) return;
+        router.push(`/checkout?items=${[...checked].join(",")}`);
+    };
 
     const formatRemaining = (expiresAt: string | Date | null): string | null => {
         if (!expiresAt) return null;
@@ -164,12 +206,8 @@ export function CartContent({ initialItems }: CartContentProps) {
         });
     };
 
-    // Calculate totals from active items only (REC-03: saved-for-later excluded).
-    const subtotal = activeItems.reduce((sum, item) => {
-        return sum + parseFloat(item.variant?.price ?? item.product.price) * item.quantity;
-    }, 0);
-
-    const hasVariantResolutionErrors = activeItems.some(
+    // Variant-resolution gate applies only to ticked non-offer lines.
+    const hasVariantResolutionErrors = checkedItems.some(
         (item) => item.product.variants.length > 0 && !item.variant
     );
 
@@ -187,10 +225,18 @@ export function CartContent({ initialItems }: CartContentProps) {
             <div className="flex-1 w-full min-w-0 flex flex-col gap-5">
                 {/* Select All / Clear */}
                 <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200 flex items-center justify-between">
-                    <span className="text-slate-700 text-base font-medium">
-                        {activeItems.length} item{activeItems.length !== 1 ? "s" : ""} di keranjang
-                        {savedItems.length > 0 ? ` · ${savedItems.length} disimpan` : ""}
-                    </span>
+                    <label className="flex items-center gap-3 cursor-pointer select-none">
+                        <input
+                            type="checkbox"
+                            checked={allChecked}
+                            onChange={toggleAll}
+                            className="w-4 h-4 rounded border-slate-300 text-brand-primary focus:ring-brand-primary cursor-pointer"
+                        />
+                        <span className="text-slate-700 text-base font-medium">
+                            Pilih Semua ({checkableIds.length})
+                            {savedItems.length > 0 ? ` · ${savedItems.length} disimpan` : ""}
+                        </span>
+                    </label>
                     <button
                         onClick={handleClearCart}
                         disabled={isPending}
@@ -206,8 +252,9 @@ export function CartContent({ initialItems }: CartContentProps) {
                     </div>
                 )}
 
-                {/* Accepted-offer items: locked nego price + 24h window, checkout
-                    via the locked-price flow (kept out of the bulk checkout). */}
+                {/* Accepted-offer items: locked nego price + 24h window. Checked out
+                    together with the rest via the per-item checkbox (locked price
+                    is applied server-side). */}
                 {offerItems.length > 0 && (
                     <div className="bg-white rounded-xl shadow-sm border border-emerald-200 overflow-hidden">
                         <div className="p-4 border-b border-emerald-100 bg-emerald-50/60 flex items-center gap-2">
@@ -218,9 +265,15 @@ export function CartContent({ initialItems }: CartContentProps) {
                         {offerItems.map((item) => {
                             const remaining = formatRemaining(item.offer?.checkout_token_expires_at ?? null);
                             const negoPrice = item.offer ? parseFloat(item.offer.amount) : parseFloat(item.product.price);
-                            const token = item.offer?.checkout_token;
                             return (
-                                <div key={item.id} className="p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center border-t border-emerald-100 first:border-t-0">
+                                <div key={item.id} className="p-4 flex gap-3 sm:gap-4 items-start sm:items-center border-t border-emerald-100 first:border-t-0">
+                                    <input
+                                        type="checkbox"
+                                        checked={checked.has(item.id)}
+                                        onChange={() => toggleItem(item.id)}
+                                        className="mt-1 sm:mt-0 w-4 h-4 flex-shrink-0 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                        aria-label={`Pilih ${item.product.title}`}
+                                    />
                                     <Link href={`/product/${item.product.slug}`}>
                                         <div className="relative w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden border border-slate-200 bg-white">
                                             <Image alt={item.product.title} className="object-cover" src={item.product.images?.[0] || "/placeholder.png"} fill />
@@ -230,7 +283,7 @@ export function CartContent({ initialItems }: CartContentProps) {
                                         <Link href={`/product/${item.product.slug}`}>
                                             <h4 className="text-slate-800 text-base font-semibold line-clamp-2 hover:text-brand-primary transition-colors">{item.product.title}</h4>
                                         </Link>
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 flex-wrap">
                                             <span className="text-emerald-700 text-lg font-bold">{formatPrice(negoPrice)}</span>
                                             {parseFloat(item.product.price) > negoPrice && (
                                                 <span className="text-sm text-slate-400 line-through">{formatPrice(parseFloat(item.product.price))}</span>
@@ -243,24 +296,14 @@ export function CartContent({ initialItems }: CartContentProps) {
                                             {remaining === "kedaluwarsa" ? "Penawaran kedaluwarsa" : `Kedaluwarsa dalam ${remaining}`}
                                         </div>
                                     </div>
-                                    <div className="flex flex-col items-stretch gap-2 w-full sm:w-auto">
-                                        {token && remaining !== "kedaluwarsa" ? (
-                                            <Link href={`/checkout/offer/${token}`}>
-                                                <button className="w-full px-4 py-2.5 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors">
-                                                    Lanjut Checkout
-                                                </button>
-                                            </Link>
-                                        ) : (
-                                            <button disabled className="w-full px-4 py-2.5 rounded-lg bg-slate-200 text-slate-500 text-sm font-semibold">Kedaluwarsa</button>
-                                        )}
-                                        <button
-                                            onClick={() => handleRemove(item.id)}
-                                            disabled={isPending}
-                                            className="text-xs text-slate-400 hover:text-red-500 transition-colors disabled:opacity-50"
-                                        >
-                                            Hapus dari keranjang
-                                        </button>
-                                    </div>
+                                    <button
+                                        onClick={() => handleRemove(item.id)}
+                                        disabled={isPending}
+                                        className="text-slate-400 hover:text-red-500 transition-colors disabled:opacity-50 flex-shrink-0 self-start"
+                                        title="Hapus dari keranjang"
+                                    >
+                                        <Trash2 className="w-5 h-5" />
+                                    </button>
                                 </div>
                             );
                         })}
@@ -288,8 +331,15 @@ export function CartContent({ initialItems }: CartContentProps) {
                         {sellerItems.map((item) => (
                             <div
                                 key={item.id}
-                                className="p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center border-t border-slate-100 first:border-t-0"
+                                className="p-4 flex flex-row gap-3 sm:gap-4 items-start sm:items-center border-t border-slate-100 first:border-t-0"
                             >
+                                <input
+                                    type="checkbox"
+                                    checked={checked.has(item.id)}
+                                    onChange={() => toggleItem(item.id)}
+                                    className="mt-1 sm:mt-0 w-4 h-4 flex-shrink-0 rounded border-slate-300 text-brand-primary focus:ring-brand-primary cursor-pointer"
+                                    aria-label={`Pilih ${item.product.title}`}
+                                />
                                 {/* Image */}
                                 <Link href={`/product/${item.product.slug}`}>
                                     <div className="relative w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0 rounded-lg overflow-hidden border border-slate-200 bg-white">
@@ -448,11 +498,11 @@ export function CartContent({ initialItems }: CartContentProps) {
 
                     <hr className="border-slate-200" />
 
-                    {/* Price Breakdown */}
+                    {/* Price Breakdown — follows the ticked items. */}
                     <div className="flex flex-col gap-3">
                         <div className="flex justify-between items-center text-sm text-slate-600">
-                            <span>Total Harga ({activeItems.length} Barang)</span>
-                            <span>{formatPrice(subtotal)}</span>
+                            <span>Total Harga ({checkedCount} Barang)</span>
+                            <span>{formatPrice(checkedSubtotal)}</span>
                         </div>
                         <div className="flex justify-between items-center text-sm text-slate-600">
                             <span>Total Diskon</span>
@@ -465,23 +515,22 @@ export function CartContent({ initialItems }: CartContentProps) {
                     <div className="flex justify-between items-end">
                         <span className="text-base font-bold text-slate-900">Total Harga</span>
                         <span className="text-xl font-bold text-brand-primary">
-                            {formatPrice(subtotal)}
+                            {formatPrice(checkedSubtotal)}
                         </span>
                     </div>
 
-                    {/* CTA Button */}
-                    <Link href="/checkout">
-                        <button
-                            disabled={isPending || activeItems.length === 0 || hasVariantResolutionErrors}
-                            className="w-full bg-brand-primary hover:bg-blue-600 disabled:bg-slate-400 text-white font-bold py-3.5 rounded-lg shadow-lg shadow-brand-primary/30 transition-all active:scale-[0.98] flex justify-center items-center gap-2"
-                        >
-                            {isPending ? (
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                            ) : (
-                                `Beli (${activeItems.length})`
-                            )}
-                        </button>
-                    </Link>
+                    {/* CTA Button — buys all ticked items together. */}
+                    <button
+                        onClick={goToCheckout}
+                        disabled={isPending || checkedCount === 0 || hasVariantResolutionErrors}
+                        className="w-full bg-brand-primary hover:bg-blue-600 disabled:bg-slate-400 text-white font-bold py-3.5 rounded-lg shadow-lg shadow-brand-primary/30 transition-all active:scale-[0.98] flex justify-center items-center gap-2"
+                    >
+                        {isPending ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                            `Beli (${checkedCount})`
+                        )}
+                    </button>
 
                     {hasVariantResolutionErrors && (
                         <p className="text-sm text-amber-600">

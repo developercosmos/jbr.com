@@ -7,6 +7,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { CheckoutPageClient } from "@/components/checkout/CheckoutPageClient";
 import { getCheckoutShippingQuote } from "@/actions/shipping";
+import { effectiveUnitPrice } from "@/lib/offer-cart";
 import { db } from "@/db";
 import { seller_ratings } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -17,7 +18,11 @@ function getBuyerProtectionRate(reliabilityScore: number): number {
     return 1;
 }
 
-export default async function CheckoutPage() {
+export default async function CheckoutPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ items?: string }>;
+}) {
     // Check if user is logged in
     const session = await auth.api.getSession({
         headers: await headers(),
@@ -27,12 +32,21 @@ export default async function CheckoutPage() {
         redirect("/auth/login?redirect=/checkout");
     }
 
+    // Honor the cart selection (?items=id,id) when present.
+    const { items: itemsParam } = await searchParams;
+    const selectedIds = itemsParam
+        ? new Set(itemsParam.split(",").map((s) => s.trim()).filter(Boolean))
+        : null;
+
     // Fetch cart data
     let cartItems: Awaited<ReturnType<typeof getCart>> = [];
     try {
         cartItems = await getCart();
     } catch {
         cartItems = [];
+    }
+    if (selectedIds) {
+        cartItems = cartItems.filter((item) => selectedIds.has(item.id));
     }
 
     // If cart is empty, redirect to cart page
@@ -65,20 +79,21 @@ export default async function CheckoutPage() {
             initialShippingQuote = await getCheckoutShippingQuote({
                 addressId: defaultAddress.id,
                 courier: "jne",
+                cartItemIds: cartItems.map((i) => i.id),
             });
         } catch {
             initialShippingQuote = null;
         }
     }
 
-    // Calculate totals
+    // Calculate totals (offer lines use the locked negotiated price).
     const subtotal = cartItems.reduce((sum, item) => {
-        return sum + parseFloat(item.variant?.price ?? item.product.price) * item.quantity;
+        return sum + effectiveUnitPrice(item) * item.quantity;
     }, 0);
     const shippingCost = initialShippingQuote?.totalCost ?? 0;
     const subtotalBySeller = cartItems.reduce<Record<string, number>>((acc, item) => {
         const sellerId = item.product.seller.id;
-        const lineTotal = parseFloat(item.variant?.price ?? item.product.price) * item.quantity;
+        const lineTotal = effectiveUnitPrice(item) * item.quantity;
         acc[sellerId] = (acc[sellerId] ?? 0) + lineTotal;
         return acc;
     }, {});
