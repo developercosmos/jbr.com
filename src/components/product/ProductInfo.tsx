@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, MessageCircle, Scale, ShieldCheck, ShoppingCart, Tag, Truck } from "lucide-react";
+import { Loader2, MessageCircle, Scale, ShieldCheck, ShoppingCart, Tag, Truck, Zap } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -9,7 +9,6 @@ import { addToCart } from "@/actions/cart";
 import { startConversation } from "@/actions/chat";
 import { createOffer, getOfferWinProbability, prepareOfferLoginDraft } from "@/actions/offers";
 import { recordProductEvent } from "@/actions/product-events";
-import { WishlistButton } from "@/components/product/WishlistButton";
 import { MyOfferStatusPanel } from "@/components/product/MyOfferStatusPanel";
 import { VariantSelector } from "@/components/product/VariantSelector";
 import MakeOfferButton from "@/components/product/MakeOfferButton";
@@ -142,6 +141,7 @@ export function ProductInfo({
     const [isPending, startTransition] = useTransition();
     const [isChatPending, startChatTransition] = useTransition();
     const [isOfferPending, startOfferTransition] = useTransition();
+    const [isBuyNowPending, startBuyNowTransition] = useTransition();
     const [added, setAdded] = useState(false);
     const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
     const [offerAmount, setOfferAmount] = useState<string>(() => initialOfferAmount ?? product.auto_decline_below ?? String(Math.round(parseFloat(product.price) * 0.9)));
@@ -322,6 +322,35 @@ export function ProductInfo({
                 setTimeout(() => setAdded(false), 2000);
             } catch (error) {
                 console.error("Failed to add to cart:", error);
+            }
+        });
+    };
+
+    // "Beli Langsung" — add this single item then jump straight to checkout
+    // (only this line ticked), skipping the cart browse step.
+    const handleBuyNow = () => {
+        startBuyNowTransition(async () => {
+            try {
+                const result = await addToCart(product.id, 1, selectedVariant?.id);
+                if (!result.success && result.error) {
+                    if (result.error === "unauthorized") {
+                        router.push(`/auth/login?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
+                    } else if (result.error === "own_product") {
+                        alert("Anda tidak dapat membeli produk sendiri");
+                    } else if (result.error === "variant_required") {
+                        alert("Pilih varian produk terlebih dahulu");
+                    } else if (result.error === "insufficient_stock") {
+                        alert("Stok tidak mencukupi untuk varian yang dipilih");
+                    } else if (result.error === "product_not_available") {
+                        alert("Produk tidak tersedia");
+                    }
+                    return;
+                }
+                if (result.success && result.cartItem) {
+                    router.push(`/checkout?items=${result.cartItem.id}`);
+                }
+            } catch (error) {
+                console.error("Buy now failed:", error);
             }
         });
     };
@@ -582,11 +611,11 @@ export function ProductInfo({
 
             <div className="flex flex-col gap-3">
                 <div className="flex gap-3">
-                    <button onClick={handleAddToCart} disabled={isPending || displayStock === 0 || requiresVariantSelection} className="flex-1 bg-brand-primary hover:bg-slate-800 disabled:bg-slate-400 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg shadow-brand-primary/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                    <button onClick={handleAddToCart} disabled={isPending || displayStock === 0 || requiresVariantSelection} className="flex-1 bg-white border-2 border-brand-primary hover:bg-brand-primary/5 disabled:border-slate-300 disabled:text-slate-400 text-brand-primary font-bold py-3.5 px-6 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2">
                         {isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : added ? <>✓ Ditambahkan</> : <><ShoppingCart className="w-5 h-5" />{displayStock === 0 ? "Stok Habis" : "Add to Cart"}</>}
                     </button>
-                    <button onClick={handleChatSeller} disabled={isChatPending || !product.seller} className="flex-1 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-50 text-slate-900 font-bold py-3.5 px-6 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2">
-                        {isChatPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <><MessageCircle className="w-5 h-5" />Tanya Penjual</>}
+                    <button onClick={handleBuyNow} disabled={isBuyNowPending || displayStock === 0 || requiresVariantSelection} className="flex-1 bg-brand-primary hover:bg-slate-800 disabled:bg-slate-400 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg shadow-brand-primary/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2">
+                        {isBuyNowPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Zap className="w-5 h-5 fill-current" />Beli Langsung</>}
                     </button>
                 </div>
 
@@ -649,7 +678,9 @@ export function ProductInfo({
                 ) : null}
 
                 <div className="flex gap-3">
-                    <WishlistButton productId={product.id} isAuthenticated={isAuthenticated} />
+                    <button onClick={handleChatSeller} disabled={isChatPending || !product.seller} className="flex-1 flex items-center justify-center gap-2 text-slate-600 hover:text-brand-primary py-2.5 rounded-lg hover:bg-slate-50 transition-colors text-sm font-medium disabled:opacity-50">
+                        {isChatPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><MessageCircle className="w-4 h-4" />Tanya Penjual</>}
+                    </button>
                     <div className="flex-1 flex items-center justify-center">
                         <ShareProduct productTitle={product.title} productUrl={`/product/${product.slug}`} />
                     </div>

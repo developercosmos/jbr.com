@@ -123,6 +123,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
                                   ? `Pre-loved ${product.condition_rating}/10`
                                   : "Pre-loved"
                         }
+                        productId={product.id}
+                        isAuthenticated={Boolean(session?.user)}
                     />
                 </div>
 

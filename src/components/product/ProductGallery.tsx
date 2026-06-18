@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { ZoomIn, ZoomOut, X, Maximize2, Play } from "lucide-react";
+import { WishlistButton } from "@/components/product/WishlistButton";
 
 interface ProductGalleryProps {
     images: string[];
@@ -10,6 +11,9 @@ interface ProductGalleryProps {
     /** Slide position of the video within the gallery (0 = first), seller-set. */
     videoPosition?: number | null;
     conditionLabel?: string;
+    /** Wishlist heart overlay (bottom-right of the main image). */
+    productId?: string;
+    isAuthenticated?: boolean;
 }
 
 type MediaItem = { type: "image" | "video"; url: string };
@@ -18,7 +22,7 @@ const MIN_SCALE = 1;
 const MAX_SCALE = 5;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
-export function ProductGallery({ images, videoUrl, videoPosition, conditionLabel }: ProductGalleryProps) {
+export function ProductGallery({ images, videoUrl, videoPosition, conditionLabel, productId, isAuthenticated }: ProductGalleryProps) {
     const sanitizedImages = images.filter(
         (img): img is string => typeof img === "string" && img.trim().length > 0
     );
@@ -178,9 +182,18 @@ export function ProductGallery({ images, videoUrl, videoPosition, conditionLabel
                     <div className="w-full h-full bg-slate-100 dark:bg-slate-800" />
                 )}
                 {activeImage && !showingVideo && (
-                    <div className="absolute bottom-4 right-4 bg-black/55 text-white px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                    <div className="absolute bottom-4 left-4 bg-black/55 text-white px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
                         <Maximize2 className="w-3.5 h-3.5" /> Klik untuk zoom & geser
                     </div>
+                )}
+                {/* Wishlist heart — bottom-right overlay. */}
+                {productId && (
+                    <WishlistButton
+                        variant="icon"
+                        productId={productId}
+                        isAuthenticated={Boolean(isAuthenticated)}
+                        className="absolute bottom-4 right-4 z-20 p-3 bg-white/90 backdrop-blur-sm rounded-full shadow-lg text-slate-600 hover:bg-red-50 hover:text-red-500 transition-colors"
+                    />
                 )}
             </div>
 
