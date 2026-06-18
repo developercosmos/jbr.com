@@ -295,10 +295,27 @@ export async function getPaymentStatus(orderId: string) {
     }
 
     // Get latest payment
-    const payment = await db.query.payments.findFirst({
+    let payment = await db.query.payments.findFirst({
         where: eq(payments.order_id, orderId),
         orderBy: [desc(payments.created_at)],
     });
+
+    // Active reconcile: if still unpaid with a live Xendit invoice, ask Xendit
+    // directly so confirmation + notifications happen in near-real-time even when
+    // the webhook is missed/not configured (instead of waiting for the cron).
+    // handleXenditWebhook (inside checkInvoiceStatus) is idempotent.
+    if (order.status === "PENDING_PAYMENT" && payment?.status === "PENDING" && payment.xendit_invoice_id) {
+        try {
+            await checkInvoiceStatus(payment.id);
+            const [refreshedOrder, refreshedPayment] = await Promise.all([
+                db.query.orders.findFirst({ where: eq(orders.id, orderId) }),
+                db.query.payments.findFirst({ where: eq(payments.order_id, orderId), orderBy: [desc(payments.created_at)] }),
+            ]);
+            return { order: refreshedOrder ?? order, payment: refreshedPayment ?? payment };
+        } catch (error) {
+            logger.warn("payment:status_reconcile_failed", { orderId, error: String(error) });
+        }
+    }
 
     return {
         order,
