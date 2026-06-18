@@ -34,19 +34,16 @@ export function Categories() {
                 </Link>
             </div>
             <div className="flex gap-3 overflow-x-auto no-scrollbar py-2 -mx-4 px-4 md:mx-0 md:px-0">
-                {SPORT_VALUES.map((sport, index) => {
+                {SPORT_VALUES.map((sport) => {
                     const Icon = SPORT_ICONS[sport];
                     return (
                         <Link
                             key={sport}
                             href={`/search?sport=${SPORT_SLUGS[sport]}`}
-                            className={`flex shrink-0 items-center gap-2 rounded-full px-5 py-3 transition-all hover:scale-105 ${index === 0
-                                ? "bg-slate-900 dark:bg-white text-white dark:text-slate-900"
-                                : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-slate-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
-                                }`}
+                            className="flex shrink-0 items-center gap-2 rounded-full px-5 py-3 transition-all hover:scale-105 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-slate-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
                         >
                             <Icon className="w-5 h-5" />
-                            <span className={`text-sm whitespace-nowrap ${index === 0 ? "font-bold" : "font-medium"}`}>
+                            <span className="text-sm whitespace-nowrap font-medium">
                                 {SPORT_LABELS[sport]}
                             </span>
                         </Link>
