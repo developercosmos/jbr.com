@@ -95,6 +95,13 @@ const createProductSchema = z.object({
 const updateProductSchema = createProductSchema.partial().extend({
     id: z.string().uuid(),
     status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).optional(),
+    // Drop the create-time defaults here. .partial() keeps `.default(...)`, so a
+    // partial update that omits these (e.g. publishProduct sends only {id,status})
+    // would otherwise reset stock→1 / images→[] / bargain_enabled→false and
+    // clobber the saved values. Plain optional => omitted means "leave as-is".
+    stock: z.number().int().positive().optional(),
+    images: z.array(productImageSchema).optional(),
+    bargain_enabled: z.boolean().optional(),
 });
 
 // Helper to generate slug
