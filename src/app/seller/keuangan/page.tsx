@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Download, TrendingUp, ShoppingBag, RefreshCcw, Wallet, Printer } from "lucide-react";
+import { Download, TrendingUp, ShoppingBag, RefreshCcw, Wallet, Printer, Clock } from "lucide-react";
 import { requireSellerFinanceSession } from "@/lib/seller-finance";
 import { getSellerSalesSummary, getSellerSalesDetail } from "@/actions/accounting/reports";
+import { getSellerPotentialRevenue } from "@/actions/orders";
 import { getMySellerTaxStatus } from "@/actions/tax-profile";
 import { formatIdr } from "@/lib/format-idr";
 import TaxPmk37Card from "./TaxPmk37Card";
@@ -34,10 +35,11 @@ export default async function SellerKeuanganPage(props: {
     const from = parseDate(fromStr);
     const to = parseDate(toStr, true);
 
-    const [summary, detail, taxStatus] = await Promise.all([
+    const [summary, detail, taxStatus, potential] = await Promise.all([
         getSellerSalesSummary({ sellerId: session.sellerId, from, to }),
         getSellerSalesDetail({ sellerId: session.sellerId, from, to, limit: 50 }),
         getMySellerTaxStatus().catch(() => null),
+        getSellerPotentialRevenue(from, to).catch(() => ({ total: 0, count: 0 })),
     ]);
 
     const exportHref = `/api/seller/keuangan/export/sales?from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}`;
@@ -125,6 +127,21 @@ export default async function SellerKeuanganPage(props: {
                             <p className="mt-1 text-xl font-heading font-extrabold text-slate-900">{formatIdr(s.value)}</p>
                         </div>
                     ))}
+                </div>
+
+                {/* Potensial pendapatan — pesanan yang belum dibayar (di luar register PSAK). */}
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 flex flex-col sm:flex-row sm:items-center gap-3">
+                    <span className="rounded-xl p-2 bg-amber-100 text-amber-600 self-start"><Clock className="w-5 h-5" /></span>
+                    <div className="flex-1">
+                        <p className="text-xs uppercase tracking-wider text-amber-700">Potensial Pendapatan (Belum Dibayar)</p>
+                        <p className="mt-0.5 text-xl font-heading font-extrabold text-amber-800">
+                            {formatIdr(potential.total)}
+                            <span className="ml-2 text-sm font-normal text-amber-700">· {potential.count} pesanan menunggu pembayaran</span>
+                        </p>
+                        <p className="mt-0.5 text-xs text-amber-600">
+                            Belum tercatat di sales register PSAK; akan menjadi pendapatan settle saat pembeli membayar.
+                        </p>
+                    </div>
                 </div>
 
                 <div className="grid gap-4 lg:grid-cols-3">

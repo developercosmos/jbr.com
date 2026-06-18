@@ -6,7 +6,7 @@ import { orders, order_items, carts, products, product_variants, reviews, addres
 import { applyVoucher } from "@/actions/vouchers";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { eq, desc, and, sql, gte, inArray } from "drizzle-orm";
+import { eq, desc, and, sql, gte, lte, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getCheckoutShippingQuoteForUser } from "@/actions/shipping";
@@ -838,6 +838,26 @@ export async function getSellerStats() {
         rating: avgRating,
         totalReviews,
     };
+}
+
+/**
+ * Potential (not-yet-paid) revenue for the seller in a period — orders still in
+ * PENDING_PAYMENT. Kept separate from the settled PSAK sales register; surfaced
+ * on the finance page so sellers see pipeline that hasn't been paid yet.
+ */
+export async function getSellerPotentialRevenue(from?: Date, to?: Date): Promise<{ total: number; count: number }> {
+    const user = await getCurrentUser();
+    const conditions = [eq(orders.seller_id, user.id), eq(orders.status, "PENDING_PAYMENT")];
+    if (from) conditions.push(gte(orders.created_at, from));
+    if (to) conditions.push(lte(orders.created_at, to));
+
+    const rows = await db
+        .select({ total: orders.total })
+        .from(orders)
+        .where(and(...conditions));
+
+    const total = rows.reduce((sum, r) => sum + parseFloat(r.total), 0);
+    return { total, count: rows.length };
 }
 
 export async function getRecentSellerOrders(limit = 5) {
