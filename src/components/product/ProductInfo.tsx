@@ -209,6 +209,7 @@ export function ProductInfo({
     const selectedVariant = product.variants.find((variant) => variant.id === selectedVariantId) ?? null;
     const displayPrice = selectedVariant?.price ?? product.price;
     const displayStock = selectedVariant?.stock ?? product.stock;
+    const isSoldOut = displayStock === 0;
     const requiresVariantSelection = product.variants.length > 0 && !selectedVariant;
     const sellerBadges = getSellerBadgeTypes({
         verified: Boolean(sellerVerified),
@@ -469,7 +470,10 @@ export function ProductInfo({
                 if (!result.success) {
                     if (result.error === "rate_limited") {
                         const retryMinutes = Math.max(1, Math.ceil((result.retryAfterSec ?? 0) / 60));
-                        setOfferMessage({ type: "error", text: `Terlalu sering menawar. Coba lagi dalam ${retryMinutes} menit.` });
+                        const text = ("reason" in result && result.reason === "reject_cooldown")
+                            ? `Tawaran sebelumnya ditolak/di bawah ambang. Anda bisa menawar lagi dalam ${retryMinutes} menit.`
+                            : `Terlalu sering menawar. Coba lagi dalam ${retryMinutes} menit.`;
+                        setOfferMessage({ type: "error", text });
                         void recordProductEvent({
                             productId: product.id,
                             eventType: "OFFER_RATE_LIMITED",
@@ -626,6 +630,10 @@ export function ProductInfo({
                 {isOwnProduct ? (
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                         Ini produk Anda sendiri. Pembeli yang akan melihat panel tawar di sini.
+                    </div>
+                ) : isSoldOut ? (
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500 text-center">
+                        Stok habis — produk ini tidak dapat dibeli atau ditawar saat ini.
                     </div>
                 ) : product.bargain_enabled && inlineOfferEnabled ? (
                     <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">

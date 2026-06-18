@@ -125,6 +125,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
                         }
                         productId={product.id}
                         isAuthenticated={Boolean(session?.user)}
+                        soldOut={
+                            product.variants.length > 0
+                                ? product.variants.every((v) => (v.stock ?? 0) <= 0)
+                                : (product.stock ?? 0) <= 0
+                        }
                     />
                 </div>
 

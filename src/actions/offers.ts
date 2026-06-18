@@ -175,7 +175,7 @@ async function assertOfferAllowed(buyerId: string, listingId: string) {
         const retryAt = new Date(oldest.created_at.getTime() + 24 * 60 * 60 * 1000);
         const retryAfterSec = Math.max(1, Math.ceil((retryAt.getTime() - now.getTime()) / 1000));
         if (retryAfterSec > 0) {
-            return { allowed: false as const, retryAfterSec };
+            return { allowed: false as const, retryAfterSec, reason: "too_many" as const };
         }
     }
 
@@ -192,11 +192,12 @@ async function assertOfferAllowed(buyerId: string, listingId: string) {
         const retryAt = new Date(latestRejectedAt.getTime() + cooldownHours * 60 * 60 * 1000);
         const retryAfterSec = Math.max(0, Math.ceil((retryAt.getTime() - now.getTime()) / 1000));
         if (retryAfterSec > 0) {
-            return { allowed: false as const, retryAfterSec };
+            // A prior offer was rejected/auto-declined → backoff, NOT "too many".
+            return { allowed: false as const, retryAfterSec, reason: "reject_cooldown" as const };
         }
     }
 
-    return { allowed: true as const, retryAfterSec: 0 };
+    return { allowed: true as const, retryAfterSec: 0, reason: undefined };
 }
 
 export async function prepareOfferLoginDraft(input: z.infer<typeof prepareOfferLoginSchema>) {
@@ -285,6 +286,7 @@ export async function createOffer(input: z.infer<typeof createOfferSchema>) {
             success: false as const,
             error: "rate_limited" as const,
             retryAfterSec: allowance.retryAfterSec,
+            reason: allowance.reason,
         };
     }
 

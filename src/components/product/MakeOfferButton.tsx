@@ -44,7 +44,9 @@ export default function MakeOfferButton({ listingId, listingPrice, autoDeclineBe
                 });
                 if (!result.success && result.error === "rate_limited") {
                     const retryMinutes = Math.max(1, Math.ceil((result.retryAfterSec ?? 0) / 60));
-                    setError(`Terlalu sering menawar. Coba lagi dalam ${retryMinutes} menit.`);
+                    setError(("reason" in result && result.reason === "reject_cooldown")
+                        ? `Tawaran sebelumnya ditolak/di bawah ambang. Anda bisa menawar lagi dalam ${retryMinutes} menit.`
+                        : `Terlalu sering menawar. Coba lagi dalam ${retryMinutes} menit.`);
                     return;
                 }
                 if (result.autoDeclined) {

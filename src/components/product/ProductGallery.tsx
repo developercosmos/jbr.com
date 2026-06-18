@@ -14,6 +14,8 @@ interface ProductGalleryProps {
     /** Wishlist heart overlay (bottom-right of the main image). */
     productId?: string;
     isAuthenticated?: boolean;
+    /** Dim the image + show a "HABIS" badge when out of stock. */
+    soldOut?: boolean;
 }
 
 type MediaItem = { type: "image" | "video"; url: string };
@@ -22,7 +24,7 @@ const MIN_SCALE = 1;
 const MAX_SCALE = 5;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 
-export function ProductGallery({ images, videoUrl, videoPosition, conditionLabel, productId, isAuthenticated }: ProductGalleryProps) {
+export function ProductGallery({ images, videoUrl, videoPosition, conditionLabel, productId, isAuthenticated, soldOut }: ProductGalleryProps) {
     const sanitizedImages = images.filter(
         (img): img is string => typeof img === "string" && img.trim().length > 0
     );
@@ -194,6 +196,14 @@ export function ProductGallery({ images, videoUrl, videoPosition, conditionLabel
                         isAuthenticated={Boolean(isAuthenticated)}
                         className="absolute bottom-4 right-4 z-20 p-3 bg-white/90 backdrop-blur-sm rounded-full shadow-lg text-slate-600 hover:bg-red-50 hover:text-red-500 transition-colors"
                     />
+                )}
+                {/* Out-of-stock overlay. */}
+                {soldOut && (
+                    <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/45 pointer-events-none">
+                        <span className="px-6 py-2.5 rounded-lg bg-white/95 text-slate-900 text-xl font-black tracking-[0.2em] shadow-lg">
+                            HABIS
+                        </span>
+                    </div>
                 )}
             </div>
 
