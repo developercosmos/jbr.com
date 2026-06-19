@@ -6,7 +6,11 @@ const SUSPICIOUS_PATTERNS = [
     /(\.|%2e)(\.|%2e)(\/|%2f)/i, // Path traversal
     /<script[^>]*>/i, // XSS attempts
     /javascript:/i, // JavaScript injection
-    /on\w+\s*=/i, // Event handler injection
+    // Event handler injection. Match KNOWN HTML event handlers explicitly so
+    // legit query params don't false-positive — the old /on\w+\s*=/ blocked any
+    // word with "on"+letters before "=", breaking e.g. ?condition=NEW (the
+    // condition filter), ?version=, ?region=, etc.
+    /on(error|load|abort|click|dblclick|focus(?:in|out)?|blur|change|input|submit|reset|select|keydown|keypress|keyup|mouse(?:over|out|enter|leave|move|down|up)|pointer(?:over|out|enter|leave|move|down|up)|touch(?:start|end|move|cancel)|drag(?:start|end|enter|leave|over)?|drop|wheel|scroll|resize|toggle|play|playing|pause|ended|canplay|animation(?:start|end|iteration)|transition(?:start|end|run|cancel)|contextmenu|copy|cut|paste|beforeunload|hashchange|popstate|message)\s*=/i, // Event handler injection
     /union\s+select/i, // SQL injection
     /exec\s*\(/i, // Command execution
     /\$\{.*\}/i, // Template injection

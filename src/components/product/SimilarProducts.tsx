@@ -4,6 +4,7 @@ import { Package } from "lucide-react";
 import { db } from "@/db";
 import { products } from "@/db/schema";
 import { eq, ne, and, desc } from "drizzle-orm";
+import { SellerBadgeIcon } from "@/components/seller/SellerBadges";
 
 type Props = {
     currentProductId?: string;
@@ -23,18 +24,19 @@ function formatPrice(price: string | number): string {
 }
 
 export async function SimilarProducts({ currentProductId, currentProductSlug, categoryId, compareModeEnabled }: Props) {
-    // Fetch similar products from database
-    const similarProducts = await db
-        .select()
-        .from(products)
-        .where(
-            and(
-                eq(products.status, "PUBLISHED"),
-                currentProductId ? ne(products.id, currentProductId) : undefined
-            )
-        )
-        .orderBy(desc(products.created_at))
-        .limit(4);
+    // Fetch similar products from database (relational so we get the seller +
+    // verification tier for the badge, consistent with other product cards).
+    const similarProducts = await db.query.products.findMany({
+        where: and(
+            eq(products.status, "PUBLISHED"),
+            currentProductId ? ne(products.id, currentProductId) : undefined
+        ),
+        orderBy: [desc(products.created_at)],
+        limit: 4,
+        with: {
+            seller: { columns: { id: true, name: true, store_name: true, image: true, tier: true } },
+        },
+    });
 
     const validProducts = similarProducts.filter((p) => p.slug);
 
@@ -73,6 +75,16 @@ export async function SimilarProducts({ currentProductId, currentProductSlug, ca
                             <h4 className="text-slate-900 dark:text-white font-medium text-sm truncate group-hover:text-brand-primary transition-colors">
                                 {product.title}
                             </h4>
+                            {product.seller && (
+                                <div className="flex items-center gap-1 mt-1">
+                                    <span className="text-xs text-slate-500 truncate">
+                                        {product.seller.store_name || product.seller.name}
+                                    </span>
+                                    {(product.seller.tier === "T1" || product.seller.tier === "T2") && (
+                                        <SellerBadgeIcon type="verified" size={12} />
+                                    )}
+                                </div>
+                            )}
                             <p className="text-slate-500 text-xs mb-1">
                                 {product.condition === "PRELOVED" && product.condition_rating
                                     ? `Kondisi ${product.condition_rating}/10`

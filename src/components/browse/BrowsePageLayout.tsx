@@ -3,6 +3,7 @@ import Image from "next/image";
 import { ChevronRight, ShoppingBag } from "lucide-react";
 import { TrackedProductLink } from "@/components/product/TrackedProductLink";
 import { LowStockText } from "@/components/product/LowStockBadge";
+import { SellerBadgeIcon } from "@/components/seller/SellerBadges";
 
 type Product = {
     id: string;
@@ -18,6 +19,7 @@ type Product = {
         name: string;
         store_name: string | null;
         image: string | null;
+        tier: "T0" | "T1" | "T2";
     } | null;
     category: {
         id: string;
@@ -156,8 +158,11 @@ export function BrowsePageLayout({
                                     </p>
                                     <div className="mt-1"><LowStockText stock={product.stock} /></div>
                                     {product.seller && (
-                                        <p className="text-xs text-slate-500 mt-1 truncate">
-                                            {product.seller.store_name || product.seller.name}
+                                        <p className="text-xs text-slate-500 mt-1 truncate flex items-center gap-1">
+                                            <span className="truncate">{product.seller.store_name || product.seller.name}</span>
+                                            {(product.seller.tier === "T1" || product.seller.tier === "T2") && (
+                                                <SellerBadgeIcon type="verified" size={13} />
+                                            )}
                                         </p>
                                     )}
                                 </div>

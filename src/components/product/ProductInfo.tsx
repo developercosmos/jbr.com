@@ -15,7 +15,7 @@ import MakeOfferButton from "@/components/product/MakeOfferButton";
 import { CurrencyInput } from "@/components/CurrencyInput";
 import { LowStockBadge } from "@/components/product/LowStockBadge";
 import { ShareProduct } from "@/components/product/ShareProduct";
-import { SellerBadge } from "@/components/seller/SellerBadges";
+import { SellerBadge, SellerBadgeIcon } from "@/components/seller/SellerBadges";
 import { getSellerBadgeTypes } from "@/lib/seller-badges";
 import { useFlag } from "@/lib/use-flag";
 
@@ -565,7 +565,7 @@ export function ProductInfo({
                         <div>
                             <div className="flex items-center gap-1.5">
                                 <span className="font-bold text-slate-900">{product.seller.store_name || product.seller.name}</span>
-                                {sellerVerified && <ShieldCheck className="w-4 h-4 text-brand-primary" />}
+                                {sellerVerified && <SellerBadgeIcon type="verified" size={13} />}
                             </div>
                             {sellerBadgesEnabled && sellerBadges.length > 0 && (
                                 <div className="flex flex-wrap items-center gap-1.5 mt-1">
