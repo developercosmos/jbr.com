@@ -43,7 +43,11 @@ export function SellerNavLinks({ pendingOrdersCount = 0, onNavigate }: SellerNav
                         <item.icon className={cn("w-5 h-5", isActive && "fill-current")} />
                         {item.label}
                         {badge && (
-                            <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
+                            <span
+                                title={`${badge} pesanan sudah dibayar menunggu dikirim`}
+                                aria-label={`${badge} pesanan perlu dikirim`}
+                                className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white"
+                            >
                                 {badge > 9 ? "9+" : badge}
                             </span>
                         )}
