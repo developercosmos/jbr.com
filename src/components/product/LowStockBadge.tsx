@@ -31,9 +31,13 @@ interface LowStockTextProps {
     threshold?: number;
 }
 
-/** Compact text version for product cards. */
+/**
+ * Compact stock text for product cards. Always renders so every card shows its
+ * stock consistently: red "Stok habis" at 0, amber "Sisa N" when low (urgency),
+ * and a muted "Stok N" otherwise.
+ */
 export function LowStockText({ stock, threshold = 5 }: LowStockTextProps) {
-    if (stock > threshold) return null;
     if (stock <= 0) return <span className="text-red-600 text-xs font-bold">Stok habis</span>;
-    return <span className="text-amber-600 text-xs font-bold">Sisa {stock}</span>;
+    if (stock <= threshold) return <span className="text-amber-600 text-xs font-bold">Sisa {stock}</span>;
+    return <span className="text-slate-500 dark:text-slate-400 text-xs font-medium">Stok {stock}</span>;
 }
