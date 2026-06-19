@@ -1,13 +1,18 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Search, Download, Eye, MoreHorizontal, ArrowUpDown, ChevronLeft, ChevronRight, Package, Truck, CheckCircle, Clock, CreditCard, XCircle } from "lucide-react";
-import { getSellerOrders } from "@/actions/orders";
+import { Download, Eye, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Package, Truck, CheckCircle, Clock, CreditCard, XCircle } from "lucide-react";
+import { getSellerOrders, type SellerOrderStatus } from "@/actions/orders";
 import { getSellerProfileByUserId } from "@/actions/seller";
 import { canAccessSellerCenter } from "@/lib/seller";
-import { cn } from "@/lib/utils";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { ORDER_TABS, parseSellerOrderParams } from "@/lib/seller-orders-query";
+import { SellerOrderFilters } from "@/components/seller/SellerOrderFilters";
+import { OrderRowActions } from "@/components/seller/OrderRowActions";
+
+const PAGE_SIZE = 20;
 
 function formatPrice(price: string) {
     return new Intl.NumberFormat("id-ID", {
@@ -84,23 +89,12 @@ const statusConfig: Record<string, { label: string; icon: React.ReactNode; bg: s
     },
 };
 
-// Horizontal status tabs — group the order lifecycle into actionable buckets so
-// the seller can monitor + act per status. `statuses: null` = "Semua".
-const ORDER_TABS: { key: string; label: string; statuses: string[] | null }[] = [
-    { key: "all", label: "Semua", statuses: null },
-    { key: "unpaid", label: "Menunggu Pembayaran", statuses: ["PENDING_PAYMENT"] },
-    { key: "to_ship", label: "Harus Dikirim", statuses: ["PAID", "PROCESSING"] },
-    { key: "shipping", label: "Sedang Dikirim", statuses: ["SHIPPED"] },
-    { key: "done", label: "Selesai", statuses: ["DELIVERED", "COMPLETED"] },
-    { key: "cancelled", label: "Dibatalkan", statuses: ["CANCELLED", "REFUNDED"] },
-];
-
 export default async function SellerOrdersPage({
     searchParams,
 }: {
-    searchParams: Promise<{ status?: string }>;
+    searchParams: Promise<Record<string, string | undefined>>;
 }) {
-    const { status: statusParam } = await searchParams;
+    const sp = await searchParams;
     const session = await auth.api.getSession({ headers: await headers() });
 
     if (!session?.user) {
@@ -112,15 +106,70 @@ export default async function SellerOrdersPage({
         redirect("/seller/register");
     }
 
-    const orders = await getSellerOrders();
+    const p = parseSellerOrderParams(sp);
+    const { orders, total, statusCounts, page, totalPages } = await getSellerOrders({
+        status: p.statuses as SellerOrderStatus[] | undefined,
+        q: p.q,
+        from: p.from,
+        to: p.to,
+        sortBy: p.sortBy,
+        sortDir: p.sortDir,
+        page: p.page,
+        limit: PAGE_SIZE,
+    });
 
-    const activeKey = ORDER_TABS.some((t) => t.key === statusParam) ? statusParam! : "all";
-    const activeTab = ORDER_TABS.find((t) => t.key === activeKey)!;
+    // Build a /seller/orders href preserving the current view, applying overrides.
+    function buildHref(overrides: Record<string, string | undefined>) {
+        const baseParams: Record<string, string | undefined> = {
+            status: p.activeKey === "all" ? undefined : p.activeKey,
+            q: p.q || undefined,
+            range: p.range !== "all" ? p.range : undefined,
+            sort: p.sortBy !== "date" ? p.sortBy : undefined,
+            dir: p.sortDir !== "desc" ? p.sortDir : undefined,
+            page: page > 1 ? String(page) : undefined,
+        };
+        const merged = { ...baseParams, ...overrides };
+        const out = new URLSearchParams();
+        for (const [key, value] of Object.entries(merged)) if (value) out.set(key, value);
+        const qs = out.toString();
+        return qs ? `/seller/orders?${qs}` : "/seller/orders";
+    }
+
     const tabCount = (statuses: string[] | null) =>
-        statuses ? orders.filter((o) => statuses.includes(o.status)).length : orders.length;
-    const visibleOrders = activeTab.statuses
-        ? orders.filter((o) => activeTab.statuses!.includes(o.status))
-        : orders;
+        statuses ? statuses.reduce((sum, st) => sum + (statusCounts[st] ?? 0), 0) : statusCounts.__all ?? 0;
+
+    // Export link mirrors the current filters (minus pagination).
+    const exportParams = new URLSearchParams();
+    if (p.activeKey !== "all") exportParams.set("status", p.activeKey);
+    if (p.q) exportParams.set("q", p.q);
+    if (p.range !== "all") exportParams.set("range", p.range);
+    if (p.sortBy !== "date") exportParams.set("sort", p.sortBy);
+    if (p.sortDir !== "desc") exportParams.set("dir", p.sortDir);
+    const exportHref = `/api/seller/orders/export${exportParams.toString() ? `?${exportParams}` : ""}`;
+
+    const rangeStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+    const rangeEnd = Math.min(page * PAGE_SIZE, total);
+
+    const SortHeader = ({ label, sortKey, align = "left" }: { label: string; sortKey: "order_number" | "date" | "total"; align?: "left" | "right" }) => {
+        const isActive = p.sortBy === sortKey;
+        const nextDir = isActive && p.sortDir === "asc" ? "desc" : "asc";
+        return (
+            <Link
+                href={buildHref({ sort: sortKey, dir: nextDir, page: undefined })}
+                className={cn(
+                    "flex items-center gap-2 hover:text-slate-700 dark:hover:text-slate-200 transition-colors",
+                    align === "right" && "justify-end"
+                )}
+            >
+                {label}
+                {isActive ? (
+                    p.sortDir === "asc" ? <ArrowUp className="w-3 h-3 text-brand-primary" /> : <ArrowDown className="w-3 h-3 text-brand-primary" />
+                ) : (
+                    <ArrowUpDown className="w-3 h-3" />
+                )}
+            </Link>
+        );
+    };
 
     return (
         <div className="flex-1 p-8 scroll-smooth">
@@ -136,22 +185,25 @@ export default async function SellerOrdersPage({
                         </p>
                     </div>
                     <div className="flex items-center gap-3">
-                        <button className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors text-sm font-medium">
+                        <a
+                            href={exportHref}
+                            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-surface-dark border border-slate-200 dark:border-slate-800 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors text-sm font-medium"
+                        >
                             <Download className="w-4 h-4" />
                             Export CSV
-                        </button>
+                        </a>
                     </div>
                 </div>
 
                 {/* Status tabs — filter by order lifecycle bucket */}
                 <div className="flex items-center gap-2 overflow-x-auto pb-1">
                     {ORDER_TABS.map((tab) => {
-                        const active = tab.key === activeKey;
+                        const active = tab.key === p.activeKey;
                         const count = tabCount(tab.statuses);
                         return (
                             <Link
                                 key={tab.key}
-                                href={tab.key === "all" ? "/seller/orders" : `/seller/orders?status=${tab.key}`}
+                                href={buildHref({ status: tab.key === "all" ? undefined : tab.key, page: undefined })}
                                 className={cn(
                                     "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap border transition-colors",
                                     active
@@ -163,9 +215,7 @@ export default async function SellerOrdersPage({
                                 <span
                                     className={cn(
                                         "inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold",
-                                        active
-                                            ? "bg-white/25 text-white"
-                                            : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                                        active ? "bg-white/25 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
                                     )}
                                 >
                                     {count}
@@ -175,38 +225,19 @@ export default async function SellerOrdersPage({
                     })}
                 </div>
 
-                {/* Filters & Search */}
-                <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 p-4 flex flex-col md:flex-row gap-4 justify-between items-center shadow-sm">
-                    <div className="relative w-full md:w-96">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                            <Search className="w-5 h-5" />
-                        </div>
-                        <input
-                            type="text"
-                            placeholder="Cari ID Pesanan, Nama Pembeli..."
-                            className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 dark:border-slate-700 rounded-lg leading-5 bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm transition-all"
-                        />
-                    </div>
-                    <div className="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-                        <select className="px-4 py-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-primary text-sm font-medium cursor-pointer">
-                            <option>Semua Waktu</option>
-                            <option>Hari Ini</option>
-                            <option>7 Hari Terakhir</option>
-                            <option>30 Hari Terakhir</option>
-                        </select>
-                    </div>
-                </div>
+                {/* Search + date range */}
+                <SellerOrderFilters />
 
-                {visibleOrders.length === 0 ? (
+                {orders.length === 0 ? (
                     <div className="text-center py-16 bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800">
                         <Package className="w-16 h-16 mx-auto text-slate-300 mb-4" />
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
-                            {orders.length === 0 ? "Belum ada pesanan" : "Tidak ada pesanan"}
+                            {total === 0 && !p.q && p.activeKey === "all" && p.range === "all" ? "Belum ada pesanan" : "Tidak ada pesanan"}
                         </h3>
                         <p className="text-slate-500">
-                            {orders.length === 0
+                            {total === 0 && !p.q && p.activeKey === "all" && p.range === "all"
                                 ? "Pesanan dari pembeli akan muncul di sini."
-                                : `Tidak ada pesanan dengan status "${activeTab.label}".`}
+                                : "Tidak ada pesanan yang cocok dengan filter ini."}
                         </p>
                     </div>
                 ) : (
@@ -216,21 +247,22 @@ export default async function SellerOrdersPage({
                                 <thead>
                                     <tr className="bg-slate-50 dark:bg-black/20 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
                                         <th className="px-6 py-4 font-semibold">
-                                            <div className="flex items-center gap-2 cursor-pointer hover:text-slate-700 dark:hover:text-slate-200">
-                                                ID Pesanan
-                                                <ArrowUpDown className="w-3 h-3" />
-                                            </div>
+                                            <SortHeader label="ID Pesanan" sortKey="order_number" />
                                         </th>
                                         <th className="px-6 py-4 font-semibold">Produk</th>
                                         <th className="px-6 py-4 font-semibold">Pembeli</th>
-                                        <th className="px-6 py-4 font-semibold">Tanggal</th>
-                                        <th className="px-6 py-4 font-semibold text-right">Total</th>
+                                        <th className="px-6 py-4 font-semibold">
+                                            <SortHeader label="Tanggal" sortKey="date" />
+                                        </th>
+                                        <th className="px-6 py-4 font-semibold text-right">
+                                            <SortHeader label="Total" sortKey="total" align="right" />
+                                        </th>
                                         <th className="px-6 py-4 font-semibold text-center">Status</th>
                                         <th className="px-6 py-4 font-semibold text-center">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                                    {visibleOrders.map((order) => {
+                                    {orders.map((order) => {
                                         const firstItem = order.items[0];
                                         const status = statusConfig[order.status] || statusConfig.PENDING_PAYMENT;
 
@@ -291,9 +323,7 @@ export default async function SellerOrdersPage({
                                                         >
                                                             <Eye className="w-4 h-4" />
                                                         </Link>
-                                                        <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 rounded-lg transition-colors">
-                                                            <MoreHorizontal className="w-4 h-4" />
-                                                        </button>
+                                                        <OrderRowActions orderId={order.id} orderNumber={order.order_number} status={order.status} />
                                                     </div>
                                                 </td>
                                             </tr>
@@ -303,17 +333,39 @@ export default async function SellerOrdersPage({
                             </table>
                         </div>
                         {/* Pagination */}
-                        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 flex-wrap">
                             <span className="text-sm text-slate-500">
-                                Menampilkan <span className="font-medium text-slate-900 dark:text-white">{visibleOrders.length}</span> pesanan
+                                Menampilkan <span className="font-medium text-slate-900 dark:text-white">{rangeStart}–{rangeEnd}</span> dari{" "}
+                                <span className="font-medium text-slate-900 dark:text-white">{total}</span> pesanan
+                                <span className="text-slate-400"> · Hal {page}/{totalPages}</span>
                             </span>
                             <div className="flex gap-2">
-                                <button className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed">
-                                    <ChevronLeft className="w-4 h-4" />
-                                </button>
-                                <button className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5">
-                                    <ChevronRight className="w-4 h-4" />
-                                </button>
+                                {page > 1 ? (
+                                    <Link
+                                        href={buildHref({ page: page - 1 > 1 ? String(page - 1) : undefined })}
+                                        className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
+                                        aria-label="Halaman sebelumnya"
+                                    >
+                                        <ChevronLeft className="w-4 h-4" />
+                                    </Link>
+                                ) : (
+                                    <span className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-300 dark:text-slate-700 cursor-not-allowed">
+                                        <ChevronLeft className="w-4 h-4" />
+                                    </span>
+                                )}
+                                {page < totalPages ? (
+                                    <Link
+                                        href={buildHref({ page: String(page + 1) })}
+                                        className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5"
+                                        aria-label="Halaman berikutnya"
+                                    >
+                                        <ChevronRight className="w-4 h-4" />
+                                    </Link>
+                                ) : (
+                                    <span className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-300 dark:text-slate-700 cursor-not-allowed">
+                                        <ChevronRight className="w-4 h-4" />
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>

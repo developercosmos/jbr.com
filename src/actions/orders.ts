@@ -6,7 +6,7 @@ import { orders, order_items, carts, products, product_variants, reviews, addres
 import { applyVoucher } from "@/actions/vouchers";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { eq, desc, and, sql, gte, lte, inArray } from "drizzle-orm";
+import { eq, desc, and, sql, gte, lte, inArray, ilike, or, asc, lt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getCheckoutShippingQuoteForUser } from "@/actions/shipping";
@@ -633,30 +633,111 @@ export async function getBuyerOrders() {
     return buyerOrders;
 }
 
-export async function getSellerOrders() {
+export type SellerOrderStatus = (typeof orders.$inferSelect)["status"];
+
+export type SellerOrdersQuery = {
+    /** Order statuses to include (the "group" the active tab resolves to). */
+    status?: SellerOrderStatus[];
+    /** Free-text: matches order number OR buyer name. */
+    q?: string;
+    /** created_at >= from. */
+    from?: Date;
+    /** created_at < to. */
+    to?: Date;
+    sortBy?: "date" | "total" | "order_number";
+    sortDir?: "asc" | "desc";
+    page?: number;
+    limit?: number;
+};
+
+/**
+ * Seller order list — server-side filtered, sorted, paginated, with per-status
+ * facet counts for the status tabs. Counts reflect the search/date filters but
+ * NOT the status filter, so each tab shows its true total under the current view.
+ */
+export async function getSellerOrders(query: SellerOrdersQuery = {}) {
     const user = await getCurrentUser();
+    const {
+        status,
+        q,
+        from,
+        to,
+        sortBy = "date",
+        sortDir = "desc",
+        page = 1,
+        limit = 20,
+    } = query;
 
-    const sellerOrders = await db.query.orders.findMany({
-        where: eq(orders.seller_id, user.id),
-        orderBy: [desc(orders.created_at)],
-        with: {
-            buyer: {
-                columns: {
-                    id: true,
-                    name: true,
-                    email: true,
-                },
-            },
-            items: {
-                with: {
-                    product: true,
-                },
-            },
-            shipping_address: true,
-        },
-    });
+    // Shared by the list query AND the facet counts (everything except status).
+    const base = [eq(orders.seller_id, user.id)];
+    if (from) base.push(gte(orders.created_at, from));
+    if (to) base.push(lt(orders.created_at, to));
+    const term = q?.trim() ? `%${q.trim()}%` : null;
+    if (term) {
+        base.push(
+            or(
+                ilike(orders.order_number, term),
+                inArray(
+                    orders.buyer_id,
+                    db.select({ id: users.id }).from(users).where(ilike(users.name, term))
+                )
+            )!
+        );
+    }
 
-    return sellerOrders;
+    const listConds = [...base];
+    if (status && status.length > 0) {
+        listConds.push(inArray(orders.status, status));
+    }
+
+    const orderByExpr =
+        sortBy === "total"
+            ? (sortDir === "asc" ? asc(orders.total) : desc(orders.total))
+            : sortBy === "order_number"
+                ? (sortDir === "asc" ? asc(orders.order_number) : desc(orders.order_number))
+                : (sortDir === "asc" ? asc(orders.created_at) : desc(orders.created_at));
+
+    const safeLimit = Math.min(Math.max(limit, 1), 1000);
+    const safePage = Math.max(page, 1);
+    const offset = (safePage - 1) * safeLimit;
+
+    const [list, totalRows, countRows] = await Promise.all([
+        db.query.orders.findMany({
+            where: and(...listConds),
+            orderBy: [orderByExpr],
+            limit: safeLimit,
+            offset,
+            with: {
+                buyer: { columns: { id: true, name: true, email: true } },
+                items: { with: { product: true } },
+                shipping_address: true,
+            },
+        }),
+        db.select({ count: sql<number>`count(*)` }).from(orders).where(and(...listConds)),
+        db
+            .select({ status: orders.status, count: sql<number>`count(*)` })
+            .from(orders)
+            .where(and(...base))
+            .groupBy(orders.status),
+    ]);
+
+    const total = Number(totalRows[0]?.count ?? 0);
+    const statusCounts: Record<string, number> = {};
+    let allCount = 0;
+    for (const row of countRows) {
+        statusCounts[row.status] = Number(row.count);
+        allCount += Number(row.count);
+    }
+    statusCounts.__all = allCount;
+
+    return {
+        orders: list,
+        total,
+        statusCounts,
+        page: safePage,
+        limit: safeLimit,
+        totalPages: Math.max(Math.ceil(total / safeLimit), 1),
+    };
 }
 
 // Seller-driven forward transitions ONLY. DELIVERED is set by the buyer
