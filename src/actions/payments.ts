@@ -575,8 +575,14 @@ export async function runOrderExpirySweep(): Promise<{ expired: number }> {
     }
 
     if (expired > 0) {
-        revalidatePath("/profile/orders");
-        revalidatePath("/seller/orders");
+        // best-effort: revalidatePath throws when called outside a request
+        // context (e.g. an on-demand script invocation), which must not fail the sweep.
+        try {
+            revalidatePath("/profile/orders");
+            revalidatePath("/seller/orders");
+        } catch {
+            /* no request store (script/cron-edge) — pages are dynamic anyway */
+        }
     }
     return { expired };
 }
