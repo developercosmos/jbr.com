@@ -34,6 +34,10 @@ function getNotificationHref(notification: Notification): string | null {
     const sellerId = typeof data.seller_id === "string" ? data.seller_id : null;
     const storeSlug = typeof data.store_slug === "string" ? data.store_slug : null;
     const kycTier = typeof data.tier === "string" ? data.tier : null;
+    // Order notifications fire to both sides — route the seller's copy to the
+    // seller order page, the buyer's to their profile orders. (No audience in
+    // data => buyer, the historical default.)
+    const orderBase = data.audience === "seller" ? "/seller/orders" : "/profile/orders";
 
     switch (notification.type) {
         case "ORDER_CREATED":
@@ -41,7 +45,8 @@ function getNotificationHref(notification: Notification): string | null {
         case "ORDER_SHIPPED":
         case "ORDER_DELIVERED":
         case "ORDER_COMPLETED":
-            return orderId ? `/profile/orders/${orderId}` : "/profile/orders";
+        case "ORDER_REFUNDED":
+            return orderId ? `${orderBase}/${orderId}` : orderBase;
         case "REVIEW_RECEIVED":
         case "NEW_REVIEW":
             return "/seller/reviews";

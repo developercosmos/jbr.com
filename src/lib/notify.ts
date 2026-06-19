@@ -362,7 +362,7 @@ export async function notify(input: NotifyInput) {
             message = input.audience === "buyer"
                 ? `Pesanan ${input.orderNumber} berhasil dibuat dan menunggu pembayaran.`
                 : `Ada pesanan baru ${input.orderNumber} yang perlu diproses.`;
-            data = { order_id: input.orderId, order_number: input.orderNumber };
+            data = { order_id: input.orderId, order_number: input.orderNumber, audience: input.audience };
             emailThunk = input.audience === "buyer"
                 ? () => sendOrderConfirmationEmail({
                     orderNumber: input.orderNumber,
@@ -421,7 +421,7 @@ export async function notify(input: NotifyInput) {
             message = input.audience === "buyer"
                 ? `Pesanan ${input.orderNumber} telah dikonfirmasi sampai.`
                 : `Pembeli telah mengkonfirmasi penerimaan pesanan ${input.orderNumber}.`;
-            data = { order_id: input.orderId, order_number: input.orderNumber };
+            data = { order_id: input.orderId, order_number: input.orderNumber, audience: input.audience };
             emailThunk = input.audience === "buyer" && input.recipientEmail && input.recipientName
                 ? () => sendOrderDeliveredEmail(input.recipientEmail!, input.recipientName!, input.orderId)
                 : null;
@@ -440,13 +440,14 @@ export async function notify(input: NotifyInput) {
                 order_id: input.orderId,
                 order_number: input.orderNumber,
                 auto_released: input.autoReleased,
+                audience: input.audience,
             };
             break;
         case "ORDER_REFUNDED":
             type = "ORDER_REFUNDED";
             title = "Dana Dikembalikan";
             message = `Pesanan ${input.orderNumber} telah di-refund. Dana akan dikembalikan ke metode pembayaran Anda.`;
-            data = { order_id: input.orderId, order_number: input.orderNumber };
+            data = { order_id: input.orderId, order_number: input.orderNumber, audience: input.audience };
             break;
         case "ORDER_CANCELLED":
             // Reuse the ORDER_REFUNDED notification type (no enum migration needed).
@@ -455,7 +456,8 @@ export async function notify(input: NotifyInput) {
             message = input.audience === "seller"
                 ? `Pesanan ${input.orderNumber} dibatalkan${input.reason ? ` (${input.reason})` : ""}. Stok produk telah dikembalikan otomatis.`
                 : `Pesanan ${input.orderNumber} dibatalkan${input.reason ? ` karena ${input.reason}` : ""}. Silakan pesan ulang bila masih dibutuhkan.`;
-            data = { order_id: input.orderId, order_number: input.orderNumber };
+            // audience drives the in-app deep-link (seller vs buyer order page).
+            data = { order_id: input.orderId, order_number: input.orderNumber, audience: input.audience };
             break;
         case "REVIEW_RECEIVED":
             type = "REVIEW_RECEIVED";
