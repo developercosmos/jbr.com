@@ -1,9 +1,10 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Search, Filter, Download, Eye, MoreHorizontal, ArrowUpDown, ChevronLeft, ChevronRight, Package, Truck, CheckCircle, Clock, CreditCard, XCircle } from "lucide-react";
+import { Search, Download, Eye, MoreHorizontal, ArrowUpDown, ChevronLeft, ChevronRight, Package, Truck, CheckCircle, Clock, CreditCard, XCircle } from "lucide-react";
 import { getSellerOrders } from "@/actions/orders";
 import { getSellerProfileByUserId } from "@/actions/seller";
 import { canAccessSellerCenter } from "@/lib/seller";
+import { cn } from "@/lib/utils";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -83,7 +84,23 @@ const statusConfig: Record<string, { label: string; icon: React.ReactNode; bg: s
     },
 };
 
-export default async function SellerOrdersPage() {
+// Horizontal status tabs — group the order lifecycle into actionable buckets so
+// the seller can monitor + act per status. `statuses: null` = "Semua".
+const ORDER_TABS: { key: string; label: string; statuses: string[] | null }[] = [
+    { key: "all", label: "Semua", statuses: null },
+    { key: "unpaid", label: "Menunggu Pembayaran", statuses: ["PENDING_PAYMENT"] },
+    { key: "to_ship", label: "Harus Dikirim", statuses: ["PAID", "PROCESSING"] },
+    { key: "shipping", label: "Sedang Dikirim", statuses: ["SHIPPED"] },
+    { key: "done", label: "Selesai", statuses: ["DELIVERED", "COMPLETED"] },
+    { key: "cancelled", label: "Dibatalkan", statuses: ["CANCELLED", "REFUNDED"] },
+];
+
+export default async function SellerOrdersPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ status?: string }>;
+}) {
+    const { status: statusParam } = await searchParams;
     const session = await auth.api.getSession({ headers: await headers() });
 
     if (!session?.user) {
@@ -96,6 +113,14 @@ export default async function SellerOrdersPage() {
     }
 
     const orders = await getSellerOrders();
+
+    const activeKey = ORDER_TABS.some((t) => t.key === statusParam) ? statusParam! : "all";
+    const activeTab = ORDER_TABS.find((t) => t.key === activeKey)!;
+    const tabCount = (statuses: string[] | null) =>
+        statuses ? orders.filter((o) => statuses.includes(o.status)).length : orders.length;
+    const visibleOrders = activeTab.statuses
+        ? orders.filter((o) => activeTab.statuses!.includes(o.status))
+        : orders;
 
     return (
         <div className="flex-1 p-8 scroll-smooth">
@@ -118,6 +143,38 @@ export default async function SellerOrdersPage() {
                     </div>
                 </div>
 
+                {/* Status tabs — filter by order lifecycle bucket */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    {ORDER_TABS.map((tab) => {
+                        const active = tab.key === activeKey;
+                        const count = tabCount(tab.statuses);
+                        return (
+                            <Link
+                                key={tab.key}
+                                href={tab.key === "all" ? "/seller/orders" : `/seller/orders?status=${tab.key}`}
+                                className={cn(
+                                    "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap border transition-colors",
+                                    active
+                                        ? "bg-brand-primary text-white border-brand-primary shadow-sm"
+                                        : "bg-white dark:bg-surface-dark text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-brand-primary hover:text-brand-primary"
+                                )}
+                            >
+                                {tab.label}
+                                <span
+                                    className={cn(
+                                        "inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-[10px] font-bold",
+                                        active
+                                            ? "bg-white/25 text-white"
+                                            : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                                    )}
+                                >
+                                    {count}
+                                </span>
+                            </Link>
+                        );
+                    })}
+                </div>
+
                 {/* Filters & Search */}
                 <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 p-4 flex flex-col md:flex-row gap-4 justify-between items-center shadow-sm">
                     <div className="relative w-full md:w-96">
@@ -131,10 +188,6 @@ export default async function SellerOrdersPage() {
                         />
                     </div>
                     <div className="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-                        <button className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:border-brand-primary hover:text-brand-primary transition-colors text-sm font-medium whitespace-nowrap">
-                            <Filter className="w-4 h-4" />
-                            Filter Status
-                        </button>
                         <select className="px-4 py-2.5 bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-primary text-sm font-medium cursor-pointer">
                             <option>Semua Waktu</option>
                             <option>Hari Ini</option>
@@ -144,14 +197,16 @@ export default async function SellerOrdersPage() {
                     </div>
                 </div>
 
-                {orders.length === 0 ? (
+                {visibleOrders.length === 0 ? (
                     <div className="text-center py-16 bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800">
                         <Package className="w-16 h-16 mx-auto text-slate-300 mb-4" />
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
-                            Belum ada pesanan
+                            {orders.length === 0 ? "Belum ada pesanan" : "Tidak ada pesanan"}
                         </h3>
                         <p className="text-slate-500">
-                            Pesanan dari pembeli akan muncul di sini.
+                            {orders.length === 0
+                                ? "Pesanan dari pembeli akan muncul di sini."
+                                : `Tidak ada pesanan dengan status "${activeTab.label}".`}
                         </p>
                     </div>
                 ) : (
@@ -175,7 +230,7 @@ export default async function SellerOrdersPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                                    {orders.map((order) => {
+                                    {visibleOrders.map((order) => {
                                         const firstItem = order.items[0];
                                         const status = statusConfig[order.status] || statusConfig.PENDING_PAYMENT;
 
@@ -250,7 +305,7 @@ export default async function SellerOrdersPage() {
                         {/* Pagination */}
                         <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
                             <span className="text-sm text-slate-500">
-                                Menampilkan <span className="font-medium text-slate-900 dark:text-white">{orders.length}</span> pesanan
+                                Menampilkan <span className="font-medium text-slate-900 dark:text-white">{visibleOrders.length}</span> pesanan
                             </span>
                             <div className="flex gap-2">
                                 <button className="p-2 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed">
