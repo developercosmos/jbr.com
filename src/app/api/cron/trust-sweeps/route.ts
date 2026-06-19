@@ -14,7 +14,7 @@ import { runSearchTermRollup } from "@/actions/search-terms";
 import { runSellerWeeklyDigestSweep } from "@/actions/seller-digest";
 import { runSearchIndexReconcile } from "@/actions/search-index-sync";
 import { runGlReconciliation } from "@/actions/accounting/reconciliation";
-import { reconcilePendingPayments } from "@/actions/payments";
+import { reconcilePendingPayments, runOrderExpirySweep } from "@/actions/payments";
 import { runUnansweredChatReminderSweep } from "@/actions/chat-reminders";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
             paymentsReconcile,
             chatReminders,
             expiredOfferCart,
+            orderExpiry,
         ] = await Promise.all([
             runEscrowAutoRelease(),
             runDisputeSlaSweep(),
@@ -78,6 +79,7 @@ export async function POST(request: NextRequest) {
             reconcilePendingPayments(),
             runUnansweredChatReminderSweep(),
             runExpiredOfferCartSweep(),
+            runOrderExpirySweep(),
         ]);
 
         return NextResponse.json({
@@ -102,6 +104,7 @@ export async function POST(request: NextRequest) {
             paymentsReconcile,
             chatReminders,
             expiredOfferCart,
+            orderExpiry,
             ranAt: new Date().toISOString(),
         });
     } catch (error) {

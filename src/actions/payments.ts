@@ -5,7 +5,7 @@ import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result"
 import { payments, orders, order_items, products, product_variants } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, lt, gt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { notify } from "@/lib/notify";
 import { formatCurrency } from "@/lib/format";
@@ -503,6 +503,70 @@ async function restockOrder(orderId: string) {
     }
 }
 
+// Order-level payment TTL. An unpaid order is auto-cancelled this long after
+// creation (matches the Xendit invoice window) regardless of whether an invoice
+// was ever created — so abandoned orders release their reserved stock.
+const ORDER_PAYMENT_TTL_HOURS = Number(process.env.ORDER_PAYMENT_TTL_HOURS || 24);
+
+/**
+ * Cron: cancel stale unpaid orders + restore their stock. Covers the gap where
+ * the invoice-based expiry never fires (order created but no invoice, or a missed
+ * Xendit EXPIRED webhook). An order is spared only while it still has a live
+ * (not-yet-expired) pending invoice the buyer could complete.
+ */
+export async function runOrderExpirySweep(): Promise<{ expired: number }> {
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - ORDER_PAYMENT_TTL_HOURS * 60 * 60 * 1000);
+
+    const stale = await db
+        .select({ id: orders.id })
+        .from(orders)
+        .where(and(eq(orders.status, "PENDING_PAYMENT"), lt(orders.created_at, cutoff)));
+
+    let expired = 0;
+    for (const { id } of stale) {
+        // Keep orders that still have a payable (non-expired) invoice in flight.
+        const liveInvoice = await db.query.payments.findFirst({
+            where: and(
+                eq(payments.order_id, id),
+                eq(payments.status, "PENDING"),
+                gt(payments.expires_at, now)
+            ),
+            columns: { id: true },
+        });
+        if (liveInvoice) continue;
+
+        const cancelled = await db
+            .update(orders)
+            .set({ status: "CANCELLED", updated_at: new Date() })
+            .where(and(eq(orders.id, id), eq(orders.status, "PENDING_PAYMENT")))
+            .returning({ id: orders.id });
+        if (cancelled.length === 0) continue; // lost race (paid/cancelled concurrently)
+
+        await restockOrder(id);
+
+        try {
+            const pending = await db.query.payments.findFirst({
+                where: and(eq(payments.order_id, id), eq(payments.status, "PENDING")),
+                columns: { id: true, xendit_invoice_id: true },
+            });
+            if (pending) {
+                if (pending.xendit_invoice_id) await expireXenditInvoice(pending.xendit_invoice_id);
+                await db.update(payments).set({ status: "EXPIRED", updated_at: new Date() }).where(eq(payments.id, pending.id));
+            }
+        } catch (error) {
+            logger.warn("order:expiry_invoice_cleanup_failed", { orderId: id, error: String(error) });
+        }
+        expired++;
+    }
+
+    if (expired > 0) {
+        revalidatePath("/profile/orders");
+        revalidatePath("/seller/orders");
+    }
+    return { expired };
+}
+
 // Best-effort: expire a live Xendit invoice so a cancelled order can't be paid.
 async function expireXenditInvoice(invoiceId: string): Promise<void> {
     const key = await getXenditSecretKey();
@@ -660,6 +724,16 @@ export async function checkInvoiceStatus(paymentId: string) {
     // settlement), matching handleXenditWebhook's mapping.
     const invoicePaid = invoice.status === "PAID" || invoice.status === "SETTLED";
     if (invoicePaid && payment.status !== "PAID") {
+        await handleXenditWebhook({
+            id: invoice.id,
+            external_id: invoice.external_id,
+            status: invoice.status,
+            payment_method: invoice.payment_method,
+            paid_at: invoice.paid_at,
+        });
+    } else if (invoice.status === "EXPIRED" && payment.status !== "EXPIRED") {
+        // Mirror the EXPIRED webhook so the order is cancelled + stock released
+        // even if Xendit's callback was missed.
         await handleXenditWebhook({
             id: invoice.id,
             external_id: invoice.external_id,
