@@ -519,12 +519,17 @@ export async function runOrderExpirySweep(): Promise<{ expired: number }> {
     const cutoff = new Date(now.getTime() - ORDER_PAYMENT_TTL_HOURS * 60 * 60 * 1000);
 
     const stale = await db
-        .select({ id: orders.id })
+        .select({
+            id: orders.id,
+            orderNumber: orders.order_number,
+            buyerId: orders.buyer_id,
+            sellerId: orders.seller_id,
+        })
         .from(orders)
         .where(and(eq(orders.status, "PENDING_PAYMENT"), lt(orders.created_at, cutoff)));
 
     let expired = 0;
-    for (const { id } of stale) {
+    for (const { id, orderNumber, buyerId, sellerId } of stale) {
         // Keep orders that still have a payable (non-expired) invoice in flight.
         const liveInvoice = await db.query.payments.findFirst({
             where: and(
@@ -556,6 +561,15 @@ export async function runOrderExpirySweep(): Promise<{ expired: number }> {
             }
         } catch (error) {
             logger.warn("order:expiry_invoice_cleanup_failed", { orderId: id, error: String(error) });
+        }
+
+        // Notify both parties that the order was auto-cancelled.
+        const reason = `tidak dibayar dalam ${ORDER_PAYMENT_TTL_HOURS} jam`;
+        try {
+            await notify({ event: "ORDER_CANCELLED", audience: "buyer", recipientUserId: buyerId, orderId: id, orderNumber, reason });
+            await notify({ event: "ORDER_CANCELLED", audience: "seller", recipientUserId: sellerId, orderId: id, orderNumber, reason });
+        } catch (error) {
+            logger.warn("order:expiry_notify_failed", { orderId: id, error: String(error) });
         }
         expired++;
     }

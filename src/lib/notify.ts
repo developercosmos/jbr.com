@@ -104,6 +104,16 @@ type NotifyInput =
         idempotencyKey?: string;
     }
     | {
+        event: "ORDER_CANCELLED";
+        audience: "buyer" | "seller";
+        recipientUserId: string;
+        orderId: string;
+        orderNumber: string;
+        // Short reason shown in the message (e.g. "tidak dibayar dalam 24 jam").
+        reason?: string;
+        idempotencyKey?: string;
+    }
+    | {
         event: "REVIEW_RECEIVED";
         recipientUserId: string;
         actorName: string;
@@ -243,6 +253,8 @@ function getIdempotencyKey(input: NotifyInput) {
             return `${input.event}:${input.orderId}:${input.audience}`;
         case "ORDER_REFUNDED":
             return `${input.event}:${input.orderId}`;
+        case "ORDER_CANCELLED":
+            return `${input.event}:${input.orderId}:${input.audience}`;
         case "REVIEW_RECEIVED":
             return `${input.event}:${input.reviewId}:${input.recipientUserId}`;
         case "REVIEW_REPLY":
@@ -280,7 +292,8 @@ function ctaForEvent(input: NotifyInput): { url: string; label: string } | undef
     switch (input.event) {
         case "ORDER_CREATED":
         case "ORDER_DELIVERED":
-        case "ORDER_COMPLETED": {
+        case "ORDER_COMPLETED":
+        case "ORDER_CANCELLED": {
             const audience = "audience" in input ? input.audience : "buyer";
             const path = audience === "seller" ? `/seller/orders/${input.orderId}` : `/profile/orders/${input.orderId}`;
             return { url: `${base}${path}`, label: "Lihat Pesanan" };
@@ -433,6 +446,15 @@ export async function notify(input: NotifyInput) {
             type = "ORDER_REFUNDED";
             title = "Dana Dikembalikan";
             message = `Pesanan ${input.orderNumber} telah di-refund. Dana akan dikembalikan ke metode pembayaran Anda.`;
+            data = { order_id: input.orderId, order_number: input.orderNumber };
+            break;
+        case "ORDER_CANCELLED":
+            // Reuse the ORDER_REFUNDED notification type (no enum migration needed).
+            type = "ORDER_REFUNDED";
+            title = "Pesanan Dibatalkan";
+            message = input.audience === "seller"
+                ? `Pesanan ${input.orderNumber} dibatalkan${input.reason ? ` (${input.reason})` : ""}. Stok produk telah dikembalikan otomatis.`
+                : `Pesanan ${input.orderNumber} dibatalkan${input.reason ? ` karena ${input.reason}` : ""}. Silakan pesan ulang bila masih dibutuhkan.`;
             data = { order_id: input.orderId, order_number: input.orderNumber };
             break;
         case "REVIEW_RECEIVED":
