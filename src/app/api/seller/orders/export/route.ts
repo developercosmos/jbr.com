@@ -36,6 +36,9 @@ export async function GET(req: NextRequest) {
         const stamp = new Date().toISOString().slice(0, 10);
         return csvResponse(`pesanan-${stamp}.csv`, rowsToCsv(headers, rows));
     } catch (error) {
+        if (error instanceof Error && error.message === "Unauthorized") {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
         console.error("[API] seller orders export failed:", error);
         return NextResponse.json({ error: "Gagal mengekspor pesanan" }, { status: 500 });
     }
