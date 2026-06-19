@@ -1,7 +1,7 @@
 import { getCategories } from "@/actions/categories";
 import { getFilteredProducts, getProductCount } from "@/actions/products";
 import Link from "next/link";
-import { Wrench, Package, ChevronRight, Store } from "lucide-react";
+import { Wrench, Package, ChevronRight } from "lucide-react";
 import { SellerBadgeIcon } from "@/components/seller/SellerBadges";
 
 // Icons from react-icons - using verified available icons
@@ -154,18 +154,6 @@ export default async function EquipmentPage() {
                                             {product.condition === "NEW" ? "Baru" : "Preloved"}
                                         </span>
                                     </div>
-                                    {/* Store name — revealed on hover over the image */}
-                                    {product.seller?.store_name && (
-                                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2 pt-6 pb-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <span className="flex items-center gap-1 text-white text-[11px] font-medium">
-                                                <Store className="w-3 h-3 shrink-0" />
-                                                <span className="truncate">{product.seller.store_name}</span>
-                                                {(product.seller.tier === "T1" || product.seller.tier === "T2") && (
-                                                    <SellerBadgeIcon type="verified" size={13} />
-                                                )}
-                                            </span>
-                                        </div>
-                                    )}
                                 </div>
                                 <div className="p-3">
                                     <h3 className="text-sm font-medium text-slate-900 line-clamp-2 mb-1 group-hover:text-brand-primary transition-colors">
@@ -178,6 +166,14 @@ export default async function EquipmentPage() {
                                             minimumFractionDigits: 0,
                                         }).format(parseFloat(product.price))}
                                     </p>
+                                    {product.seller && (
+                                        <p className="text-xs text-slate-500 mt-1 truncate flex items-center gap-1">
+                                            <span className="truncate">{product.seller.store_name || product.seller.name}</span>
+                                            {(product.seller.tier === "T1" || product.seller.tier === "T2") && (
+                                                <SellerBadgeIcon type="verified" size={13} />
+                                            )}
+                                        </p>
+                                    )}
                                 </div>
                             </Link>
                         ))}
