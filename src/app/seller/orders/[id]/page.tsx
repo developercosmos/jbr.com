@@ -19,6 +19,7 @@ export const dynamic = "force-dynamic";
 const statusConfig: Record<string, { label: string; className: string }> = {
     PENDING_PAYMENT: { label: "Menunggu Pembayaran", className: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300" },
     PAID: { label: "Dibayar", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" },
+    PACKING: { label: "Dikemas", className: "bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300" },
     PROCESSING: { label: "Diproses", className: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300" },
     SHIPPED: { label: "Dikirim", className: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300" },
     DELIVERED: { label: "Diterima", className: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300" },
@@ -38,11 +39,12 @@ function formatDate(date: Date) {
 }
 
 const NEXT_STATUSES: Record<string, { value: string; label: string; className: string }[]> = {
-    PAID: [{ value: "PROCESSING", label: "Proses Pesanan", className: "bg-indigo-600 hover:bg-indigo-700 text-white" }],
-    // PROCESSING → SHIPPED is handled by the dedicated "Kirim Pesanan" form below
-    // (captures courier + resi via updateShippingInfo and notifies the buyer).
-    // Cancellation is a separate action (sellerCancelOrder) — NOT a status button,
-    // because PAID/PROCESSING cancels must also restock + refund, not just flip status.
+    // PAID → PACKING (mulai kemas) → PROCESSING (mulai pengiriman / request pickup).
+    PAID: [{ value: "PACKING", label: "Proses Pesanan", className: "bg-indigo-600 hover:bg-indigo-700 text-white" }],
+    PACKING: [{ value: "PROCESSING", label: "Mulai Pengiriman", className: "bg-emerald-600 hover:bg-emerald-700 text-white" }],
+    // PROCESSING → SHIPPED is handled by the dedicated "Kirim Pesanan" form / Biteship
+    // pickup. Cancellation is a separate action (sellerCancelOrder), NOT a status
+    // button, because pre-ship cancels must also restock + refund.
     PROCESSING: [],
     // After SHIPPED the seller has no further status action: the BUYER confirms
     // receipt (sets DELIVERED + arms escrow), then funds auto-release. Letting the
@@ -93,7 +95,7 @@ export default async function SellerOrderDetailPage({
     // Biteship booking context: live rate options when the order is bookable.
     // Null when the integration is off, already booked, or not in a shippable state.
     const biteshipRates =
-        (order.status === "PAID" || order.status === "PROCESSING") && !order.biteship_order_id
+        (order.status === "PACKING" || order.status === "PROCESSING") && !order.biteship_order_id
             ? await getBiteshipRatesForOrder(order.id).catch(() => null)
             : null;
 
@@ -245,7 +247,7 @@ export default async function SellerOrderDetailPage({
                         )}
 
                         {/* Cancel — pre-shipment only; restocks + flags refund + notifies buyer */}
-                        {(order.status === "PAID" || order.status === "PROCESSING") && !order.biteship_order_id && (
+                        {(order.status === "PAID" || order.status === "PACKING" || order.status === "PROCESSING") && !order.biteship_order_id && (
                             <div className="bg-white dark:bg-surface-dark rounded-xl border border-rose-200 dark:border-rose-900/50 shadow-sm p-6">
                                 <h2 className="font-bold text-slate-900 dark:text-white mb-1">Batalkan Pesanan</h2>
                                 <p className="text-xs text-slate-500 mb-4">
@@ -284,7 +286,7 @@ export default async function SellerOrderDetailPage({
                         )}
 
                         {/* Biteship: book-a-pickup panel (only when integration is configured) */}
-                        {!order.biteship_order_id && biteshipRates?.configured && (order.status === "PAID" || order.status === "PROCESSING") && (
+                        {!order.biteship_order_id && biteshipRates?.configured && (order.status === "PACKING" || order.status === "PROCESSING") && (
                             <div className="bg-white dark:bg-surface-dark rounded-xl border border-emerald-200 dark:border-emerald-900/50 shadow-sm p-6">
                                 <h2 className="font-bold text-slate-900 dark:text-white mb-1 flex items-center gap-2">
                                     <Truck className="w-4 h-4 text-emerald-600" /> Request Pickup (Biteship)
@@ -325,7 +327,7 @@ export default async function SellerOrderDetailPage({
                         )}
 
                         {/* Ship form — captures courier + resi, sets SHIPPED, and notifies the buyer */}
-                        {(order.status === "PAID" || order.status === "PROCESSING") && (
+                        {(order.status === "PACKING" || order.status === "PROCESSING") && (
                             <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
                                 <h2 className="font-bold text-slate-900 dark:text-white mb-1">Kirim Pesanan</h2>
                                 <p className="text-xs text-slate-500 mb-4">Masukkan kurir dan nomor resi. Pembeli akan menerima notifikasi pelacakan.</p>

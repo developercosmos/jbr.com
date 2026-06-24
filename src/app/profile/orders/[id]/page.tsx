@@ -30,6 +30,13 @@ const statusConfig: Record<string, { label: string; icon: React.ReactNode; bg: s
         text: "text-emerald-800 dark:text-emerald-300",
         border: "border-emerald-200 dark:border-emerald-700/50"
     },
+    PACKING: {
+        label: "Dikemas",
+        icon: <Package className="w-4 h-4" />,
+        bg: "bg-violet-100 dark:bg-violet-900/30",
+        text: "text-violet-800 dark:text-violet-300",
+        border: "border-violet-200 dark:border-violet-700/50"
+    },
     PROCESSING: {
         label: "Diproses",
         icon: <Package className="w-4 h-4" />,
@@ -125,7 +132,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
         : new Set<string>();
 
     // Buyer can open an order dispute while funds are in escrow (PAID..DELIVERED).
-    const canDispute = ["PAID", "PROCESSING", "SHIPPED", "DELIVERED"].includes(order.status);
+    const canDispute = ["PAID", "PACKING", "PROCESSING", "SHIPPED", "DELIVERED"].includes(order.status);
     const existingDispute = canDispute ? await getOrderDisputeForBuyer(order.id).catch(() => null) : null;
 
     return (
@@ -216,7 +223,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
                                                 Tampilan &amp; detail sesuai saat pembelian.
                                             </p>
                                         )}
-                                        {(order.status === "PAID" || order.status === "PROCESSING" || order.status === "SHIPPED" || order.status === "DELIVERED") && (
+                                        {(order.status === "PAID" || order.status === "PACKING" || order.status === "PROCESSING" || order.status === "SHIPPED" || order.status === "DELIVERED") && (
                                             <div className="mt-2">
                                                 <StringingAddOnButton
                                                     orderItemId={item.id}

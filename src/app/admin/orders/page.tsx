@@ -26,6 +26,7 @@ function formatDate(date: Date) {
 const statusConfig: Record<string, { label: string; bg: string; text: string; ring: string }> = {
     PENDING_PAYMENT: { label: "Pending", bg: "bg-yellow-50", text: "text-yellow-700", ring: "ring-yellow-600/20" },
     PAID: { label: "Paid", bg: "bg-emerald-50", text: "text-emerald-700", ring: "ring-emerald-600/20" },
+    PACKING: { label: "Packing", bg: "bg-violet-50", text: "text-violet-700", ring: "ring-violet-600/20" },
     PROCESSING: { label: "Processing", bg: "bg-blue-50", text: "text-blue-700", ring: "ring-blue-600/20" },
     SHIPPED: { label: "Shipped", bg: "bg-indigo-50", text: "text-indigo-700", ring: "ring-indigo-600/20" },
     DELIVERED: { label: "Delivered", bg: "bg-green-50", text: "text-green-700", ring: "ring-green-600/20" },

@@ -7,7 +7,7 @@
 
 import { db } from "@/db";
 import { addresses, orders } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
@@ -96,8 +96,8 @@ export async function getBiteshipRatesForOrder(orderId: string): Promise<Biteshi
     if (order.biteship_order_id) {
         return { configured: true, available: false, reason: "Pickup sudah dibooking untuk pesanan ini.", options: [] };
     }
-    if (order.status !== "PAID" && order.status !== "PROCESSING") {
-        return { configured: true, available: false, reason: "Pesanan belum/tidak dalam status yang bisa dikirim.", options: [] };
+    if (order.status !== "PACKING" && order.status !== "PROCESSING") {
+        return { configured: true, available: false, reason: "Proses pesanan dulu (status Dikemas) sebelum atur pengiriman.", options: [] };
     }
     if (!order.shipping_address) {
         return { configured: true, available: false, reason: "Pesanan tidak memiliki alamat pengiriman.", options: [] };
@@ -165,8 +165,8 @@ export async function requestBiteshipPickup(input: z.infer<typeof requestPickupS
 
     const order = await loadSellerOrder(validated.orderId, user.id);
     if (order.biteship_order_id) throw new Error("Pickup sudah dibooking untuk pesanan ini.");
-    if (order.status !== "PAID" && order.status !== "PROCESSING") {
-        throw new Error("Pesanan tidak dalam status yang bisa dikirim.");
+    if (order.status !== "PACKING" && order.status !== "PROCESSING") {
+        throw new Error("Proses pesanan dulu (status Dikemas) sebelum request pickup.");
     }
     if (!order.shipping_address) throw new Error("Pesanan tidak memiliki alamat pengiriman.");
     const destination = toLocation(order.shipping_address);
@@ -207,9 +207,12 @@ export async function requestBiteshipPickup(input: z.infer<typeof requestPickupS
             biteship_order_id: result.id,
             shipping_provider: providerLabel,
             tracking_number: result.waybillId ?? order.tracking_number,
+            // Courier requested -> advance to PROCESSING ("proses pengiriman").
+            // Webhook "picked" later moves it to SHIPPED with the resi.
+            status: "PROCESSING",
             updated_at: new Date(),
         })
-        .where(eq(orders.id, order.id));
+        .where(and(eq(orders.id, order.id), inArray(orders.status, ["PACKING", "PROCESSING"])));
 
     revalidatePath(`/seller/orders/${order.id}`);
     revalidatePath("/seller/orders");

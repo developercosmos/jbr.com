@@ -36,7 +36,7 @@ const createOrderDisputeSchema = z.object({
 
 // Order statuses where a buyer dispute makes sense (money is in escrow, goods in flight
 // or claimed delivered). Not allowed before payment or after the order is closed out.
-const DISPUTABLE_ORDER_STATUSES = ["PAID", "PROCESSING", "SHIPPED", "DELIVERED"] as const;
+const DISPUTABLE_ORDER_STATUSES = ["PAID", "PACKING", "PROCESSING", "SHIPPED", "DELIVERED"] as const;
 
 export async function createOrderDispute(input: z.infer<typeof createOrderDisputeSchema>) {
     try {

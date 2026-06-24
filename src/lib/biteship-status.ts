@@ -67,7 +67,7 @@ export async function applyBiteshipStatusUpdate(params: {
             const [updated] = await db
                 .update(orders)
                 .set({ status: "SHIPPED", shipped_at: new Date(), updated_at: new Date() })
-                .where(and(eq(orders.id, order.id), inArray(orders.status, ["PAID", "PROCESSING"])))
+                .where(and(eq(orders.id, order.id), inArray(orders.status, ["PAID", "PACKING", "PROCESSING"])))
                 .returning({ id: orders.id });
             if (updated && order.buyer) {
                 await notify({
@@ -99,7 +99,7 @@ export async function applyBiteshipStatusUpdate(params: {
                     shipped_at: order.shipped_at ?? new Date(),
                     updated_at: new Date(),
                 })
-                .where(and(eq(orders.id, order.id), inArray(orders.status, ["PAID", "PROCESSING", "SHIPPED"])))
+                .where(and(eq(orders.id, order.id), inArray(orders.status, ["PAID", "PACKING", "PROCESSING", "SHIPPED"])))
                 .returning({ id: orders.id });
             if (updated) {
                 if (order.buyer) {
@@ -130,7 +130,7 @@ export async function applyBiteshipStatusUpdate(params: {
             const [reverted] = await db
                 .update(orders)
                 .set({ biteship_order_id: null, updated_at: new Date() })
-                .where(and(eq(orders.id, order.id), inArray(orders.status, ["PAID", "PROCESSING"])))
+                .where(and(eq(orders.id, order.id), inArray(orders.status, ["PAID", "PACKING", "PROCESSING"])))
                 .returning({ id: orders.id });
             await db
                 .insert(notifications)

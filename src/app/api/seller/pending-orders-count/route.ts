@@ -28,7 +28,7 @@ export async function GET() {
             .where(
                 and(
                     eq(products.seller_id, sellerId),
-                    inArray(orders.status, ["PROCESSING", "PAID"])
+                    inArray(orders.status, ["PAID", "PACKING", "PROCESSING"])
                 )
             );
 

@@ -41,7 +41,7 @@ export default async function SellerAnalyticsPage() {
 
     // Get top products from PAID (settled) orders only — unpaid orders are not
     // real sales yet, so they must not inflate the best-seller counts.
-    const SETTLED_ORDER_STATUSES = new Set(["PAID", "PROCESSING", "SHIPPED", "DELIVERED", "COMPLETED"]);
+    const SETTLED_ORDER_STATUSES = new Set(["PAID", "PACKING", "PROCESSING", "SHIPPED", "DELIVERED", "COMPLETED"]);
     const productSales: Record<string, { title: string; image: string | null; count: number }> = {};
     recentOrders.forEach(order => {
         if (!SETTLED_ORDER_STATUSES.has(order.status)) return;

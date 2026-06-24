@@ -746,13 +746,16 @@ export async function getSellerOrders(query: SellerOrdersQuery = {}) {
 // Allowing a seller to mark DELIVERED/COMPLETED would arm auto-release (or directly
 // release) escrowed funds without the buyer ever receiving the goods.
 const SELLER_ALLOWED_TRANSITIONS: Record<string, ReadonlyArray<string>> = {
-    PAID: ["PROCESSING"],
+    // PAID -> PACKING (seller starts packing) -> PROCESSING (ready/courier requested)
+    // -> SHIPPED (courier picked up; set via updateShippingInfo / Biteship webhook).
+    PAID: ["PACKING"],
+    PACKING: ["PROCESSING"],
     PROCESSING: ["SHIPPED"],
 };
 
 export async function updateOrderStatus(
     orderId: string,
-    status: "PROCESSING" | "SHIPPED" | "DELIVERED" | "COMPLETED" | "CANCELLED"
+    status: "PACKING" | "PROCESSING" | "SHIPPED" | "DELIVERED" | "COMPLETED" | "CANCELLED"
 ) {
     const user = await getCurrentUser();
 
@@ -851,7 +854,7 @@ export async function getSellerStats() {
 
     // Settled = buyer has paid (revenue realized). PENDING_PAYMENT is only
     // POTENTIAL until paid; CANCELLED/REFUNDED never count.
-    const SETTLED_STATUSES = new Set(["PAID", "PROCESSING", "SHIPPED", "DELIVERED", "COMPLETED"]);
+    const SETTLED_STATUSES = new Set(["PAID", "PACKING", "PROCESSING", "SHIPPED", "DELIVERED", "COMPLETED"]);
     const isSettled = (status: string) => SETTLED_STATUSES.has(status);
 
     // Calculate stats — Total Pendapatan = settled only.

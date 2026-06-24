@@ -18,6 +18,13 @@ const statusConfig: Record<string, { label: string; icon: React.ReactNode; bg: s
         text: "text-emerald-800 dark:text-emerald-300",
         border: "border-emerald-200 dark:border-emerald-700/50"
     },
+    PACKING: {
+        label: "Dikemas",
+        icon: <Package className="w-3 h-3 mr-1" />,
+        bg: "bg-violet-100 dark:bg-violet-900/30",
+        text: "text-violet-800 dark:text-violet-300",
+        border: "border-violet-200 dark:border-violet-700/50"
+    },
     PROCESSING: {
         label: "Diproses",
         icon: <Package className="w-3 h-3 mr-1" />,

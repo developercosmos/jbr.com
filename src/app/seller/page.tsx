@@ -29,6 +29,10 @@ const statusConfig: Record<string, { label: string; className: string }> = {
         label: "Menunggu Pembayaran",
         className: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300 border border-orange-200 dark:border-orange-700/50",
     },
+    PACKING: {
+        label: "Dikemas",
+        className: "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300 border border-violet-200 dark:border-violet-700/50",
+    },
     PROCESSING: {
         label: "Perlu Dikirim",
         className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-700/50",

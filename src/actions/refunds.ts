@@ -25,7 +25,7 @@ async function requireAdmin() {
 }
 
 // Orders whose funds have left the buyer and can therefore be refunded.
-const REFUNDABLE_STATUSES = ["PAID", "PROCESSING", "SHIPPED", "DELIVERED"] as const;
+const REFUNDABLE_STATUSES = ["PAID", "PACKING", "PROCESSING", "SHIPPED", "DELIVERED"] as const;
 
 /**
  * Admin-gated full refund for an order. Idempotent and atomic:
@@ -76,7 +76,7 @@ async function applyRefund(order: {
         .where(
             and(
                 eq(orders.id, order.id),
-                sql`${orders.status} IN ('PAID','PROCESSING','SHIPPED','DELIVERED')`
+                sql`${orders.status} IN ('PAID','PACKING','PROCESSING','SHIPPED','DELIVERED')`
             )
         )
         .returning({ id: orders.id });
@@ -186,10 +186,10 @@ export async function sellerCancelOrder(input: { orderId: string }) {
     if (order.seller_id !== session.user.id) {
         return { success: false as const, error: "Anda bukan penjual pesanan ini" };
     }
-    if (order.status !== "PAID" && order.status !== "PROCESSING") {
+    if (order.status !== "PAID" && order.status !== "PACKING" && order.status !== "PROCESSING") {
         return {
             success: false as const,
-            error: "Pesanan hanya dapat dibatalkan sebelum dikirim (status Dibayar/Diproses).",
+            error: "Pesanan hanya dapat dibatalkan sebelum dikirim (status Dibayar/Dikemas/Diproses).",
         };
     }
     if (order.biteship_order_id) {

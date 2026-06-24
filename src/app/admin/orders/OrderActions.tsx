@@ -59,6 +59,7 @@ function formatDate(date: Date) {
 const statusConfig: Record<string, { label: string; color: string; icon: typeof CheckCircle }> = {
     PENDING_PAYMENT: { label: "Menunggu Pembayaran", color: "text-yellow-600", icon: Clock },
     PAID: { label: "Dibayar", color: "text-emerald-600", icon: CheckCircle },
+    PACKING: { label: "Dikemas", color: "text-violet-600", icon: Package },
     PROCESSING: { label: "Diproses", color: "text-blue-600", icon: Package },
     SHIPPED: { label: "Dikirim", color: "text-indigo-600", icon: Truck },
     DELIVERED: { label: "Diterima", color: "text-green-600", icon: CheckCircle },

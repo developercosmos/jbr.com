@@ -9,7 +9,9 @@ export type OrderTab = { key: string; label: string; statuses: string[] | null }
 export const ORDER_TABS: OrderTab[] = [
     { key: "all", label: "Semua", statuses: null },
     { key: "unpaid", label: "Menunggu Pembayaran", statuses: ["PENDING_PAYMENT"] },
-    { key: "to_ship", label: "Harus Dikirim", statuses: ["PAID", "PROCESSING"] },
+    { key: "to_process", label: "Perlu Diproses", statuses: ["PAID"] },
+    { key: "packing", label: "Dikemas", statuses: ["PACKING"] },
+    { key: "to_ship", label: "Siap Kirim", statuses: ["PROCESSING"] },
     { key: "shipping", label: "Sedang Dikirim", statuses: ["SHIPPED"] },
     { key: "done", label: "Selesai", statuses: ["DELIVERED", "COMPLETED"] },
     { key: "cancelled", label: "Dibatalkan", statuses: ["CANCELLED", "REFUNDED"] },

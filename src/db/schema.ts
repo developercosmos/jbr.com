@@ -29,6 +29,7 @@ export const productStatusEnum = pgEnum("product_status", ["DRAFT", "PUBLISHED",
 export const orderStatusEnum = pgEnum("order_status", [
     "PENDING_PAYMENT",
     "PAID",
+    "PACKING",
     "PROCESSING",
     "SHIPPED",
     "DELIVERED",

@@ -555,7 +555,7 @@ export async function updateShippingInfo(input: z.infer<typeof updateShippingSch
         throw new Error("Order not found");
     }
 
-    if (order.status !== "PAID" && order.status !== "PROCESSING") {
+    if (order.status !== "PACKING" && order.status !== "PROCESSING") {
         throw new Error("Order cannot be shipped in current status");
     }
 
