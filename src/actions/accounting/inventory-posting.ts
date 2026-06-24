@@ -1,4 +1,4 @@
-"use server";
+import "server-only"; // SECURITY: internal accounting/ledger layer — NOT a Server Action surface
 
 /**
  * GL — 1P Inventory + COGS posting helpers (Phase 8).

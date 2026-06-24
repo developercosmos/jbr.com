@@ -1,4 +1,4 @@
-"use server";
+import "server-only"; // SECURITY: internal accounting/ledger layer — NOT a Server Action surface
 
 /**
  * GL — Seller sub-ledger (tier-1.5).

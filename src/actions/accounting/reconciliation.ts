@@ -1,4 +1,4 @@
-"use server";
+import "server-only"; // SECURITY: internal accounting/ledger layer — NOT a Server Action surface
 
 /**
  * GL-04 — Reconciliation between legacy ledger (ledger_entries) and new GL

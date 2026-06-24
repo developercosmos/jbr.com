@@ -1,4 +1,4 @@
-"use server";
+import "server-only"; // SECURITY: internal accounting/ledger layer — NOT a Server Action surface
 
 /**
  * Auto-posting helpers for business events (Phase 2).

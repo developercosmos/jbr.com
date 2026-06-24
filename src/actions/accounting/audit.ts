@@ -1,4 +1,4 @@
-"use server";
+import "server-only"; // SECURITY: internal accounting/ledger layer — NOT a Server Action surface
 
 /**
  * GL — Finance audit log helper (Phase 10).

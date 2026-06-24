@@ -1,4 +1,4 @@
-"use server";
+import "server-only"; // SECURITY: internal accounting/ledger layer — NOT a Server Action surface
 
 import { db } from "@/db";
 import { accounting_settings } from "@/db/schema";
