@@ -6,6 +6,7 @@ import { canAccessSellerCenter } from "@/lib/seller";
 import { getOrderById, updateOrderStatus } from "@/actions/orders";
 import { updateShippingInfo } from "@/actions/shipping";
 import { getBiteshipRatesForOrder, requestBiteshipPickup, syncBiteshipOrderStatus } from "@/actions/shipping-biteship";
+import { sellerCancelOrder } from "@/actions/refunds";
 import { getSellerInteractionRatingForContext } from "@/actions/reputation";
 import Image from "next/image";
 import Link from "next/link";
@@ -39,11 +40,10 @@ function formatDate(date: Date) {
 const NEXT_STATUSES: Record<string, { value: string; label: string; className: string }[]> = {
     PAID: [{ value: "PROCESSING", label: "Proses Pesanan", className: "bg-indigo-600 hover:bg-indigo-700 text-white" }],
     // PROCESSING → SHIPPED is handled by the dedicated "Kirim Pesanan" form below
-    // (it captures courier + resi via updateShippingInfo and notifies the buyer),
-    // so only the cancel action remains as a plain status button.
-    PROCESSING: [
-        { value: "CANCELLED", label: "Batalkan", className: "bg-red-600 hover:bg-red-700 text-white" },
-    ],
+    // (captures courier + resi via updateShippingInfo and notifies the buyer).
+    // Cancellation is a separate action (sellerCancelOrder) — NOT a status button,
+    // because PAID/PROCESSING cancels must also restock + refund, not just flip status.
+    PROCESSING: [],
     // After SHIPPED the seller has no further status action: the BUYER confirms
     // receipt (sets DELIVERED + arms escrow), then funds auto-release. Letting the
     // seller self-mark DELIVERED would release escrow without the buyer receiving
@@ -117,6 +117,16 @@ export default async function SellerOrderDetailPage({
         try {
             await updateShippingInfo({ orderId: id, trackingNumber, shippingProvider, estimatedDelivery });
         } catch { /* validation/ownership errors surface on refresh */ }
+        revalidatePath(`/seller/orders/${id}`);
+        revalidatePath("/seller/orders");
+    }
+
+    async function handleCancel() {
+        "use server";
+        const res = await sellerCancelOrder({ orderId: id });
+        if (!res.success) {
+            redirect(`/seller/orders/${id}?bsError=${encodeURIComponent(res.error)}`);
+        }
         revalidatePath(`/seller/orders/${id}`);
         revalidatePath("/seller/orders");
     }
@@ -231,6 +241,23 @@ export default async function SellerOrderDetailPage({
                         {bsError && (
                             <div className="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-xl p-4 text-sm text-rose-700 dark:text-rose-300">
                                 {bsError}
+                            </div>
+                        )}
+
+                        {/* Cancel — pre-shipment only; restocks + flags refund + notifies buyer */}
+                        {(order.status === "PAID" || order.status === "PROCESSING") && !order.biteship_order_id && (
+                            <div className="bg-white dark:bg-surface-dark rounded-xl border border-rose-200 dark:border-rose-900/50 shadow-sm p-6">
+                                <h2 className="font-bold text-slate-900 dark:text-white mb-1">Batalkan Pesanan</h2>
+                                <p className="text-xs text-slate-500 mb-4">
+                                    Gunakan bila stok habis / pesanan tak dapat dipenuhi. Stok dikembalikan, pembeli
+                                    dinotifikasi, dan dana ditandai untuk dikembalikan (status menjadi Dikembalikan).
+                                    Tidak dapat dibatalkan setelah pesanan dikirim.
+                                </p>
+                                <form action={handleCancel}>
+                                    <button type="submit" className="px-5 py-2.5 rounded-xl font-bold text-sm bg-rose-600 hover:bg-rose-700 text-white transition-colors">
+                                        Batalkan &amp; Refund Pembeli
+                                    </button>
+                                </form>
                             </div>
                         )}
 

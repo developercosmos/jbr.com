@@ -54,13 +54,28 @@ export async function refundOrder(input: { orderId: string; reason?: string }) {
         throw new Error(`Pesanan berstatus ${order.status} tidak dapat di-refund`);
     }
 
+    return applyRefund(order);
+}
+
+/**
+ * Core refund mechanics: atomic flip → restock → ledger/GL/affiliate reversal →
+ * notify buyer. Shared by admin {@link refundOrder} and {@link sellerCancelOrder}.
+ * The atomic guard makes it idempotent and race-safe regardless of caller.
+ */
+async function applyRefund(order: {
+    id: string;
+    order_number: string;
+    status: string;
+    buyer_id: string;
+    total: string;
+}) {
     // Atomic guard: only the first caller that flips a still-refundable order wins.
     const won = await db
         .update(orders)
         .set({ status: "REFUNDED", updated_at: new Date() })
         .where(
             and(
-                eq(orders.id, input.orderId),
+                eq(orders.id, order.id),
                 sql`${orders.status} IN ('PAID','PROCESSING','SHIPPED','DELIVERED')`
             )
         )
@@ -79,7 +94,7 @@ export async function refundOrder(input: { orderId: string; reason?: string }) {
             quantity: order_items.quantity,
         })
         .from(order_items)
-        .where(eq(order_items.order_id, input.orderId));
+        .where(eq(order_items.order_id, order.id));
 
     for (const item of items) {
         if (item.variant_id) {
@@ -139,4 +154,57 @@ export async function refundOrder(input: { orderId: string; reason?: string }) {
     revalidatePath("/seller/orders");
 
     return { success: true, refundedAmount: amount };
+}
+
+/**
+ * Seller-initiated cancellation of a PRE-SHIPMENT paid order (status PAID or
+ * PROCESSING), e.g. the seller ran out of stock. Restocks, reverses the escrow
+ * ledger (records the refund obligation), and notifies the buyer; status → REFUNDED.
+ *
+ * NOTE: like {@link refundOrder}, this records the refund in our books and
+ * releases inventory — the actual money-back to the buyer (Xendit refund API /
+ * manual transfer) is still an operational step until the gateway call is wired.
+ * After SHIPPED a cancellation must go through the dispute flow instead.
+ */
+export async function sellerCancelOrder(input: { orderId: string }) {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) return { success: false as const, error: "Tidak terautentikasi" };
+
+    const order = await db.query.orders.findFirst({
+        where: eq(orders.id, input.orderId),
+        columns: {
+            id: true,
+            order_number: true,
+            status: true,
+            buyer_id: true,
+            seller_id: true,
+            total: true,
+            biteship_order_id: true,
+        },
+    });
+    if (!order) return { success: false as const, error: "Pesanan tidak ditemukan" };
+    if (order.seller_id !== session.user.id) {
+        return { success: false as const, error: "Anda bukan penjual pesanan ini" };
+    }
+    if (order.status !== "PAID" && order.status !== "PROCESSING") {
+        return {
+            success: false as const,
+            error: "Pesanan hanya dapat dibatalkan sebelum dikirim (status Dibayar/Diproses).",
+        };
+    }
+    if (order.biteship_order_id) {
+        return {
+            success: false as const,
+            error: "Pickup kurir sudah dibooking — batalkan booking kurir terlebih dahulu.",
+        };
+    }
+
+    await applyRefund({
+        id: order.id,
+        order_number: order.order_number,
+        status: order.status,
+        buyer_id: order.buyer_id,
+        total: order.total,
+    });
+    return { success: true as const };
 }
