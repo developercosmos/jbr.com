@@ -8,6 +8,7 @@ import {
     sendWelcomeEmail
 } from "@/lib/email";
 import { auth } from "@/lib/auth";
+import { assertInternalCall } from "@/lib/internal-guard";
 import { headers } from "next/headers";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
@@ -215,7 +216,10 @@ export async function verifyEmail(token: string) {
 // WELCOME EMAIL (called after registration)
 // ============================================
 
-export async function sendWelcomeEmailAction(userId: string) {
+export async function sendWelcomeEmailAction(userId: string, internalToken?: string) {
+    // SECURITY: internal-only — triggered by the signup flow; prevents anonymous
+    // welcome-email bombing of an arbitrary userId.
+    assertInternalCall(internalToken);
     try {
         const user = await db.query.users.findFirst({
             where: eq(users.id, userId),

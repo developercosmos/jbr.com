@@ -18,7 +18,7 @@ import {
     users,
 } from "@/db/schema";
 import { auth } from "@/lib/auth";
-import { assertInternalCall } from "@/lib/internal-guard";
+import { assertInternalCall, INTERNAL_CALL_TOKEN } from "@/lib/internal-guard";
 import { headers } from "next/headers";
 import { and, eq, isNull, ne, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -37,7 +37,9 @@ async function getCurrentUser() {
 // ============================================
 // RATE-01: Seller rating aggregate
 // ============================================
-export async function recomputeSellerRating(sellerId: string) {
+export async function recomputeSellerRating(sellerId: string, internalToken?: string) {
+    // SECURITY: internal recompute — triggered by escrow/review/queue/cron only.
+    assertInternalCall(internalToken);
     // Average review rating from product reviews where this user is the seller.
     const [reviewStats] = await db
         .select({
@@ -266,7 +268,7 @@ async function submitBuyerRatingInternal(input: z.infer<typeof submitBuyerRating
     if (direction === "SELLER_RATES_BUYER") {
         await recomputeBuyerScore(rateeId);
     } else {
-        await recomputeSellerRating(rateeId);
+        await recomputeSellerRating(rateeId, INTERNAL_CALL_TOKEN);
     }
 
     revalidatePath(`/profile/orders/${validated.orderId}`);
@@ -682,8 +684,9 @@ async function moderateBuyerInteractionRatingInternal(input: z.infer<typeof mode
     return { success: true as const, buyerId: rating.buyer_id, invalidated: validated.invalidated };
 }
 
-export async function recomputeBuyerReputationSummary(buyerId: string) {
-    await getCurrentUser();
+export async function recomputeBuyerReputationSummary(buyerId: string, internalToken?: string) {
+    // SECURITY: internal recompute over an arbitrary buyerId — not user-triggerable.
+    assertInternalCall(internalToken);
     return recomputeBuyerReputationSummaryInternal(buyerId);
 }
 
@@ -756,13 +759,15 @@ export async function getOrderRatingPair(orderId: string): Promise<RatingPair> {
 const COD_MIN_BUYER_SCORE = Number(process.env.COD_MIN_BUYER_SCORE || 4);
 const COD_MIN_COMPLETED_ORDERS = Number(process.env.COD_MIN_COMPLETED_ORDERS || 3);
 
-export async function isBuyerEligibleForCod(buyerId: string): Promise<{
+export async function isBuyerEligibleForCod(buyerId: string, internalToken?: string): Promise<{
     eligible: boolean;
     reason?: string;
     buyerScore: number;
     buyerScoreCount: number;
     completedOrders: number;
 }> {
+    // SECURITY: internal-only — called by createPaymentInvoice to gate COD.
+    assertInternalCall(internalToken);
     const buyer = await db.query.users.findFirst({
         where: eq(users.id, buyerId),
         columns: {
@@ -934,7 +939,7 @@ export async function recomputeAllSellerRatingsForActiveSellers(internalToken?: 
     let updated = 0;
     for (const row of sellerIdsRows) {
         if (!row.id) continue;
-        await recomputeSellerRating(row.id);
+        await recomputeSellerRating(row.id, INTERNAL_CALL_TOKEN);
         updated++;
     }
     return { updated };

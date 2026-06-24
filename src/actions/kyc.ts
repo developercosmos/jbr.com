@@ -12,6 +12,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { uploadFile as uploadToStorage } from "@/lib/storage";
+import { assertInternalCall } from "@/lib/internal-guard";
 import { getFileTypeFromMime } from "@/lib/file-utils";
 import { decryptPdpField, encryptPdpField } from "@/lib/crypto/pdp-field";
 import { sendSellerKycApprovedEmail, sendSellerKycRejectedEmail } from "@/lib/email";
@@ -256,7 +257,10 @@ export async function getSellerKycProfile(userId: string) {
     return { ...safe, notes: decryptPdpField(safe.notes) };
 }
 
-export async function ensureSellerWithinMonthlyGmvCap(sellerId: string, pendingOrderTotal: number) {
+export async function ensureSellerWithinMonthlyGmvCap(sellerId: string, pendingOrderTotal: number, internalToken?: string) {
+    // SECURITY: internal-only — checkout enforces a SELLER's cap (not the caller's),
+    // so ownership doesn't apply; only trusted server callers may invoke it.
+    assertInternalCall(internalToken);
     const seller = await db.query.users.findFirst({
         where: eq(users.id, sellerId),
         columns: {

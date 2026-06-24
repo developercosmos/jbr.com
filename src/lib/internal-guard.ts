@@ -15,3 +15,12 @@ export function assertInternalCall(token: string | undefined): void {
         throw new Error("Forbidden: internal-only function");
     }
 }
+
+/**
+ * Non-throwing variant for HYBRID endpoints legitimately reachable BOTH from a
+ * trusted server/cron caller (passes the token) AND from a client (passes
+ * nothing and must instead satisfy a session/ownership check).
+ */
+export function isInternalCall(token: string | undefined): boolean {
+    return token === INTERNAL_CALL_TOKEN;
+}

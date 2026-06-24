@@ -14,6 +14,7 @@ import { ensureSellerWithinMonthlyGmvCap } from "@/actions/kyc";
 import { calculatePlatformFee } from "@/actions/fees";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { tryAttributeOrderFromCookie } from "@/actions/affiliate";
+import { INTERNAL_CALL_TOKEN } from "@/lib/internal-guard";
 import { notify } from "@/lib/notify";
 import { formatCurrency } from "@/lib/format";
 import { logger } from "@/lib/logger";
@@ -244,7 +245,7 @@ async function createOrderFromCartInternal(input: z.infer<typeof createOrderSche
         );
 
         // Enforce per-seller monthly GMV cap based on KYC tier (TRUST-01).
-        await ensureSellerWithinMonthlyGmvCap(sellerId, orderTotal);
+        await ensureSellerWithinMonthlyGmvCap(sellerId, orderTotal, INTERNAL_CALL_TOKEN);
 
         // Pre-validate stock and required variant selection before any inserts
         // so we never persist a partial order if the buyer needs to reselect.
@@ -422,7 +423,7 @@ async function createOrderFromCartInternal(input: z.infer<typeof createOrderSche
 
         // AFF-02: try affiliate attribution from cookie. Idempotent on order.id.
         try {
-            await tryAttributeOrderFromCookie(order.id, user.id, orderTotal);
+            await tryAttributeOrderFromCookie(order.id, user.id, orderTotal, INTERNAL_CALL_TOKEN);
         } catch (affErr) {
             logger.error("affiliate:attribution_failed", { orderId: order.id, error: String(affErr) });
         }
@@ -539,7 +540,7 @@ async function createOrderFromOfferInternal(input: z.infer<typeof createOrderFro
     const subtotal = resolved.amount;
     const orderTotal = subtotal + sellerQuote.cost;
 
-    await ensureSellerWithinMonthlyGmvCap(productRow.seller_id, orderTotal);
+    await ensureSellerWithinMonthlyGmvCap(productRow.seller_id, orderTotal, INTERNAL_CALL_TOKEN);
 
     const feeResolution = await calculatePlatformFee({
         price: subtotal,

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getPaymentStatus, checkInvoiceStatus } from "@/actions/payments";
+import { getPaymentStatus } from "@/actions/payments";
 import { CheckCircle, XCircle, Clock, ExternalLink, ArrowLeft, Loader2, RefreshCw } from "lucide-react";
 import { PaymentStatusPoller } from "./PaymentStatusPoller";
 

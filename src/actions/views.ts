@@ -3,12 +3,14 @@
 import { db } from "@/db";
 import { products } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
+import { assertInternalCall } from "@/lib/internal-guard";
 
 /**
- * Increment view count for a product
- * Called when a user views a product page
+ * Increment view count for a product (legacy counter; live analytics use
+ * product_events). Internal-only so the counter can't be inflated by anonymous POSTs.
  */
-export async function incrementProductViews(productId: string) {
+export async function incrementProductViews(productId: string, internalToken?: string) {
+    assertInternalCall(internalToken);
     try {
         await db
             .update(products)

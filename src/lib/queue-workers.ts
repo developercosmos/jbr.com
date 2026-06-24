@@ -43,7 +43,8 @@ export function bindQueueWorkers(): void {
     // recompute-seller-rating: delegates to actions/reputation.
     registerJob<{ sellerId: string }>("recompute-seller-rating", async ({ sellerId }) => {
         const { recomputeSellerRating } = await import("@/actions/reputation");
-        await recomputeSellerRating(sellerId);
+        const { INTERNAL_CALL_TOKEN } = await import("@/lib/internal-guard");
+        await recomputeSellerRating(sellerId, INTERNAL_CALL_TOKEN);
         logger.info("worker:recompute-seller-rating:done", { sellerId });
     });
 }

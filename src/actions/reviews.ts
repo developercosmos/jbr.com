@@ -11,6 +11,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { notify } from "@/lib/notify";
 import { recomputeSellerRating } from "@/actions/reputation";
+import { INTERNAL_CALL_TOKEN } from "@/lib/internal-guard";
 
 // Helper to get current user
 async function getCurrentUser() {
@@ -179,7 +180,7 @@ async function createReviewInternal(input: z.infer<typeof createReviewSchema>) {
     });
 
     // RATE-01: refresh aggregate so seller card reflects the new review.
-    await recomputeSellerRating(orderItem.order.seller_id);
+    await recomputeSellerRating(orderItem.order.seller_id, INTERNAL_CALL_TOKEN);
 
     revalidatePath(`/product/${orderItem.product.slug}`);
     revalidatePath("/profile/orders");

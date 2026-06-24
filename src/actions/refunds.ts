@@ -8,6 +8,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { recordOrderRefund } from "@/actions/ledger";
 import { reverseAttributionForRefund } from "@/actions/affiliate";
+import { INTERNAL_CALL_TOKEN } from "@/lib/internal-guard";
 import { postOrderRefund } from "@/actions/accounting/posting";
 import { getSetting } from "@/actions/accounting/settings";
 import { notify } from "@/lib/notify";
@@ -148,7 +149,7 @@ async function applyRefund(order: {
 
     // Reverse affiliate commission tied to this order (if any).
     try {
-        await reverseAttributionForRefund(order.id, `Refund order ${order.order_number}`);
+        await reverseAttributionForRefund(order.id, INTERNAL_CALL_TOKEN, `Refund order ${order.order_number}`);
     } catch (e) {
         logger.error("refund:affiliate_reverse_failed", { orderId: order.id, error: String(e) });
     }

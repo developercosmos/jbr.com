@@ -14,7 +14,7 @@ import { recordOrderPayment } from "@/actions/ledger";
 import { postOrderPayment } from "@/actions/accounting/posting";
 import { getSetting } from "@/actions/accounting/settings";
 import { getIntegrationCredentials, getSiteConfig } from "@/lib/integration-settings";
-import { assertInternalCall, INTERNAL_CALL_TOKEN } from "@/lib/internal-guard";
+import { assertInternalCall, INTERNAL_CALL_TOKEN, isInternalCall } from "@/lib/internal-guard";
 import { logger } from "@/lib/logger";
 
 // Xendit API configuration. Base URL is overridable via XENDIT_API_URL so a
@@ -85,7 +85,7 @@ async function createPaymentInvoiceInternal(orderId: string, preferredMethod?: "
 
     // RATE-03: gate COD on buyer reputation. Other payment methods skip this check.
     if (preferredMethod === "COD") {
-        const eligibility = await isBuyerEligibleForCod(user.id);
+        const eligibility = await isBuyerEligibleForCod(user.id, INTERNAL_CALL_TOKEN);
         if (!eligibility.eligible) {
             throw new Error(eligibility.reason || "Akun Anda belum memenuhi syarat untuk COD.");
         }
@@ -308,7 +308,7 @@ export async function getPaymentStatus(orderId: string) {
     // handleXenditWebhook (inside checkInvoiceStatus) is idempotent.
     if (order.status === "PENDING_PAYMENT" && payment?.status === "PENDING" && payment.xendit_invoice_id) {
         try {
-            await checkInvoiceStatus(payment.id);
+            await checkInvoiceStatus(payment.id, INTERNAL_CALL_TOKEN);
             const [refreshedOrder, refreshedPayment] = await Promise.all([
                 db.query.orders.findFirst({ where: eq(orders.id, orderId) }),
                 db.query.payments.findFirst({ where: eq(payments.order_id, orderId), orderBy: [desc(payments.created_at)] }),
@@ -706,7 +706,7 @@ export async function reconcilePendingPayments(limit = 100, internalToken?: stri
         }
         inspected++;
         try {
-            const result = await checkInvoiceStatus(p.id);
+            const result = await checkInvoiceStatus(p.id, INTERNAL_CALL_TOKEN);
             if (result.status === "PAID") confirmed++;
         } catch (e) {
             errors++;
@@ -720,13 +720,26 @@ export async function reconcilePendingPayments(limit = 100, internalToken?: stri
 // ============================================
 // CHECK XENDIT INVOICE STATUS (for polling)
 // ============================================
-export async function checkInvoiceStatus(paymentId: string) {
+export async function checkInvoiceStatus(paymentId: string, internalToken?: string) {
     const payment = await db.query.payments.findFirst({
         where: eq(payments.id, paymentId),
     });
 
     if (!payment || !payment.xendit_invoice_id) {
         throw new Error("Payment not found");
+    }
+
+    // SECURITY: hybrid surface. Internal/cron callers (reconcile, getPaymentStatus)
+    // pass the token; a direct client poll must be the buyer who owns this payment.
+    if (!isInternalCall(internalToken)) {
+        const user = await getCurrentUser();
+        const ord = await db.query.orders.findFirst({
+            where: eq(orders.id, payment.order_id),
+            columns: { buyer_id: true },
+        });
+        if (!ord || ord.buyer_id !== user.id) {
+            throw new Error("Unauthorized");
+        }
     }
 
     const xenditSecretKey = await getXenditSecretKey();

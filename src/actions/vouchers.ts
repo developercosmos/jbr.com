@@ -9,6 +9,7 @@ import { headers } from "next/headers";
 import { and, desc, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { assertInternalCall } from "@/lib/internal-guard";
 
 async function getCurrentUser() {
     const session = await auth.api.getSession({ headers: await headers() });
@@ -187,7 +188,10 @@ export async function redeemVoucher(opts: {
     voucherId: string;
     orderId: string;
     appliedAmount: number;
-}) {
+}, internalToken?: string) {
+    // SECURITY: internal-only — redemption is persisted inline by createOrder; this
+    // standalone entrypoint must not be callable anonymously against arbitrary orders.
+    assertInternalCall(internalToken);
     const user = await getCurrentUser();
     // Idempotent: the unique (voucher,user,order) index makes a duplicate redeem a
     // no-op instead of double-counting usage toward max_uses / max_uses_per_user.

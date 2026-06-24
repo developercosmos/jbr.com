@@ -263,7 +263,10 @@ export async function recordAffiliateClick(opts: {
     landingUrl?: string;
     ip?: string;
     userAgent?: string;
-}) {
+}, internalToken?: string) {
+    // SECURITY: clicks must be recorded by a trusted server route (which derives
+    // ip/userAgent from request headers), not by spoofable anonymous POSTs.
+    assertInternalCall(internalToken);
     const account = await db.query.affiliate_accounts.findFirst({
         where: and(eq(affiliate_accounts.code, opts.code), eq(affiliate_accounts.status, "ACTIVE")),
         columns: { user_id: true },
@@ -288,7 +291,9 @@ export async function recordAffiliateClick(opts: {
  * attribution row (status flips to CLEARED on order completion via cron sweep).
  * Self-purchase blocked by checking buyer is not the affiliate owner.
  */
-export async function tryAttributeOrderFromCookie(orderId: string, buyerId: string, orderTotal: number) {
+export async function tryAttributeOrderFromCookie(orderId: string, buyerId: string, orderTotal: number, internalToken?: string) {
+    // SECURITY: internal-only — invoked by createOrder during checkout.
+    assertInternalCall(internalToken);
     const cookieStore = await cookies();
     const code = cookieStore.get(AFFILIATE_COOKIE)?.value;
     if (!code) return { attributed: false, reason: "no_cookie" };
@@ -369,7 +374,10 @@ export async function clearAttributionsForCompletedOrders(internalToken?: string
     return { inspected: pending.length, cleared };
 }
 
-export async function reverseAttributionForRefund(orderId: string, memo?: string) {
+export async function reverseAttributionForRefund(orderId: string, internalToken: string, memo?: string) {
+    // SECURITY: internal-only — invoked by the refund flow. Token is REQUIRED and
+    // sits before the optional memo so a caller can never accidentally omit it.
+    assertInternalCall(internalToken);
     const rows = await db
         .select({
             id: affiliate_attributions.id,

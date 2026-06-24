@@ -353,9 +353,21 @@ export async function addStringServiceToOrderItem(input: z.infer<typeof stringSe
 }
 
 async function addStringServiceToOrderItemInternal(input: z.infer<typeof stringServiceSchema>) {
-    await getCurrentUser();
+    const user = await getCurrentUser();
     const validated = stringServiceSchema.parse(input);
-    const { string_service_orders } = await import("@/db/schema");
+    const { string_service_orders, order_items, orders } = await import("@/db/schema");
+    // SECURITY: the order item must belong to THIS buyer (no IDOR on orderItemId,
+    // and no attaching a service fee to someone else's order).
+    const oi = await db.query.order_items.findFirst({
+        where: eq(order_items.id, validated.orderItemId),
+        columns: { order_id: true },
+    });
+    if (!oi) throw new Error("Order item tidak ditemukan");
+    const ord = await db.query.orders.findFirst({
+        where: eq(orders.id, oi.order_id),
+        columns: { buyer_id: true },
+    });
+    if (!ord || ord.buyer_id !== user.id) throw new Error("Order item tidak ditemukan");
     await db.insert(string_service_orders).values({
         order_item_id: validated.orderItemId,
         string_brand: validated.stringBrand,

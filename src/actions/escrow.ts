@@ -14,7 +14,7 @@ import { recordOrderRelease, recordOrderPayment } from "@/actions/ledger";
 import { postOrderRelease, postOrderPayment } from "@/actions/accounting/posting";
 import { getSetting } from "@/actions/accounting/settings";
 import { logger } from "@/lib/logger";
-import { assertInternalCall } from "@/lib/internal-guard";
+import { assertInternalCall, INTERNAL_CALL_TOKEN } from "@/lib/internal-guard";
 
 async function getCurrentUser() {
     const session = await auth.api.getSession({ headers: await headers() });
@@ -149,7 +149,7 @@ async function completeOrder(orderId: string, autoReleased: boolean) {
     });
 
     // RATE-01: completion changes completion_rate; refresh the aggregate.
-    await recomputeSellerRating(order.seller_id);
+    await recomputeSellerRating(order.seller_id, INTERNAL_CALL_TOKEN);
 
     // MON-03: release escrow → seller wallet + platform revenue ledger entries.
     try {
