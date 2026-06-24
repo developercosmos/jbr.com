@@ -79,6 +79,14 @@ const ENDPOINT_RATE_TIERS: Array<{
             test: (p, m) => (p.startsWith("/api/messages") || p.startsWith("/api/chat")) && m === "POST",
             limit: 30,
         },
+        {
+            // Affiliate referral redirect /r/<code>: each hit does a DB lookup +
+            // (deduped) insert. Cap per-IP so a spammer can't pump click volume /
+            // amplify DB load. Generous enough for real human click-throughs.
+            tier: "affiliate-click",
+            test: (p) => p.startsWith("/r/"),
+            limit: 60,
+        },
     ];
 
 function getClientIp(request: NextRequest): string | null {

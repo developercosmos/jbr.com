@@ -609,7 +609,9 @@ export default function AffiliateDashboardClient({ initial, baseUrl }: Props) {
     // ══════════════════════════════════════════════════════════════════════
     // Dashboard (already enrolled)
     // ══════════════════════════════════════════════════════════════════════
-    const link = `${baseUrl}?ref=${account.code}`;
+    // /r/<code> hits the referral route (records a click + sets the attribution
+    // cookie + redirects). The legacy ?ref= path still attributes via middleware.
+    const link = `${baseUrl}/r/${account.code}`;
 
     return (
         <div className="space-y-4">

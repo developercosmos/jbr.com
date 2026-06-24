@@ -875,6 +875,9 @@ export const affiliate_clicks = pgTable(
     },
     (table) => ({
         code_idx: index("idx_affiliate_clicks_code").on(table.code),
+        // (code, ip, 6h-bucket) fingerprint — UNIQUE so INSERT ... ON CONFLICT DO
+        // NOTHING dedups one click per visitor per window atomically (no read race).
+        fingerprint_unique: uniqueIndex("idx_affiliate_clicks_fingerprint").on(table.fingerprint),
     })
 );
 

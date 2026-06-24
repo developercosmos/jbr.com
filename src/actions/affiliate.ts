@@ -17,7 +17,7 @@ import { assertInternalCall } from "@/lib/internal-guard";
 import { headers, cookies } from "next/headers";
 import { after } from "next/server";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
@@ -271,19 +271,36 @@ export async function recordAffiliateClick(opts: {
         where: and(eq(affiliate_accounts.code, opts.code), eq(affiliate_accounts.status, "ACTIVE")),
         columns: { user_id: true },
     });
-    if (!account) return { success: false, reason: "code_not_active" };
+    if (!account) return { success: false as const, reason: "code_not_active" };
 
+    // Anti-inflation, race-free dedup. Bucket the timestamp into fixed 6h windows
+    // and make the (code, ip, bucket) fingerprint UNIQUE, then INSERT ... ON
+    // CONFLICT DO NOTHING. The DB (not a read-then-write, which would race) enforces
+    // ONE click per visitor (code+ip) per 6h: a refresh loop, two concurrent hits,
+    // or a prefetch+click can't double-count. user_agent is stored for analytics but
+    // is NOT part of the key — it is client-controlled and would defeat dedup
+    // (rotate the UA → new fingerprint → inflated count).
+    const BUCKET_MS = 6 * 60 * 60 * 1000; // 6h
+    const bucket = Math.floor(Date.now() / BUCKET_MS);
+    const fingerprint = createHash("sha256")
+        .update(`${opts.code}|${opts.ip ?? "noip"}|${bucket}`)
+        .digest("hex");
     const expires = new Date(Date.now() + ATTRIBUTION_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-    await db.insert(affiliate_clicks).values({
-        code: opts.code,
-        referrer: opts.referrer,
-        landing_url: opts.landingUrl,
-        ip: opts.ip,
-        user_agent: opts.userAgent,
-        expires_at: expires,
-    });
+    const inserted = await db
+        .insert(affiliate_clicks)
+        .values({
+            code: opts.code,
+            fingerprint,
+            referrer: opts.referrer,
+            landing_url: opts.landingUrl,
+            ip: opts.ip,
+            user_agent: opts.userAgent,
+            expires_at: expires,
+        })
+        .onConflictDoNothing({ target: affiliate_clicks.fingerprint })
+        .returning({ id: affiliate_clicks.id });
 
-    return { success: true as const };
+    return { success: true as const, deduped: inserted.length === 0 };
 }
 
 /**
