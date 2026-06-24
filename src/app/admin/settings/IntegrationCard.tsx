@@ -29,6 +29,10 @@ const credentialLabels: Record<string, Record<string, string>> = {
     rajaongkir: {
         api_key: "API Key",
     },
+    biteship: {
+        api_key: "Biteship API Key",
+        webhook_token: "Webhook Token",
+    },
 };
 
 const configLabels: Record<string, Record<string, string>> = {
@@ -42,6 +46,16 @@ const configLabels: Record<string, Record<string, string>> = {
     },
     rajaongkir: {
         account_type: "Account Type",
+    },
+    biteship: {
+        origin_postal_code: "Kode Pos Asal (Pickup)",
+        origin_latitude: "Latitude Asal",
+        origin_longitude: "Longitude Asal",
+        origin_contact_name: "Nama Kontak Pengirim",
+        origin_contact_phone: "Telepon Pengirim",
+        origin_address: "Alamat Lengkap Asal",
+        couriers: "Kurir (pisah koma: jne,jnt,sicepat,anteraja)",
+        fallback_cost: "Ongkir Fallback (Rp)",
     },
 };
 
@@ -57,6 +71,18 @@ export function IntegrationCard({ integration }: IntegrationCardProps) {
         (integration.config as Record<string, string>) || {}
     );
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+    // Render the EXPECTED fields (from the label maps) even when not yet stored,
+    // so an admin can configure a freshly-enabled integration (e.g. Biteship key +
+    // origin) that has empty credentials/config.
+    const credKeys = Array.from(new Set([
+        ...Object.keys(credentialLabels[integration.key] ?? {}),
+        ...Object.keys(integration.credentials ?? {}),
+    ]));
+    const configKeys = Array.from(new Set([
+        ...Object.keys(configLabels[integration.key] ?? {}),
+        ...Object.keys((integration.config as Record<string, unknown>) ?? {}),
+    ]));
 
     const handleToggle = () => {
         startTransition(async () => {
@@ -130,13 +156,13 @@ export function IntegrationCard({ integration }: IntegrationCardProps) {
             {isExpanded && (
                 <div className="border-t border-slate-200 dark:border-slate-800 p-4 space-y-6">
                     {/* Credentials */}
-                    {integration.credentials && Object.keys(integration.credentials).length > 0 && (
+                    {credKeys.length > 0 && (
                         <div className="space-y-4">
                             <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
                                 Credentials
                             </h4>
                             <div className="grid gap-4">
-                                {Object.entries(integration.credentials).map(([key, value]) => (
+                                {credKeys.map((key) => (
                                     <div key={key} className="space-y-1.5">
                                         <label className="text-sm font-medium text-slate-600 dark:text-slate-400">
                                             {credentialLabels[integration.key]?.[key] || key}
@@ -146,7 +172,7 @@ export function IntegrationCard({ integration }: IntegrationCardProps) {
                                                 type={showSecrets[key] ? "text" : "password"}
                                                 value={credentials[key] || ""}
                                                 onChange={(e) => setCredentials({ ...credentials, [key]: e.target.value })}
-                                                placeholder={value || "Masukkan nilai..."}
+                                                placeholder={integration.credentials?.[key] || "Masukkan nilai..."}
                                                 className="w-full px-3 py-2 pr-10 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary text-sm font-mono"
                                             />
                                             <button
@@ -164,13 +190,13 @@ export function IntegrationCard({ integration }: IntegrationCardProps) {
                     )}
 
                     {/* Config */}
-                    {integration.config && Object.keys(integration.config).length > 0 && (
+                    {configKeys.length > 0 && (
                         <div className="space-y-4">
                             <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
                                 Configuration
                             </h4>
                             <div className="grid gap-4">
-                                {Object.entries(integration.config).map(([key, value]) => (
+                                {configKeys.map((key) => (
                                     <div key={key} className="space-y-1.5">
                                         <label className="text-sm font-medium text-slate-600 dark:text-slate-400">
                                             {configLabels[integration.key]?.[key] || key}
@@ -179,7 +205,7 @@ export function IntegrationCard({ integration }: IntegrationCardProps) {
                                             type="text"
                                             value={config[key] || ""}
                                             onChange={(e) => setConfig({ ...config, [key]: e.target.value })}
-                                            placeholder={String(value) || "Masukkan nilai..."}
+                                            placeholder={String((integration.config as Record<string, unknown>)?.[key] ?? "") || "Masukkan nilai..."}
                                             className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary text-sm"
                                         />
                                     </div>
