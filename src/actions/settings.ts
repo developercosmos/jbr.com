@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { getBiteshipSettings, biteshipCouriers, type BiteshipCourierOption } from "@/lib/biteship";
 
 // Helper to verify admin access
 async function requireAdmin() {
@@ -27,6 +28,35 @@ async function requireAdmin() {
     }
 
     return user;
+}
+
+// ============================================
+// BITESHIP: AVAILABLE COURIERS (admin checklist source)
+// ============================================
+export type BiteshipCourierOptionsResult =
+    | { success: true; couriers: BiteshipCourierOption[]; selected: string[] }
+    | { success: false; error: string };
+
+/**
+ * Admin-only: fetch the couriers enabled on the Biteship account so the settings
+ * UI can render a checklist instead of a free-text comma list. Read-only call to
+ * Biteship (no balance consumed). `selected` echoes the currently-saved codes.
+ */
+export async function getBiteshipCourierOptions(): Promise<BiteshipCourierOptionsResult> {
+    try {
+        await requireAdmin();
+        const settings = await getBiteshipSettings();
+        if (!settings.apiKey) {
+            return { success: false, error: "Biteship API Key belum diisi. Simpan API Key dulu, lalu muat daftar kurir." };
+        }
+        const couriers = await biteshipCouriers(settings);
+        return { success: true, couriers, selected: settings.couriers };
+    } catch (err) {
+        if (isNextControlFlowError(err)) throw err;
+        const message = actionErrorMessage(err, "Gagal memuat daftar kurir dari Biteship.");
+        logger.warn("biteship:courier_options_failed", { error: message });
+        return { success: false, error: message };
+    }
 }
 
 // ============================================

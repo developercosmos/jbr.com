@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Power, ChevronDown, ChevronUp, Loader2, Save, Eye, EyeOff } from "lucide-react";
-import { toggleIntegration, updateIntegration } from "@/actions/settings";
+import { Power, ChevronDown, ChevronUp, Loader2, Save, Eye, EyeOff, RefreshCw, Truck } from "lucide-react";
+import { toggleIntegration, updateIntegration, getBiteshipCourierOptions } from "@/actions/settings";
+import type { BiteshipCourierOption } from "@/lib/biteship";
 import { cn } from "@/lib/utils";
 
 interface IntegrationCardProps {
@@ -56,7 +57,7 @@ const configLabels: Record<string, Record<string, string>> = {
         origin_contact_name: "Nama Kontak Pengirim — fallback",
         origin_contact_phone: "Telepon Pengirim — fallback",
         origin_address: "Alamat Lengkap Asal — fallback",
-        couriers: "Kurir (pisah koma: jne,jnt,sicepat,anteraja)",
+        couriers: "Kurir yang ditawarkan di checkout",
         fallback_cost: "Ongkir Fallback (Rp) — jika rute live gagal",
     },
 };
@@ -203,13 +204,20 @@ export function IntegrationCard({ integration }: IntegrationCardProps) {
                                         <label className="text-sm font-medium text-slate-600 dark:text-slate-400">
                                             {configLabels[integration.key]?.[key] || key}
                                         </label>
-                                        <input
-                                            type="text"
-                                            value={config[key] || ""}
-                                            onChange={(e) => setConfig({ ...config, [key]: e.target.value })}
-                                            placeholder={String((integration.config as Record<string, unknown>)?.[key] ?? "") || "Masukkan nilai..."}
-                                            className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary text-sm"
-                                        />
+                                        {integration.key === "biteship" && key === "couriers" ? (
+                                            <BiteshipCourierChecklist
+                                                value={config[key] || ""}
+                                                onChange={(v) => setConfig({ ...config, couriers: v })}
+                                            />
+                                        ) : (
+                                            <input
+                                                type="text"
+                                                value={config[key] || ""}
+                                                onChange={(e) => setConfig({ ...config, [key]: e.target.value })}
+                                                placeholder={String((integration.config as Record<string, unknown>)?.[key] ?? "") || "Masukkan nilai..."}
+                                                className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary text-sm"
+                                            />
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -246,6 +254,151 @@ export function IntegrationCard({ integration }: IntegrationCardProps) {
                         </button>
                     </div>
                 </div>
+            )}
+        </div>
+    );
+}
+
+function parseCourierCodes(value: string): string[] {
+    return value
+        .split(",")
+        .map((c) => c.trim().toLowerCase())
+        .filter(Boolean);
+}
+
+/**
+ * Checklist sumber-kebenaran = string koma di config.couriers. Tombol "Muat dari
+ * Biteship" memanggil GET /v1/couriers (admin-only, tanpa konsumsi saldo) lalu
+ * menampilkan centang. Kode yang sudah tersimpan tapi tak ada di daftar Biteship
+ * tetap ditampilkan agar tidak hilang. Selalu ada fallback input manual.
+ */
+function BiteshipCourierChecklist({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+    const [options, setOptions] = useState<BiteshipCourierOption[] | null>(null);
+    const [isLoading, startLoading] = useTransition();
+    const [error, setError] = useState<string | null>(null);
+    const [manual, setManual] = useState(false);
+
+    const selected = parseCourierCodes(value);
+    const selectedSet = new Set(selected);
+
+    const load = () => {
+        setError(null);
+        startLoading(async () => {
+            const res = await getBiteshipCourierOptions();
+            if (res.success) {
+                setOptions(res.couriers);
+                // Seed an empty selection from the account's currently-saved codes.
+                if (parseCourierCodes(value).length === 0 && res.selected.length > 0) {
+                    onChange(res.selected.join(","));
+                }
+            } else {
+                setError(res.error);
+            }
+        });
+    };
+
+    const toggle = (code: string) => {
+        const next = new Set(selectedSet);
+        if (next.has(code)) next.delete(code);
+        else next.add(code);
+        onChange(Array.from(next).join(","));
+    };
+
+    // Codes saved but not present in the fetched list (custom/legacy) — keep them.
+    const extraSelected = selected.filter((c) => !(options ?? []).some((o) => o.code === c));
+
+    return (
+        <div className="space-y-3">
+            <div className="flex items-center gap-2">
+                <button
+                    type="button"
+                    onClick={load}
+                    disabled={isLoading}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-black/20 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/5 disabled:opacity-60"
+                >
+                    {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                    {options ? "Muat ulang" : "Muat daftar kurir dari Biteship"}
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setManual((m) => !m)}
+                    className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline"
+                >
+                    {manual ? "Sembunyikan input manual" : "Input manual"}
+                </button>
+            </div>
+
+            {error && (
+                <div className="p-2.5 rounded-lg text-xs bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400">
+                    {error}
+                </div>
+            )}
+
+            {options && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {options.map((c) => (
+                        <label
+                            key={c.code}
+                            className={cn(
+                                "flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors",
+                                selectedSet.has(c.code)
+                                    ? "border-brand-primary bg-brand-primary/5"
+                                    : "border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-white/5"
+                            )}
+                        >
+                            <input
+                                type="checkbox"
+                                checked={selectedSet.has(c.code)}
+                                onChange={() => toggle(c.code)}
+                                className="w-4 h-4 rounded accent-brand-primary"
+                            />
+                            <Truck className="w-4 h-4 text-slate-400 shrink-0" />
+                            <span className="text-sm text-slate-800 dark:text-slate-100 flex-1">{c.name}</span>
+                            {c.cod && (
+                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                    COD
+                                </span>
+                            )}
+                            <span className="text-[10px] text-slate-400">{c.services} layanan</span>
+                        </label>
+                    ))}
+                </div>
+            )}
+
+            {/* Saved-but-not-in-list codes (don't silently drop) */}
+            {extraSelected.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs text-slate-400">Tersimpan (di luar daftar):</span>
+                    {extraSelected.map((code) => (
+                        <button
+                            key={code}
+                            type="button"
+                            onClick={() => toggle(code)}
+                            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-slate-300 hover:bg-red-100 hover:text-red-600"
+                            title="Klik untuk hapus"
+                        >
+                            {code} ✕
+                        </button>
+                    ))}
+                </div>
+            )}
+
+            {!options && !error && (
+                <p className="text-xs text-slate-400">
+                    {selected.length > 0
+                        ? `Terpilih saat ini: ${selected.join(", ")}`
+                        : "Belum ada kurir dipilih. Muat daftar dari Biteship untuk mencentang."}
+                </p>
+            )}
+
+            {manual && (
+                <input
+                    type="text"
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    placeholder="jne,jnt,sicepat,anteraja"
+                    className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary text-sm font-mono"
+                />
             )}
         </div>
     );

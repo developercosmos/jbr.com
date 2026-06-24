@@ -122,6 +122,51 @@ async function biteshipFetch<T>(settings: BiteshipSettings, path: string, init: 
 }
 
 // ============================================
+// COURIERS (account-enabled list, for admin checklist)
+// ============================================
+
+export interface BiteshipCourierOption {
+    code: string; // courier_code, e.g. "jne"
+    name: string; // courier_name, e.g. "JNE"
+    services: number; // number of service tiers available under this courier
+    cod: boolean; // any service supports cash-on-delivery
+}
+
+/**
+ * GET /v1/couriers — couriers/services enabled on the Biteship account. Deduped
+ * to one entry per courier company (courier_code) so the admin can tick which
+ * companies to offer at checkout. Read-only; does NOT consume balance.
+ */
+export async function biteshipCouriers(settings: BiteshipSettings): Promise<BiteshipCourierOption[]> {
+    const body = await biteshipFetch<{
+        couriers?: Array<{
+            courier_code?: string;
+            courier_name?: string;
+            available_for_cash_on_delivery?: boolean;
+        }>;
+    }>(settings, "/v1/couriers", { method: "GET" }, RATES_TIMEOUT_MS);
+
+    const byCode = new Map<string, BiteshipCourierOption>();
+    for (const row of body.couriers ?? []) {
+        const code = String(row.courier_code ?? "").trim().toLowerCase();
+        if (!code) continue;
+        const existing = byCode.get(code);
+        if (existing) {
+            existing.services += 1;
+            existing.cod = existing.cod || Boolean(row.available_for_cash_on_delivery);
+        } else {
+            byCode.set(code, {
+                code,
+                name: row.courier_name?.trim() || BITESHIP_COURIER_LABELS[code] || code.toUpperCase(),
+                services: 1,
+                cod: Boolean(row.available_for_cash_on_delivery),
+            });
+        }
+    }
+    return Array.from(byCode.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// ============================================
 // RATES
 // ============================================
 
