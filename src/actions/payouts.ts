@@ -15,6 +15,7 @@ import { getT0Gates } from "@/actions/kyc";
 import { getSellerLedgerSummary } from "@/actions/accounting/seller-ledger";
 import { resolveBankCode } from "@/lib/bank-codes";
 import { createXenditDisbursement, DisbursementError } from "@/lib/xendit-disbursement";
+import { assertInternalCall } from "@/lib/internal-guard";
 import { logger } from "@/lib/logger";
 
 const recordSellerPayoutSchema = z.object({
@@ -381,7 +382,11 @@ export async function finalizeDisbursementWebhook(input: {
     disbursementId?: string;
     status: string;
     failureReason?: string;
-}) {
+}, internalToken?: string) {
+    // SECURITY: server-only — the disbursement webhook route (after verifying the
+    // x-callback-token) passes INTERNAL_CALL_TOKEN. Blocks anonymous Server-Action
+    // invocation that could force a payout to COMPLETED (draining the GL wallet).
+    assertInternalCall(internalToken);
     const whereClause = input.externalId
         ? eq(sellerPayouts.external_id, input.externalId)
         : input.disbursementId

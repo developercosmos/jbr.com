@@ -112,15 +112,14 @@ function getClientIp(request: NextRequest): string | null {
 }
 
 function isNextInternalPost(request: NextRequest): boolean {
-    // Next.js 16 fires POSTs from the framework for: RSC payload fetches, prefetches,
-    // server actions, and router-state hydration. They all carry one of these
-    // headers; exempt them from rate limiting so normal browsing/admin doesn't 429.
+    // Exempt ONLY framework-driven navigation (RSC payload fetches, prefetches,
+    // router-state hydration). SECURITY: do NOT exempt Server Actions (Next-Action)
+    // — they are user-initiated writes (login, password reset, email, payouts, …)
+    // and must stay rate-limited against brute force / abuse / email-bombing.
     return (
         request.headers.get("RSC") === "1" ||
         request.headers.get("Next-Router-Prefetch") === "1" ||
-        request.headers.get("Next-Router-State-Tree") !== null ||
-        request.headers.get("Next-Action") !== null ||
-        request.headers.get("Next-Url") !== null
+        request.headers.get("Next-Router-State-Tree") !== null
     );
 }
 

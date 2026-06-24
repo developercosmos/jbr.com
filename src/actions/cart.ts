@@ -207,6 +207,12 @@ export async function updateCartItemQuantity(cartItemId: string, quantity: numbe
         throw new Error("Cart item not found");
     }
 
+    // SECURITY: an offer line locks the negotiated price to ONE unit. Changing its
+    // quantity would let the buyer get N units at the 1-unit negotiated price.
+    if (existingCartItem.offer_id) {
+        throw new Error("Item dengan harga penawaran tidak dapat diubah jumlahnya.");
+    }
+
     const variantStock = Array.isArray(existingCartItem.variant)
         ? existingCartItem.variant[0]?.stock
         : existingCartItem.variant?.stock;

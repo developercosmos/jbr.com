@@ -19,7 +19,9 @@ function isMeilisearchActive() {
 }
 
 function getSearchVariants(query: string): string[] {
-    const base = query.trim().toLowerCase();
+    // SECURITY: cap input length so a huge query can't fan out into a large set of
+    // ILIKE conditions (anonymous DoS amplification).
+    const base = query.trim().toLowerCase().slice(0, 64);
     if (!base) return [];
 
     const normalizedNoSeparators = base.replace(/[\s\-_]+/g, "");
@@ -33,7 +35,7 @@ function getSearchVariants(query: string): string[] {
         }
     }
 
-    return Array.from(variants).filter((v) => v.length > 1);
+    return Array.from(variants).filter((v) => v.length > 1).slice(0, 6); // cap fan-out
 }
 
 // ============================================
@@ -302,6 +304,7 @@ export async function searchAutocomplete(query: string, limit = 8) {
     if (!query.trim() || query.trim().length < 2) {
         return { suggestions: [], categories: [] };
     }
+    limit = Math.min(Math.max(limit, 1), 20); // SECURITY: cap caller-supplied limit
 
     const variants = getSearchVariants(query);
     const patterns = variants.length > 0 ? variants : [query.trim().toLowerCase()];

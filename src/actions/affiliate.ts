@@ -98,12 +98,13 @@ const enrollSchema = z.object({
         .optional(),
     phone: z.string().max(20).optional(),
     instagramHandle: z.string().max(80).optional(),
-    /** Legacy public-URL KTP (old uploads only — new submissions send ktpFileId). */
-    ktpUrl: z.string().max(512).optional(),
+    /** Legacy public-URL KTP. SECURITY: only relative path or https — block
+     *  javascript:/data: that would become stored XSS in the admin review href. */
+    ktpUrl: z.string().max(512).refine((v) => v.startsWith("/") || /^https:\/\//i.test(v), "URL tidak valid").optional(),
     /** Private files-row id from uploadKycDocument (slot "ktp"). */
     ktpFileId: z.string().uuid().optional(),
-    /** Legacy public-URL Surat Pernyataan (old uploads only). */
-    statementUrl: z.string().max(512).optional(),
+    /** Legacy public-URL Surat Pernyataan. SECURITY: relative path or https only. */
+    statementUrl: z.string().max(512).refine((v) => v.startsWith("/") || /^https:\/\//i.test(v), "URL tidak valid").optional(),
     /** Private files-row id from uploadKycDocument (slot "statement"). */
     statementFileId: z.string().uuid().optional(),
     bankName: z.string().max(60).optional(),

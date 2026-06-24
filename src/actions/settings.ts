@@ -306,59 +306,6 @@ export async function seedDefaultIntegrations() {
     return { success: true as const };
 }
 
-// ============================================
-// CHECK IF INTEGRATION IS ENABLED (for use in other parts of app)
-// ============================================
-export async function isIntegrationEnabled(key: string): Promise<boolean> {
-    const setting = await db.query.integration_settings.findFirst({
-        where: eq(integration_settings.key, key),
-    });
-
-    return setting?.enabled ?? false;
-}
-
-// ============================================
-// GET INTEGRATION CREDENTIALS (for use in other parts of app)
-// ============================================
-export async function getIntegrationCredentials(key: string): Promise<Record<string, string> | null> {
-    const setting = await db.query.integration_settings.findFirst({
-        where: eq(integration_settings.key, key),
-    });
-
-    if (!setting?.enabled) {
-        return null;
-    }
-
-    return setting.credentials;
-}
-
-// ============================================
-// GET SITE CONFIG (for app_url, app_name, etc.)
-// ============================================
-export async function getSiteConfig(): Promise<{
-    app_url: string;
-    app_name: string;
-    support_email: string;
-}> {
-    const setting = await db.query.integration_settings.findFirst({
-        where: eq(integration_settings.key, "site_config"),
-    });
-
-    // Default values if not found
-    const defaults = {
-        app_url: process.env.NEXT_PUBLIC_APP_URL || "https://jualbeliraket.com",
-        app_name: "JualBeliRaket",
-        support_email: "support@jualbeliraket.com",
-    };
-
-    if (!setting?.config) {
-        return defaults;
-    }
-
-    const config = setting.config as Record<string, unknown>;
-    return {
-        app_url: (config.app_url as string) || defaults.app_url,
-        app_name: (config.app_name as string) || defaults.app_name,
-        support_email: (config.support_email as string) || defaults.support_email,
-    };
-}
+// SECURITY: isIntegrationEnabled / getIntegrationCredentials / getSiteConfig moved
+// to src/lib/integration-settings.ts (server-only) — they return raw credentials
+// and must NOT be exported from a "use server" module (anonymous-action surface).

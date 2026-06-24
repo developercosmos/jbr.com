@@ -11,6 +11,7 @@ import { headers } from "next/headers";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { handleXenditWebhook } from "@/actions/payments";
+import { INTERNAL_CALL_TOKEN } from "@/lib/internal-guard";
 import { runEscrowAutoRelease } from "@/actions/escrow";
 import { notify } from "@/lib/notify";
 
@@ -124,7 +125,7 @@ export async function testAdvanceOrder(
                 status: "PAID",
                 payment_method: "BANK_TRANSFER",
                 paid_at: new Date().toISOString(),
-            });
+            }, INTERNAL_CALL_TOKEN);
             return res.success ? done("Order PAID (lewat handler webhook + ledger).") : { success: false, message: res.error || "Gagal." };
         }
 

@@ -32,6 +32,11 @@ export async function POST(request: NextRequest) {
         const formData = await request.formData();
         const file = formData.get("file") as File | null;
         const folder = (formData.get("folder") as string) || "uploads";
+        // SECURITY: folder is part of the storage path — reject anything that could
+        // traverse out of the upload root (.., slashes). Single path segment only.
+        if (!/^[a-z0-9_-]{1,40}$/i.test(folder)) {
+            return NextResponse.json({ error: "Folder tidak valid." }, { status: 400 });
+        }
         // Optional: persist the resulting URL to the user's profile in THIS same
         // request, so the file-write and DB-write are atomic (can't half-complete
         // like the old route-then-Server-Action two-step did → banner saved file
@@ -48,6 +53,20 @@ export async function POST(request: NextRequest) {
         // Convert file to buffer
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
+
+        // SECURITY: reject SVG/HTML/script (stored-XSS vectors) regardless of the
+        // client-claimed MIME — sniff the bytes + the filename extension.
+        const head = buffer.subarray(0, 512).toString("utf8").toLowerCase();
+        const dangerous =
+            /\.(svg|svgz|html?|xht|xhtml|xml|js|mjs)$/i.test(file.name) ||
+            file.type === "image/svg+xml" ||
+            head.includes("<svg") ||
+            head.includes("<!doctype html") ||
+            head.includes("<html") ||
+            head.includes("<?xml");
+        if (dangerous) {
+            return NextResponse.json({ error: "Tipe file tidak diizinkan (SVG/HTML)." }, { status: 400 });
+        }
 
         // Diagnostic: trace each upload end-to-end (client bundle-agnostic) so a
         // "file landed but UI shows nothing" report can be pinned to server vs client.
@@ -104,12 +123,15 @@ export async function POST(request: NextRequest) {
             type: file.type,
         });
     } catch (error) {
+        // Log full detail server-side only; never return raw fs error messages
+        // (they can contain absolute server paths / stack info) to the client.
         console.error("Upload error:", error);
+        const message = error instanceof Error ? error.message : "";
+        const isSafeValidationError =
+            message.startsWith("File type not allowed:") || message.startsWith("File too large.");
         return NextResponse.json(
-            {
-                error: error instanceof Error ? error.message : "Upload failed",
-            },
-            { status: 500 }
+            { error: isSafeValidationError ? message : "Upload gagal, coba lagi." },
+            { status: isSafeValidationError ? 400 : 500 }
         );
     }
 }

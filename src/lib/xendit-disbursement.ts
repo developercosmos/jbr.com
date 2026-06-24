@@ -3,7 +3,7 @@
  * Xendit secret key resolution as inbound payments (env → integration_settings),
  * and sends an idempotency key so a retried approval never double-pays.
  */
-import { getIntegrationCredentials } from "@/actions/settings";
+import { getIntegrationCredentials } from "@/lib/integration-settings";
 
 const XENDIT_API_URL = process.env.XENDIT_API_URL?.trim() || "https://api.xendit.co";
 

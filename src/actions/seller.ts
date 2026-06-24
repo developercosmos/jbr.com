@@ -53,6 +53,16 @@ async function getCurrentUser() {
 }
 
 export async function getSellerProfileByUserId(userId: string) {
+    // SECURITY: returns email / payout bank / internal review notes — public
+    // Server Action, so authorize. Only the owner or an admin may read it.
+    const current = await getCurrentUser();
+    if (current.id !== userId) {
+        const me = await db.query.users.findFirst({
+            where: eq(users.id, current.id),
+            columns: { role: true },
+        });
+        if (me?.role !== "ADMIN") throw new Error("Unauthorized");
+    }
     return db.query.users.findFirst({
         where: eq(users.id, userId),
         columns: {

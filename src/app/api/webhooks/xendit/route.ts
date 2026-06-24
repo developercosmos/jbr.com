@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleXenditWebhook } from "@/actions/payments";
+import { INTERNAL_CALL_TOKEN } from "@/lib/internal-guard";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
             status: data.status,
             payment_method: data.payment_method,
             paid_at: data.paid_at,
-        });
+        }, INTERNAL_CALL_TOKEN);
 
         if (!result.success) {
             return NextResponse.json({ error: result.error }, { status: 400 });

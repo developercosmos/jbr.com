@@ -217,27 +217,40 @@ export async function seedSellerKycProfile(userId: string) {
 }
 
 export async function getSellerKycProfile(userId: string) {
+    // SECURITY: public Server Action ("use server" module) — authorize before read.
+    // Only the owner or an admin; raw national-ID PII + reviewer identity are
+    // admin-only; explicit file columns avoid leaking storage_key.
+    const sessionUser = await getCurrentUser();
+    let isAdmin = false;
+    if (sessionUser.id !== userId) {
+        await requireAdmin(); // throws if not admin
+        isAdmin = true;
+    } else {
+        const me = await db.query.users.findFirst({
+            where: eq(users.id, sessionUser.id),
+            columns: { role: true },
+        });
+        isAdmin = me?.role === "ADMIN";
+    }
+
     const profile = await db.query.seller_kyc.findFirst({
         where: eq(seller_kyc.user_id, userId),
         with: {
-            ktpFile: true,
-            selfieFile: true,
-            businessDocFile: true,
-            reviewer: {
-                columns: {
-                    id: true,
-                    name: true,
-                    email: true,
-                },
-            },
+            ktpFile: { columns: { id: true, original_name: true, mime_type: true } },
+            selfieFile: { columns: { id: true, original_name: true, mime_type: true } },
+            businessDocFile: { columns: { id: true, original_name: true, mime_type: true } },
+            reviewer: { columns: { id: true, name: true, email: true } },
         },
     });
 
     if (!profile) return null;
-    return {
-        ...profile,
-        notes: decryptPdpField(profile.notes),
-    };
+    if (isAdmin) {
+        return { ...profile, notes: decryptPdpField(profile.notes) };
+    }
+    // Non-admin (self): strip raw OCR/NIK PII + reviewer identity; keep own status
+    // + rejection notes.
+    const { nik: _nik, nik_hash: _nh, ocr: _ocr, screening: _scr, reviewer: _rv, ...safe } = profile;
+    return { ...safe, notes: decryptPdpField(safe.notes) };
 }
 
 export async function ensureSellerWithinMonthlyGmvCap(sellerId: string, pendingOrderTotal: number) {
@@ -295,6 +308,11 @@ export async function ensureSellerWithinMonthlyGmvCap(sellerId: string, pendingO
  * the seller settings cap meter and the registration info banner.
  */
 export async function getSellerMonthlyGmvStatus(sellerId: string) {
+    // SECURITY: public Server Action — only the seller themselves or an admin may
+    // read another seller's GMV/tier.
+    const u = await getCurrentUser();
+    if (u.id !== sellerId) await requireAdmin();
+
     const seller = await db.query.users.findFirst({
         where: eq(users.id, sellerId),
         columns: { id: true, tier: true },

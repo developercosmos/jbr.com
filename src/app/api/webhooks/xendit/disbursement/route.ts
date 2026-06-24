@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { finalizeDisbursementWebhook } from "@/actions/payouts";
+import { INTERNAL_CALL_TOKEN } from "@/lib/internal-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,7 @@ export async function POST(request: NextRequest) {
             disbursementId: data.id,
             status: String(data.status ?? ""),
             failureReason: data.failure_code || undefined,
-        });
+        }, INTERNAL_CALL_TOKEN);
 
         return NextResponse.json({ received: true });
     } catch (error) {

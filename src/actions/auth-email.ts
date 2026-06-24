@@ -8,6 +8,7 @@ import {
     sendWelcomeEmail
 } from "@/lib/email";
 import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
@@ -25,6 +26,19 @@ export async function requestPasswordReset(email: string) {
 
         // Always return success to prevent email enumeration
         if (!user) {
+            return { success: true };
+        }
+
+        // SECURITY: per-email throttle (anti email-bombing) — don't resend within
+        // 60s. Silent (still returns success to avoid account enumeration).
+        const recentReset = await db.query.verifications.findFirst({
+            where: and(
+                eq(verifications.identifier, email.toLowerCase()),
+                eq(verifications.value, "password_reset"),
+                gt(verifications.created_at, new Date(Date.now() - 60_000))
+            ),
+        });
+        if (recentReset) {
             return { success: true };
         }
 
@@ -126,6 +140,12 @@ export async function resetPassword(token: string, newPassword: string) {
 
 export async function requestEmailVerification(userId: string) {
     try {
+        // SECURITY: only the logged-in user may trigger their OWN verification email
+        // (closes IDOR email-bombing of arbitrary userIds).
+        const session = await auth.api.getSession({ headers: await headers() });
+        if (!session?.user || session.user.id !== userId) {
+            return { success: false, error: "Tidak diizinkan." };
+        }
         const user = await db.query.users.findFirst({
             where: eq(users.id, userId),
         });

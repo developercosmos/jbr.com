@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 import { Resend } from "resend";
-import { getSiteConfig } from "@/actions/settings";
+import { getSiteConfig } from "@/lib/integration-settings";
 
 // Resend (transactional email provider) — preferred when RESEND_API_KEY is set.
 // Falls back to the nodemailer transport below when it isn't, so local/dev and

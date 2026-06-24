@@ -33,7 +33,7 @@ export const storageConfig = {
         "image/png",
         "image/webp",
         "image/gif",
-        "image/svg+xml",
+        // SECURITY: image/svg+xml removed — SVG can carry inline <script> (stored XSS).
         // Video
         "video/mp4",
         "video/webm",

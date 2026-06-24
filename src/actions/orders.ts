@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result";
-import { orders, order_items, carts, products, product_variants, reviews, addresses, users, seller_ratings, voucher_redemptions } from "@/db/schema";
+import { orders, order_items, carts, products, product_variants, reviews, addresses, users, seller_ratings, voucher_redemptions, vouchers } from "@/db/schema";
 import { applyVoucher } from "@/actions/vouchers";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -352,6 +352,29 @@ async function createOrderFromCartInternal(input: z.infer<typeof createOrderSche
             // MON-04: redeem the voucher inside the same transaction. The unique
             // (voucher,user,order) index makes this idempotent on retry.
             if (appliedVoucherId) {
+                // SECURITY: serialize concurrent claims of THIS voucher by THIS user
+                // and RE-VALIDATE caps inside the lock — otherwise two parallel
+                // checkouts can both pass the earlier (pre-tx) check and exceed
+                // max_uses / max_uses_per_user.
+                await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${appliedVoucherId + ":" + user.id}))`);
+                const vrow = await tx.query.vouchers.findFirst({
+                    where: eq(vouchers.id, appliedVoucherId),
+                    columns: { max_uses: true, max_uses_per_user: true },
+                });
+                if (vrow?.max_uses != null) {
+                    const [tot] = await tx
+                        .select({ c: sql<number>`count(*)` })
+                        .from(voucher_redemptions)
+                        .where(eq(voucher_redemptions.voucher_id, appliedVoucherId));
+                    if (Number(tot?.c ?? 0) >= vrow.max_uses) throw new Error("Voucher sudah habis digunakan.");
+                }
+                if (vrow) {
+                    const [mine] = await tx
+                        .select({ c: sql<number>`count(*)` })
+                        .from(voucher_redemptions)
+                        .where(and(eq(voucher_redemptions.voucher_id, appliedVoucherId), eq(voucher_redemptions.user_id, user.id)));
+                    if (Number(mine?.c ?? 0) >= vrow.max_uses_per_user) throw new Error("Anda sudah memakai voucher ini.");
+                }
                 await tx
                     .insert(voucher_redemptions)
                     .values({

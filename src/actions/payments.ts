@@ -13,7 +13,8 @@ import { isBuyerEligibleForCod } from "@/actions/reputation";
 import { recordOrderPayment } from "@/actions/ledger";
 import { postOrderPayment } from "@/actions/accounting/posting";
 import { getSetting } from "@/actions/accounting/settings";
-import { getIntegrationCredentials, getSiteConfig } from "@/actions/settings";
+import { getIntegrationCredentials, getSiteConfig } from "@/lib/integration-settings";
+import { assertInternalCall, INTERNAL_CALL_TOKEN } from "@/lib/internal-guard";
 import { logger } from "@/lib/logger";
 
 // Xendit API configuration. Base URL is overridable via XENDIT_API_URL so a
@@ -333,7 +334,11 @@ export async function handleXenditWebhook(data: {
     status: string;
     payment_method: string;
     paid_at?: string;
-}) {
+}, internalToken?: string) {
+    // SECURITY: server-only — the webhook route (after verifying the x-callback-token)
+    // and internal reconcilers pass INTERNAL_CALL_TOKEN. Blocks anonymous Server-Action
+    // invocation that could forge a PAID/EXPIRED status.
+    assertInternalCall(internalToken);
     const orderId = data.external_id.replace("order-", "");
 
     // Find payment by xendit invoice id
@@ -751,7 +756,7 @@ export async function checkInvoiceStatus(paymentId: string) {
             status: invoice.status,
             payment_method: invoice.payment_method,
             paid_at: invoice.paid_at,
-        });
+        }, INTERNAL_CALL_TOKEN);
     } else if (invoice.status === "EXPIRED" && payment.status !== "EXPIRED") {
         // Mirror the EXPIRED webhook so the order is cancelled + stock released
         // even if Xendit's callback was missed.
@@ -761,7 +766,7 @@ export async function checkInvoiceStatus(paymentId: string) {
             status: invoice.status,
             payment_method: invoice.payment_method,
             paid_at: invoice.paid_at,
-        });
+        }, INTERNAL_CALL_TOKEN);
     }
 
     return {

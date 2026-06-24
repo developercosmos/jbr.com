@@ -289,13 +289,6 @@ export async function bulkDeleteFiles(fileIds: string[]) {
     return { success: true as const, deletedCount: filesToDelete.length };
 }
 
-// ============================================
-// GET FILE BY ID
-// ============================================
-export async function getFileById(fileId: string) {
-    const file = await db.query.files.findFirst({
-        where: eq(files.id, fileId),
-    });
-
-    return file;
-}
+// SECURITY: getFileById removed — it was an unauthenticated public Server Action
+// that leaked private file metadata (KYC, etc.) for any file id. Private file
+// access goes through /api/files/[id], which enforces ownership.
