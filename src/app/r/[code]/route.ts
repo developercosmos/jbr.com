@@ -68,7 +68,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ code
     const code = (raw || "").trim().toLowerCase();
     const target = safeTarget(req.nextUrl.searchParams.get("to"));
 
-    const res = new NextResponse(null, { status: 302, headers: { Location: target } });
+    // no-store is REQUIRED: a tracking redirect must reach the origin on EVERY hit,
+    // or a CDN/browser cache would (a) skip recording the click and (b) skip setting
+    // the attribution cookie for every visitor after the first to the same /r/<code>.
+    const res = new NextResponse(null, {
+        status: 302,
+        headers: { Location: target, "Cache-Control": "no-store, no-cache, must-revalidate" },
+    });
 
     // Malformed code → still redirect the visitor, but record/attribute nothing.
     if (!CODE_RE.test(code)) return res;
