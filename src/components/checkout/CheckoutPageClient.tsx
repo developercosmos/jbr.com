@@ -113,6 +113,7 @@ export function CheckoutPageClient({
         { value: "tiki", label: "TIKI" },
     ]);
     const [selectedCourier, setSelectedCourier] = useState<string>("jne");
+    const [shippingMethod, setShippingMethod] = useState<"REGULAR" | "INSTANT">("REGULAR");
     const [shippingQuote, setShippingQuote] = useState<CheckoutShippingQuote | null>(initialShippingQuote);
     const [shippingError, setShippingError] = useState<string>("");
     const [isShippingPending, startShippingTransition] = useTransition();
@@ -322,6 +323,27 @@ export function CheckoutPageClient({
                         <h2 className="text-slate-900 text-[22px] font-bold border-b border-slate-200 pb-3">
                             Pengiriman
                         </h2>
+                        {/* Delivery method (speed). COD is offered as a payment method below
+                            once its settlement flow is built. */}
+                        <div>
+                            <p className="text-xs font-medium text-slate-500 mb-2">Tipe Pengiriman</p>
+                            <div className="grid grid-cols-2 gap-3">
+                                {([
+                                    { key: "REGULAR", label: "Standar", desc: "Kurir reguler" },
+                                    { key: "INSTANT", label: "Instant / Same-day", desc: "Sampai hari ini (area tertentu)" },
+                                ] as const).map((m) => (
+                                    <button
+                                        key={m.key}
+                                        type="button"
+                                        onClick={() => setShippingMethod(m.key)}
+                                        className={`rounded-xl border-2 p-3 text-left transition-all ${shippingMethod === m.key ? "border-brand-primary bg-brand-primary/5" : "border-slate-200 hover:border-slate-300"}`}
+                                    >
+                                        <span className="block text-sm font-semibold text-slate-900">{m.label}</span>
+                                        <span className="block text-xs text-slate-500">{m.desc}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             {courierOptions.map((courier) => (
                                 <label key={courier.value} className="cursor-pointer group">
@@ -490,6 +512,7 @@ export function CheckoutPageClient({
                             selectedAddressId={selectedAddress?.id ?? null}
                             paymentMethod={paymentMethod}
                             shippingCourier={selectedCourier}
+                            shippingMethod={shippingMethod}
                             canCheckout={canCheckout}
                             cartItemIds={cartItems.map((i) => i.id)}
                         />

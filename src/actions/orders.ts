@@ -76,6 +76,10 @@ const createOrderSchema = z.object({
     // Provider-dependent courier code (RajaOngkir trio or Biteship config list);
     // membership is validated inside getCheckoutShippingQuoteForUser.
     shipping_courier: z.string().trim().toLowerCase().regex(/^[a-z&_-]{2,24}$/),
+    // Delivery speed + payment method (recorded on the order; COD payment flow is
+    // a separate build — only BANK_TRANSFER/EWALLET are wired to Xendit today).
+    shipping_method: z.enum(["REGULAR", "INSTANT"]).default("REGULAR"),
+    payment_method: z.enum(["BANK_TRANSFER", "EWALLET", "COD"]).default("BANK_TRANSFER"),
     notes: z.string().optional(),
     voucher_code: z.string().trim().min(3).max(40).optional(),
     // Subset of cart lines to check out (the user's ticked items). Omitted = all.
@@ -271,6 +275,8 @@ async function createOrderFromCartInternal(input: z.infer<typeof createOrderSche
                     subtotal: subtotal.toString(),
                     shipping_cost: sellerShippingQuote.cost.toString(),
                     shipping_provider: sellerShippingQuote.shippingProvider,
+                    shipping_method: validated.shipping_method,
+                    payment_method: validated.payment_method,
                     shipping_quote_at: new Date(),
                     discount_amount: discountAmount.toString(),
                     total: orderTotal.toString(),

@@ -12,12 +12,13 @@ interface CheckoutFormProps {
     selectedAddressId: string | null;
     paymentMethod: PaymentMethod;
     shippingCourier: string;
+    shippingMethod: "REGULAR" | "INSTANT";
     canCheckout: boolean;
     /** Cart lines the buyer ticked (empty = whole cart). */
     cartItemIds: string[];
 }
 
-export function CheckoutForm({ selectedAddressId, paymentMethod, shippingCourier, canCheckout, cartItemIds }: CheckoutFormProps) {
+export function CheckoutForm({ selectedAddressId, paymentMethod, shippingCourier, shippingMethod, canCheckout, cartItemIds }: CheckoutFormProps) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState("");
@@ -45,6 +46,8 @@ export function CheckoutForm({ selectedAddressId, paymentMethod, shippingCourier
                 const orderResult = await createOrderFromCart({
                     shipping_address_id: selectedAddressId,
                     shipping_courier: shippingCourier,
+                    shipping_method: shippingMethod,
+                    payment_method: paymentMethod,
                     voucher_code: voucherCode.trim() || undefined,
                     cart_item_ids: cartItemIds.length > 0 ? cartItemIds : undefined,
                 });
