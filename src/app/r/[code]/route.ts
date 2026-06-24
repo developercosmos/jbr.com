@@ -11,6 +11,9 @@ export const dynamic = "force-dynamic";
 // Same shape the middleware ?ref= capture accepts, so attribution stays consistent.
 const CODE_RE = /^[a-zA-Z0-9_-]{3,40}$/;
 const ATTRIBUTION_DAYS = Number(process.env.AFFILIATE_ATTRIBUTION_DAYS || 30);
+// Public origin for the stored landing_url (analytics only). The redirect itself
+// uses a RELATIVE Location, so it never depends on this being set/correct.
+const PUBLIC_ORIGIN = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
 
 // Trusted edge headers (Cloudflare → nginx overwrite these on ingress). Mirrors
 // middleware.getClientIp; the raw x-forwarded-for first hop is client-spoofable so
@@ -24,30 +27,48 @@ function clientIp(req: NextRequest): string | undefined {
     );
 }
 
+// Strip ASCII control chars (code <= 0x1F or 0x7F). Browsers strip tab/newline before
+// parsing a URL, so a value like "/<TAB>//evil.com" could otherwise smuggle a
+// protocol-relative "//evil.com" past a naive prefix check. Done via charCode (no
+// literal control chars in source).
+function stripControlChars(s: string): string {
+    let out = "";
+    for (let i = 0; i < s.length; i++) {
+        const c = s.charCodeAt(i);
+        if (c > 0x1f && c !== 0x7f) out += s[i];
+    }
+    return out;
+}
+
 /**
- * Open-redirect guard: only allow a same-origin RELATIVE target (single leading
- * "/", not "//" protocol-relative nor "/\" backslash trick). Anything else → home.
+ * Open-redirect guard: only allow a same-origin RELATIVE path. After stripping
+ * control chars, require a single leading "/" that is not "//" (protocol-relative)
+ * nor "/\" (backslash trick). Anything else → home. The returned value is emitted as
+ * a relative Location, so the redirect can never leave our origin.
  */
 function safeTarget(to: string | null): string {
     if (!to) return "/";
-    if (!to.startsWith("/") || to.startsWith("//") || to.startsWith("/\\")) return "/";
-    return to;
+    const cleaned = stripControlChars(to);
+    if (!cleaned.startsWith("/") || cleaned.startsWith("//") || cleaned.startsWith("/\\")) return "/";
+    return cleaned;
 }
 
 /**
  * Affiliate referral redirect: GET /r/<code>[?to=/relative/path]
  * Records ONE click (deduped server-side), sets the last-click attribution cookie
- * for a valid ACTIVE code, then 302-redirects to the (same-origin) target.
+ * for a valid ACTIVE code, then 302-redirects to the same-origin target.
+ *
+ * The Location is RELATIVE on purpose: the app binds 0.0.0.0:3000 behind the
+ * Cloudflare→nginx proxy, so req.nextUrl.origin is the internal host. A relative
+ * Location lets the browser resolve against the public request URL instead.
  */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ code: string }> }) {
     const { code: raw } = await params;
     // Codes are generated lowercase; normalize so /r/MyCode still attributes.
     const code = (raw || "").trim().toLowerCase();
     const target = safeTarget(req.nextUrl.searchParams.get("to"));
-    let dest = new URL(target, req.nextUrl.origin);
-    // Defense-in-depth: never redirect off-origin even if safeTarget is bypassed.
-    if (dest.origin !== req.nextUrl.origin) dest = new URL("/", req.nextUrl.origin);
-    const res = NextResponse.redirect(dest, 302);
+
+    const res = new NextResponse(null, { status: 302, headers: { Location: target } });
 
     // Malformed code → still redirect the visitor, but record/attribute nothing.
     if (!CODE_RE.test(code)) return res;
@@ -57,7 +78,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ code
             {
                 code,
                 referrer: req.headers.get("referer") ?? undefined,
-                landingUrl: dest.toString(),
+                landingUrl: `${PUBLIC_ORIGIN}${target}`,
                 ip: clientIp(req),
                 userAgent: req.headers.get("user-agent") ?? undefined,
             },
