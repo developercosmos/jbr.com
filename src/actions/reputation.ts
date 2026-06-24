@@ -18,6 +18,7 @@ import {
     users,
 } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import { assertInternalCall } from "@/lib/internal-guard";
 import { headers } from "next/headers";
 import { and, eq, isNull, ne, or, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -924,7 +925,8 @@ export async function getBuyerReputationSummary(buyerId: string) {
 
 // Sweep-style helper: refresh ratings for sellers with stale aggregates.
 // Suitable for a cron job. Updates one seller per call site; callers may loop.
-export async function recomputeAllSellerRatingsForActiveSellers(): Promise<{ updated: number }> {
+export async function recomputeAllSellerRatingsForActiveSellers(internalToken?: string): Promise<{ updated: number }> {
+    assertInternalCall(internalToken);
     const sellerIdsRows = await db
         .selectDistinct({ id: orders.seller_id })
         .from(orders);
@@ -949,10 +951,11 @@ export async function recomputeAllSellerRatingsForActiveSellers(): Promise<{ upd
  *
  * Returns the list of newly-flagged seller IDs for cron logging.
  */
-export async function runBuyerRatingOutlierDetection(): Promise<{
+export async function runBuyerRatingOutlierDetection(internalToken?: string): Promise<{
     inspected: number;
     flagged: string[];
 }> {
+    assertInternalCall(internalToken);
     const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     const rows = await db

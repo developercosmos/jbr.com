@@ -6,6 +6,7 @@ import { and, eq, isNotNull, lt, or, sql } from "drizzle-orm";
 import { notify } from "@/lib/notify";
 import { getSellerFunnel, getSellerTopProducts } from "@/actions/product-events";
 import { logger } from "@/lib/logger";
+import { assertInternalCall } from "@/lib/internal-guard";
 
 export interface SellerDigestSweepResult {
     eligibleSellers: number;
@@ -23,7 +24,8 @@ function isoDay(offset = 0): string {
  * ANLY-04: nightly sweep — for sellers whose last digest is >= 7 days old,
  * compose a 7-day analytics summary and dispatch via notify.
  */
-export async function runSellerWeeklyDigestSweep(): Promise<SellerDigestSweepResult> {
+export async function runSellerWeeklyDigestSweep(internalToken?: string): Promise<SellerDigestSweepResult> {
+    assertInternalCall(internalToken);
     const now = new Date();
     const oneWeekAgo = new Date(now);
     oneWeekAgo.setUTCDate(oneWeekAgo.getUTCDate() - 7);

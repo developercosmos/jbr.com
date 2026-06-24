@@ -14,6 +14,7 @@ import { recordOrderRelease, recordOrderPayment } from "@/actions/ledger";
 import { postOrderRelease, postOrderPayment } from "@/actions/accounting/posting";
 import { getSetting } from "@/actions/accounting/settings";
 import { logger } from "@/lib/logger";
+import { assertInternalCall } from "@/lib/internal-guard";
 
 async function getCurrentUser() {
     const session = await auth.api.getSession({ headers: await headers() });
@@ -252,7 +253,8 @@ export interface EscrowAutoReleaseResult {
     completedOrderIds: string[];
 }
 
-export async function runEscrowAutoRelease(): Promise<EscrowAutoReleaseResult> {
+export async function runEscrowAutoRelease(internalToken?: string): Promise<EscrowAutoReleaseResult> {
+    assertInternalCall(internalToken);
     const now = new Date();
     const overdue = await db
         .select({ id: orders.id })

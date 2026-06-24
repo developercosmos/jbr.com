@@ -5,6 +5,7 @@ import { messages } from "@/db/schema";
 import { and, eq, lt, asc } from "drizzle-orm";
 import { notify } from "@/lib/notify";
 import { logger } from "@/lib/logger";
+import { assertInternalCall } from "@/lib/internal-guard";
 
 function firstRelation<T>(value: T | T[] | null | undefined): T | null {
     if (Array.isArray(value)) return value[0] ?? null;
@@ -28,7 +29,8 @@ export interface ChatReminderSweepResult {
  * (which clears is_read) resets it, and new messages don't re-trigger until the
  * streak is cleared. Honors the recipient's `chat` email preference inside notify().
  */
-export async function runUnansweredChatReminderSweep(): Promise<ChatReminderSweepResult> {
+export async function runUnansweredChatReminderSweep(internalToken?: string): Promise<ChatReminderSweepResult> {
+    assertInternalCall(internalToken);
     const cutoff = new Date(Date.now() - UNANSWERED_MINUTES * 60 * 1000);
 
     const unread = await db.query.messages.findMany({

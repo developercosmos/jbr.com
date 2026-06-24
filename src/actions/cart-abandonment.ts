@@ -5,6 +5,7 @@ import { carts, products, users, vouchers } from "@/db/schema";
 import { and, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { notify } from "@/lib/notify";
 import { logger } from "@/lib/logger";
+import { assertInternalCall } from "@/lib/internal-guard";
 import { randomBytes } from "crypto";
 
 const STAGE_1_HOURS = Number(process.env.ABANDONMENT_STAGE_1_HOURS || 1);
@@ -107,7 +108,8 @@ async function issueVoucher(userId: string, percent: number): Promise<string> {
  * ALERT-02: cart abandonment sweep. STAGE_1 (1h, no voucher), STAGE_2 (24h, 5% off),
  * STAGE_3 (72h, 8% off). Idempotent per (cartId, stage) via notify idempotency key.
  */
-export async function runCartAbandonmentSweep(): Promise<AbandonmentSweepResult> {
+export async function runCartAbandonmentSweep(internalToken?: string): Promise<AbandonmentSweepResult> {
+    assertInternalCall(internalToken);
     const now = new Date();
     const groups = await loadActiveAbandonedCarts(now);
     const perStage: Record<Stage, number> = { STAGE_1: 0, STAGE_2: 0, STAGE_3: 0 };

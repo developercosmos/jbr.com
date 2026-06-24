@@ -13,6 +13,7 @@ import {
     users,
 } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import { assertInternalCall } from "@/lib/internal-guard";
 import { headers, cookies } from "next/headers";
 import { after } from "next/server";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
@@ -320,7 +321,8 @@ export async function tryAttributeOrderFromCookie(orderId: string, buyerId: stri
 /**
  * Cron-driven: clear attributions whose order has reached COMPLETED.
  */
-export async function clearAttributionsForCompletedOrders() {
+export async function clearAttributionsForCompletedOrders(internalToken?: string) {
+    assertInternalCall(internalToken);
     const pending = await db
         .select({
             id: affiliate_attributions.id,

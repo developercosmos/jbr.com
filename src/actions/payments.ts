@@ -520,7 +520,8 @@ const ORDER_PAYMENT_TTL_HOURS = Number(process.env.ORDER_PAYMENT_TTL_HOURS || 24
  * Xendit EXPIRED webhook). An order is spared only while it still has a live
  * (not-yet-expired) pending invoice the buyer could complete.
  */
-export async function runOrderExpirySweep(): Promise<{ expired: number }> {
+export async function runOrderExpirySweep(internalToken?: string): Promise<{ expired: number }> {
+    assertInternalCall(internalToken);
     const now = new Date();
     const cutoff = new Date(now.getTime() - ORDER_PAYMENT_TTL_HOURS * 60 * 60 * 1000);
 
@@ -679,11 +680,12 @@ async function cancelMyOrderInternal(orderId: string) {
 // status. This guarantees order confirmation even if the webhook is missed/rejected
 // AND the buyer never reopens the payment page. handleXenditWebhook is idempotent,
 // so re-confirming an already-PAID order is a safe no-op.
-export async function reconcilePendingPayments(limit = 100): Promise<{
+export async function reconcilePendingPayments(limit = 100, internalToken?: string): Promise<{
     inspected: number;
     confirmed: number;
     errors: number;
 }> {
+    assertInternalCall(internalToken);
     const now = new Date();
     const pending = await db
         .select({ id: payments.id, expires_at: payments.expires_at })

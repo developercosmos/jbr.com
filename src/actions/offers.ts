@@ -15,6 +15,7 @@ import { randomBytes, randomUUID } from "crypto";
 import { z } from "zod";
 import { notify } from "@/lib/notify";
 import { formatCurrency } from "@/lib/format";
+import { assertInternalCall } from "@/lib/internal-guard";
 
 const OFFER_TTL_HOURS = Number(process.env.OFFER_TTL_HOURS || 48);
 const ACCEPTED_CHECKOUT_TTL_HOURS = Number(process.env.OFFER_CHECKOUT_TTL_HOURS || 24);
@@ -807,7 +808,8 @@ export interface OfferSlaFollowupSweepResult {
     expiredBySla: number;
 }
 
-export async function runOfferExpirySweep(): Promise<OfferExpirySweepResult> {
+export async function runOfferExpirySweep(internalToken?: string): Promise<OfferExpirySweepResult> {
+    assertInternalCall(internalToken);
     const now = new Date();
 
     const overdue = await db
@@ -832,7 +834,8 @@ export async function runOfferExpirySweep(): Promise<OfferExpirySweepResult> {
     };
 }
 
-export async function runOfferSlaFollowupSweep(): Promise<OfferSlaFollowupSweepResult> {
+export async function runOfferSlaFollowupSweep(internalToken?: string): Promise<OfferSlaFollowupSweepResult> {
+    assertInternalCall(internalToken);
     // DIF-03: SLA reminders (T24/T48) + T72 auto-expire are gated by dif.offer_sla.
     // When the flag is off the sweep is a no-op (previously it ran unconditionally
     // regardless of the flag, making the admin toggle decorative).

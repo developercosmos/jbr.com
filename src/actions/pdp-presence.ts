@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { pdp_presence_pings } from "@/db/schema";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { and, eq, gte, sql } from "drizzle-orm";
+import { assertInternalCall } from "@/lib/internal-guard";
 
 const PRESENCE_TTL_MS = 90_000; // 90 detik
 const PRIVACY_FLOOR = 2; // tidak expose count = 1 untuk anti-fingerprint
@@ -98,7 +99,8 @@ export async function getPdpPresenceSnapshot(productId: string): Promise<Presenc
 /**
  * Cron sweep: prune presence rows older than TTL to keep the table small.
  */
-export async function runPresencePruneSweep(): Promise<{ pruned: number }> {
+export async function runPresencePruneSweep(internalToken?: string): Promise<{ pruned: number }> {
+    assertInternalCall(internalToken);
     const cutoff = new Date(Date.now() - PRESENCE_TTL_MS * 4); // 6 menit
     const result = await db.execute(
         sql`DELETE FROM pdp_presence_pings WHERE last_seen_at < ${cutoff.toISOString()}::timestamp`

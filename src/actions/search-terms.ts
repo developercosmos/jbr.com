@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { product_events, products, seller_search_terms_daily, users } from "@/db/schema";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { logger } from "@/lib/logger";
+import { assertInternalCall } from "@/lib/internal-guard";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
@@ -25,7 +26,8 @@ export interface SearchTermRollupResult {
  * ANLY-03: aggregate raw product_events with non-null search_term into per-seller
  * daily search-term rollups. Run nightly. Idempotent.
  */
-export async function runSearchTermRollup(): Promise<SearchTermRollupResult> {
+export async function runSearchTermRollup(internalToken?: string): Promise<SearchTermRollupResult> {
+    assertInternalCall(internalToken);
     const ranges = [{ offset: -1 }, { offset: 0 }];
     let rowsUpserted = 0;
 

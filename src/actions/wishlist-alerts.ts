@@ -5,6 +5,7 @@ import { products, users, wishlist_price_baselines, wishlists } from "@/db/schem
 import { and, eq, sql } from "drizzle-orm";
 import { notify } from "@/lib/notify";
 import { logger } from "@/lib/logger";
+import { assertInternalCall } from "@/lib/internal-guard";
 
 const PRICE_DROP_PCT = Number(process.env.WISHLIST_PRICE_DROP_PCT || 10);
 
@@ -22,7 +23,8 @@ export interface WishlistAlertSweepResult {
  * Captures baseline lazily on first sweep encounter, so existing wishlists
  * pre-feature get baselined on the first run without a separate backfill.
  */
-export async function runWishlistPriceDropSweep(): Promise<WishlistAlertSweepResult> {
+export async function runWishlistPriceDropSweep(internalToken?: string): Promise<WishlistAlertSweepResult> {
+    assertInternalCall(internalToken);
     const rows = await db
         .select({
             user_id: wishlists.user_id,

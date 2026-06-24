@@ -5,6 +5,7 @@ import { feature_flags } from "@/db/schema";
 import { invalidateFeatureFlagCache } from "@/lib/feature-flags";
 import { logger } from "@/lib/logger";
 import { and, eq, isNotNull, lte, gte, sql } from "drizzle-orm";
+import { assertInternalCall } from "@/lib/internal-guard";
 
 /**
  * FLAG-09: Auto-toggle flags that have reached their scheduled_enable_at /
@@ -13,10 +14,11 @@ import { and, eq, isNotNull, lte, gte, sql } from "drizzle-orm";
  *
  * Runs every cron tick. Cache is invalidated once at the end if any row changed.
  */
-export async function runFeatureFlagScheduledToggle(): Promise<{
+export async function runFeatureFlagScheduledToggle(internalToken?: string): Promise<{
     enabled: number;
     disabled: number;
 }> {
+    assertInternalCall(internalToken);
     const now = new Date();
 
     // ENABLE: scheduled_enable_at <= now AND enabled = false.
@@ -90,9 +92,10 @@ export async function runFeatureFlagScheduledToggle(): Promise<{
  * This sweep just emits a structured log line per candidate; ops dashboard or
  * Sentry can route the alert. Production-safe to keep in nightly cron.
  */
-export async function runFeatureFlagCleanupNotices(): Promise<{
+export async function runFeatureFlagCleanupNotices(internalToken?: string): Promise<{
     flagged: string[];
 }> {
+    assertInternalCall(internalToken);
     const cutoff = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
 
     const candidates = await db

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runAffiliateOcrSweep, runKycOcrSweep } from "@/actions/kyc-ocr";
+import { INTERNAL_CALL_TOKEN } from "@/lib/internal-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -22,8 +23,8 @@ export async function POST(request: NextRequest) {
     }
     try {
         // Sequential on purpose: both sweeps share the same single LLM box.
-        const kycOcr = await runKycOcrSweep();
-        const affiliateOcr = await runAffiliateOcrSweep();
+        const kycOcr = await runKycOcrSweep(INTERNAL_CALL_TOKEN);
+        const affiliateOcr = await runAffiliateOcrSweep(INTERNAL_CALL_TOKEN);
         return NextResponse.json({ success: true, kycOcr, affiliateOcr, ranAt: new Date().toISOString() });
     } catch (error) {
         console.error("[kyc-ocr] sweep failure:", error);

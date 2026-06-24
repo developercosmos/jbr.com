@@ -7,6 +7,7 @@ import { headers } from "next/headers";
 import { and, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { logger } from "@/lib/logger";
+import { assertInternalCall } from "@/lib/internal-guard";
 
 // SECURITY: seller analytics are owner-or-admin only (public Server Action surface).
 async function assertSellerSelfOrAdmin(sellerId: string) {
@@ -128,7 +129,8 @@ export interface ProductEventRollupResult {
  * Runs nightly via cron entrypoint. Idempotent — re-running same day overwrites
  * existing aggregate row counts.
  */
-export async function runProductEventRollup(): Promise<ProductEventRollupResult> {
+export async function runProductEventRollup(internalToken?: string): Promise<ProductEventRollupResult> {
+    assertInternalCall(internalToken);
     const retentionDays = Number(process.env.PRODUCT_EVENTS_RETAIN_DAYS || 90);
 
     // Aggregate events from yesterday + today (covers crons that drift across midnight).

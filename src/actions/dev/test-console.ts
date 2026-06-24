@@ -195,7 +195,7 @@ export async function testAdvanceOrder(
                 .update(orders)
                 .set({ release_due_at: new Date(Date.now() - 1000), updated_at: new Date() })
                 .where(eq(orders.id, orderId));
-            const r = await runEscrowAutoRelease();
+            const r = await runEscrowAutoRelease(INTERNAL_CALL_TOKEN);
             return done(`Escrow auto-release dijalankan: ${JSON.stringify(r)}.`);
         }
 

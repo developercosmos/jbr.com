@@ -4,13 +4,15 @@ import { db } from "@/db";
 import { products } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { reconcileSearchIndex } from "@/lib/search-backend";
+import { assertInternalCall } from "@/lib/internal-guard";
 
 /**
  * SRCH-03: nightly reconcile entrypoint. Pulls all PUBLISHED products from
  * Postgres and bulk-indexes into Meilisearch, healing any drift caused by
  * missed real-time syncs.
  */
-export async function runSearchIndexReconcile() {
+export async function runSearchIndexReconcile(internalToken?: string) {
+    assertInternalCall(internalToken);
     return reconcileSearchIndex(async () => {
         const rows = await db.query.products.findMany({
             where: eq(products.status, "PUBLISHED"),

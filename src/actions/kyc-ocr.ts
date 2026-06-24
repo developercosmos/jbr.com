@@ -17,6 +17,7 @@ import { isFeatureEnabled } from "@/lib/feature-flags";
 import { AFFILIATE_OCR_FEATURE_KEY, isOcrConfigured, KYC_OCR_FEATURE_KEY } from "@/lib/kyc-ocr";
 import { processAffiliateOcrRow, processKycOcrRow, type OcrRowOutcome } from "@/lib/kyc-ocr-runner";
 import { logger } from "@/lib/logger";
+import { assertInternalCall } from "@/lib/internal-guard";
 
 async function requireAdmin() {
     const session = await auth.api.getSession({ headers: await headers() });
@@ -39,7 +40,8 @@ export interface KycOcrSweepResult {
 }
 
 /** Background worker: OCR the oldest PENDING submissions within a time budget. */
-export async function runKycOcrSweep(): Promise<KycOcrSweepResult> {
+export async function runKycOcrSweep(internalToken?: string): Promise<KycOcrSweepResult> {
+    assertInternalCall(internalToken);
     const base: KycOcrSweepResult = { inspected: 0, processed: 0, mismatches: 0, notKtp: 0, failed: 0 };
     if (!isOcrConfigured()) return { ...base, skipped: "not_configured" };
     if (!(await isFeatureEnabled(KYC_OCR_FEATURE_KEY))) return { ...base, skipped: "disabled" };
@@ -114,7 +116,8 @@ async function runKycOcrForSellerInternal(sellerId: string) {
 }
 
 /** Background worker: OCR the oldest PENDING affiliate enrollments within a time budget. */
-export async function runAffiliateOcrSweep(): Promise<KycOcrSweepResult> {
+export async function runAffiliateOcrSweep(internalToken?: string): Promise<KycOcrSweepResult> {
+    assertInternalCall(internalToken);
     const base: KycOcrSweepResult = { inspected: 0, processed: 0, mismatches: 0, notKtp: 0, failed: 0 };
     if (!isOcrConfigured()) return { ...base, skipped: "not_configured" };
     if (!(await isFeatureEnabled(AFFILIATE_OCR_FEATURE_KEY))) return { ...base, skipped: "disabled" };

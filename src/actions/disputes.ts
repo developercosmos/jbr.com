@@ -11,6 +11,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { notify } from "@/lib/notify";
 import { randomUUID } from "crypto";
+import { assertInternalCall } from "@/lib/internal-guard";
 
 const RESPONSE_HOURS = Number(process.env.DISPUTE_RESPONSE_HOURS || 24);
 const RESOLUTION_HOURS = Number(process.env.DISPUTE_RESOLUTION_HOURS || 24 * 7);
@@ -155,7 +156,8 @@ export interface DisputeSlaSweepResult {
     escalatedDisputeIds: string[];
 }
 
-export async function runDisputeSlaSweep(): Promise<DisputeSlaSweepResult> {
+export async function runDisputeSlaSweep(internalToken?: string): Promise<DisputeSlaSweepResult> {
+    assertInternalCall(internalToken);
     const now = new Date();
 
     const breached = await db

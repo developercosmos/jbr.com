@@ -16,6 +16,7 @@ import { runSearchIndexReconcile } from "@/actions/search-index-sync";
 import { runGlReconciliation } from "@/actions/accounting/reconciliation";
 import { reconcilePendingPayments, runOrderExpirySweep } from "@/actions/payments";
 import { runUnansweredChatReminderSweep } from "@/actions/chat-reminders";
+import { INTERNAL_CALL_TOKEN } from "@/lib/internal-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -59,27 +60,27 @@ export async function POST(request: NextRequest) {
             expiredOfferCart,
             orderExpiry,
         ] = await Promise.all([
-            runEscrowAutoRelease(),
-            runDisputeSlaSweep(),
-            recomputeAllSellerRatingsForActiveSellers(),
-            runOfferExpirySweep(),
-            runOfferSlaFollowupSweep(),
-            clearAttributionsForCompletedOrders(),
-            runWishlistPriceDropSweep(),
-            runCartAbandonmentSweep(),
-            runProductEventRollup(),
-            runSearchTermRollup(),
-            runSellerWeeklyDigestSweep(),
-            runSearchIndexReconcile(),
+            runEscrowAutoRelease(INTERNAL_CALL_TOKEN),
+            runDisputeSlaSweep(INTERNAL_CALL_TOKEN),
+            recomputeAllSellerRatingsForActiveSellers(INTERNAL_CALL_TOKEN),
+            runOfferExpirySweep(INTERNAL_CALL_TOKEN),
+            runOfferSlaFollowupSweep(INTERNAL_CALL_TOKEN),
+            clearAttributionsForCompletedOrders(INTERNAL_CALL_TOKEN),
+            runWishlistPriceDropSweep(INTERNAL_CALL_TOKEN),
+            runCartAbandonmentSweep(INTERNAL_CALL_TOKEN),
+            runProductEventRollup(INTERNAL_CALL_TOKEN),
+            runSearchTermRollup(INTERNAL_CALL_TOKEN),
+            runSellerWeeklyDigestSweep(INTERNAL_CALL_TOKEN),
+            runSearchIndexReconcile(INTERNAL_CALL_TOKEN),
             runGlReconciliation(),
-            runBuyerRatingOutlierDetection(),
-            runFeatureFlagScheduledToggle(),
-            runFeatureFlagCleanupNotices(),
-            runPresencePruneSweep(),
-            reconcilePendingPayments(),
-            runUnansweredChatReminderSweep(),
-            runExpiredOfferCartSweep(),
-            runOrderExpirySweep(),
+            runBuyerRatingOutlierDetection(INTERNAL_CALL_TOKEN),
+            runFeatureFlagScheduledToggle(INTERNAL_CALL_TOKEN),
+            runFeatureFlagCleanupNotices(INTERNAL_CALL_TOKEN),
+            runPresencePruneSweep(INTERNAL_CALL_TOKEN),
+            reconcilePendingPayments(100, INTERNAL_CALL_TOKEN),
+            runUnansweredChatReminderSweep(INTERNAL_CALL_TOKEN),
+            runExpiredOfferCartSweep(INTERNAL_CALL_TOKEN),
+            runOrderExpirySweep(INTERNAL_CALL_TOKEN),
         ]);
 
         return NextResponse.json({

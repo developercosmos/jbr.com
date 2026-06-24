@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { eq, and, isNull, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { assertInternalCall } from "@/lib/internal-guard";
 
 // Get current user
 async function getCurrentUser() {
@@ -343,7 +344,8 @@ export async function getCartCount(): Promise<number> {
  * is no longer ACCEPTED — e.g. already checked out). Keeps the item from
  * lingering for buyers who never reopen their cart.
  */
-export async function runExpiredOfferCartSweep(): Promise<{ removed: number }> {
+export async function runExpiredOfferCartSweep(internalToken?: string): Promise<{ removed: number }> {
+    assertInternalCall(internalToken);
     const res = await db.execute(sql`
         DELETE FROM carts
         WHERE offer_id IS NOT NULL
