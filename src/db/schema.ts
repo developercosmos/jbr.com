@@ -687,6 +687,8 @@ export const orders = pgTable(
         // (BANK_TRANSFER | EWALLET | COD). Validated at the application layer.
         shipping_method: text("shipping_method").default("REGULAR").notNull(),
         payment_method: text("payment_method").default("BANK_TRANSFER").notNull(),
+        // COD cash-collected timestamp — gates COD payment recognition + release.
+        cod_collected_at: timestamp("cod_collected_at"),
         // Shipping tracking fields
         tracking_number: text("tracking_number"),
         shipping_provider: text("shipping_provider"),

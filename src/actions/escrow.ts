@@ -5,12 +5,13 @@ import { actionErrorMessage, isNextControlFlowError } from "@/lib/action-result"
 import { orders, disputes } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { and, eq, inArray, isNotNull, lte } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, lte, desc, or, ne } from "drizzle-orm";
+import { payments } from "@/db/schema";
 import { revalidatePath } from "next/cache";
 import { notify } from "@/lib/notify";
 import { recomputeSellerRating } from "@/actions/reputation";
-import { recordOrderRelease } from "@/actions/ledger";
-import { postOrderRelease } from "@/actions/accounting/posting";
+import { recordOrderRelease, recordOrderPayment } from "@/actions/ledger";
+import { postOrderRelease, postOrderPayment } from "@/actions/accounting/posting";
 import { getSetting } from "@/actions/accounting/settings";
 import { logger } from "@/lib/logger";
 
@@ -46,6 +47,8 @@ async function completeOrder(orderId: string, autoReleased: boolean) {
             seller_id: true,
             status: true,
             total: true,
+            payment_method: true,
+            cod_collected_at: true,
         },
         with: {
             items: {
@@ -71,6 +74,43 @@ async function completeOrder(orderId: string, autoReleased: boolean) {
             .set({ release_due_at: null, updated_at: new Date() })
             .where(eq(orders.id, orderId));
         return null;
+    }
+
+    // COD: cash is collected by the courier on delivery, so the buyer payment is
+    // recognized at completion — but ONLY once collection is confirmed
+    // (cod_collected_at, set by the buyer's confirmReceipt). A logistics
+    // "delivered" status / the auto-release timer alone must NOT release funds for
+    // cash the platform never received. Fund the escrow BEFORE the atomic flip so
+    // a funding failure leaves the order DELIVERED (retryable), never
+    // COMPLETED-but-unreleased. Idempotent on ORDER_PAYMENT:<orderId>.
+    if (order.payment_method === "COD") {
+        if (!order.cod_collected_at) return null; // wait for cash-collected signal
+        await recordOrderPayment({
+            orderId: order.id,
+            buyerId: order.buyer_id,
+            amount: parseFloat(order.total),
+        });
+        const codPayment = await db.query.payments.findFirst({
+            where: and(eq(payments.order_id, order.id), eq(payments.payment_method, "COD")),
+            orderBy: [desc(payments.created_at)],
+            columns: { id: true },
+        });
+        if (codPayment) {
+            await db
+                .update(payments)
+                .set({ status: "PAID", paid_at: new Date(), updated_at: new Date() })
+                .where(eq(payments.id, codPayment.id));
+            const dualWriteCod = await getSetting<boolean>("gl.dual_write_legacy", { defaultValue: true });
+            if (dualWriteCod) {
+                await postOrderPayment({
+                    orderId: order.id,
+                    paymentId: codPayment.id,
+                    grossAmount: parseFloat(order.total),
+                    paidAt: new Date(),
+                    paymentMethod: "COD",
+                });
+            }
+        }
     }
 
     // Atomic DELIVERED→COMPLETED transition. confirmReceipt (buyer) and the
@@ -173,7 +213,7 @@ async function confirmReceiptInternal(orderId: string) {
 
     const order = await db.query.orders.findFirst({
         where: and(eq(orders.id, orderId), eq(orders.buyer_id, user.id)),
-        columns: { id: true, status: true },
+        columns: { id: true, status: true, payment_method: true, cod_collected_at: true },
     });
 
     if (!order) {
@@ -182,6 +222,16 @@ async function confirmReceiptInternal(orderId: string) {
 
     if (order.status !== "DELIVERED") {
         throw new Error("Pesanan belum berstatus DELIVERED");
+    }
+
+    // For COD, the buyer confirming receipt IS the cash-collected signal (they paid
+    // the courier on delivery) — record it so completeOrder may recognize payment +
+    // release to the seller. Prepaid orders ignore this field.
+    if (order.payment_method === "COD" && !order.cod_collected_at) {
+        await db
+            .update(orders)
+            .set({ cod_collected_at: new Date(), updated_at: new Date() })
+            .where(eq(orders.id, orderId));
     }
 
     const completed = await completeOrder(orderId, false);
@@ -211,7 +261,10 @@ export async function runEscrowAutoRelease(): Promise<EscrowAutoReleaseResult> {
             and(
                 eq(orders.status, "DELIVERED"),
                 isNotNull(orders.release_due_at),
-                lte(orders.release_due_at, now)
+                lte(orders.release_due_at, now),
+                // COD never auto-releases on the timer alone — it needs a confirmed
+                // cash-collected signal (cod_collected_at). Prepaid is unaffected.
+                or(ne(orders.payment_method, "COD"), isNotNull(orders.cod_collected_at))
             )
         );
 

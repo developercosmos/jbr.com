@@ -90,11 +90,12 @@ async function createPaymentInvoiceInternal(orderId: string, preferredMethod?: "
         }
 
         // True cash-on-delivery: NO online Xendit invoice. Record a pending COD
-        // payment and move the order straight to PROCESSING so the seller fulfils;
+        // payment and move the order to PACKING so the seller starts fulfilment;
         // the buyer pays the courier on delivery. Idempotent on a real transition.
+        // Payment is recognized at completion (escrow.ts completeOrder COD branch).
         const transitioned = await db
             .update(orders)
-            .set({ status: "PROCESSING", updated_at: new Date() })
+            .set({ status: "PACKING", updated_at: new Date() })
             .where(and(eq(orders.id, orderId), eq(orders.status, "PENDING_PAYMENT")))
             .returning({ id: orders.id });
 

@@ -90,7 +90,10 @@ export async function applyBiteshipStatusUpdate(params: {
             // PAID/PROCESSING → DELIVERED jump too (in case the "picked" event was
             // missed) with a shipped_at backfill.
             const releaseHours = Number(process.env.ESCROW_RELEASE_HOURS || 72);
-            const releaseDueAt = new Date(Date.now() + releaseHours * 60 * 60 * 1000);
+            // COD must NOT auto-release on a bare courier "delivered" event — it
+            // waits for a confirmed cash-collected signal (buyer confirmReceipt).
+            const releaseDueAt =
+                order.payment_method === "COD" ? null : new Date(Date.now() + releaseHours * 60 * 60 * 1000);
             const [updated] = await db
                 .update(orders)
                 .set({

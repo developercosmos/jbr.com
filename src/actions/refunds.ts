@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { orders, order_items, products, product_variants, users } from "@/db/schema";
+import { orders, order_items, products, product_variants, users, payments } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { and, eq, sql } from "drizzle-orm";
@@ -46,7 +46,7 @@ export async function refundOrder(input: { orderId: string; reason?: string }) {
 
     const order = await db.query.orders.findFirst({
         where: eq(orders.id, input.orderId),
-        columns: { id: true, order_number: true, status: true, buyer_id: true, total: true },
+        columns: { id: true, order_number: true, status: true, buyer_id: true, total: true, payment_method: true },
     });
     if (!order) throw new Error("Pesanan tidak ditemukan");
 
@@ -68,6 +68,7 @@ async function applyRefund(order: {
     status: string;
     buyer_id: string;
     total: string;
+    payment_method: string;
 }) {
     // Atomic guard: only the first caller that flips a still-refundable order wins.
     const won = await db
@@ -112,21 +113,37 @@ async function applyRefund(order: {
 
     const amount = parseFloat(order.total);
 
-    // Reverse legacy escrow ledger (idempotent: deterministic groupId on orderId).
-    try {
-        await recordOrderRefund({ orderId: order.id, buyerId: order.buyer_id, amount });
-    } catch (e) {
-        logger.error("refund:legacy_ledger_failed", { orderId: order.id, error: String(e) });
+    // Only reverse the MONEY legs if the buyer actually paid. Prepaid always paid.
+    // COD funds escrow only at completion (a PAID payments row); refunding an
+    // unpaid COD order (cancelled before delivery) must NOT book a refund payable
+    // or reverse escrow that was never funded — that desyncs the books. Restock +
+    // status flip + affiliate reversal + notify still apply below.
+    let buyerPaid = order.payment_method !== "COD";
+    if (!buyerPaid) {
+        const paid = await db.query.payments.findFirst({
+            where: and(eq(payments.order_id, order.id), eq(payments.status, "PAID")),
+            columns: { id: true },
+        });
+        buyerPaid = !!paid;
     }
 
-    // Reverse PSAK GL (idempotent: idempotencyKey ORDER_REFUND:<id>).
-    try {
-        const dualWrite = await getSetting<boolean>("gl.dual_write_legacy", { defaultValue: true });
-        if (dualWrite) {
-            await postOrderRefund({ orderId: order.id, refundId: order.id, amount });
+    if (buyerPaid) {
+        // Reverse legacy escrow ledger (idempotent: deterministic groupId on orderId).
+        try {
+            await recordOrderRefund({ orderId: order.id, buyerId: order.buyer_id, amount });
+        } catch (e) {
+            logger.error("refund:legacy_ledger_failed", { orderId: order.id, error: String(e) });
         }
-    } catch (e) {
-        logger.error("refund:gl_failed", { orderId: order.id, error: String(e) });
+
+        // Reverse PSAK GL (idempotent: idempotencyKey ORDER_REFUND:<id>).
+        try {
+            const dualWrite = await getSetting<boolean>("gl.dual_write_legacy", { defaultValue: true });
+            if (dualWrite) {
+                await postOrderRefund({ orderId: order.id, refundId: order.id, amount });
+            }
+        } catch (e) {
+            logger.error("refund:gl_failed", { orderId: order.id, error: String(e) });
+        }
     }
 
     // Reverse affiliate commission tied to this order (if any).
@@ -179,6 +196,7 @@ export async function sellerCancelOrder(input: { orderId: string }) {
             buyer_id: true,
             seller_id: true,
             total: true,
+            payment_method: true,
             biteship_order_id: true,
         },
     });
@@ -205,6 +223,7 @@ export async function sellerCancelOrder(input: { orderId: string }) {
         status: order.status,
         buyer_id: order.buyer_id,
         total: order.total,
+        payment_method: order.payment_method,
     });
     return { success: true as const };
 }
