@@ -27,11 +27,26 @@ export async function POST(request: NextRequest) {
         request.headers.get("x-webhook-token") ??
         request.nextUrl.searchParams.get("token") ??
         "";
+
+    // On install, Biteship sends an EMPTY-body validation ping and requires a 200
+    // to accept the webhook. Acknowledge it — it carries no event to process, so
+    // this no-op needs no auth. Real events (non-empty body) below still require
+    // the shared-secret token.
+    const raw = await request.text();
+    if (!raw || raw.trim() === "" || raw.trim() === "{}") {
+        return NextResponse.json({ received: true });
+    }
+
     if (!tokenMatches(provided, expected)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+    let body: Record<string, unknown> | null = null;
+    try {
+        body = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+        body = null;
+    }
     if (!body) {
         return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
