@@ -1,20 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { getBiteshipSettings } from "@/lib/biteship";
 import { applyBiteshipStatusUpdate } from "@/lib/biteship-status";
 
 export const dynamic = "force-dynamic";
 
+function tokenMatches(provided: string, expected: string): boolean {
+    if (!expected || !provided) return false;
+    const a = Buffer.from(provided);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length) return false; // timingSafeEqual throws on length mismatch
+    return crypto.timingSafeEqual(a, b);
+}
+
 // Biteship webhook receiver (order.status / order.waybill_id / order.price).
-// Register in the Biteship dashboard as:
-//   https://jualbeliraket.com/api/webhooks/biteship?token=<webhook_token>
-// Biteship does not sign webhook payloads, so authentication is a shared-secret
-// token in the URL, compared against credentials.webhook_token (admin settings)
-// or BITESHIP_WEBHOOK_TOKEN. Fail-closed: no configured token => reject all.
+// Register in the Biteship dashboard with EITHER auth (both checked against
+// credentials.webhook_token in admin settings, or env BITESHIP_WEBHOOK_TOKEN):
+//   - URL token:  https://jualbeliraket.com/api/webhooks/biteship?token=<secret>
+//   - Header:     "Headers Signature Key" = X-Webhook-Token,
+//                 "Headers Signature Secret" = <secret>
+// Fail-closed: no configured token => reject all. Constant-time comparison.
 export async function POST(request: NextRequest) {
     const settings = await getBiteshipSettings();
     const expected = settings.webhookToken;
-    const provided = request.nextUrl.searchParams.get("token") ?? "";
-    if (!expected || provided !== expected) {
+    const provided =
+        request.headers.get("x-webhook-token") ??
+        request.nextUrl.searchParams.get("token") ??
+        "";
+    if (!tokenMatches(provided, expected)) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
