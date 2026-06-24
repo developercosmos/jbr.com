@@ -97,6 +97,8 @@ export const users = pgTable(
         // of the banner (Shopee-style) instead of stacking below it.
         store_header_overlay: boolean("store_header_overlay").default(false).notNull(),
         payout_bank_name: text("payout_bank_name"),
+        payout_bank_account_number: text("payout_bank_account_number"),
+        payout_bank_account_name: text("payout_bank_account_name"),
         store_status: storeStatusEnum("store_status").default("ACTIVE"),
         store_review_notes: text("store_review_notes"),
         store_reviewed_at: timestamp("store_reviewed_at"),
@@ -1381,6 +1383,49 @@ export const payments = pgTable(
     (table) => ({
         order_id_idx: index("idx_payments_order_id").on(table.order_id),
         xendit_invoice_idx: index("idx_payments_xendit_invoice").on(table.xendit_invoice_id),
+    })
+);
+
+// ============================================
+// SELLER PAYOUTS (Xendit Disbursement, admin-approved)
+// ============================================
+export const payoutStatusEnum = pgEnum("payout_status", [
+    "PENDING",
+    "PROCESSING",
+    "COMPLETED",
+    "FAILED",
+    "REJECTED",
+]);
+
+export const sellerPayouts = pgTable(
+    "seller_payouts",
+    {
+        id: uuid("id").defaultRandom().primaryKey(),
+        seller_id: text("seller_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+        bank_fee: decimal("bank_fee", { precision: 12, scale: 2 }).default("0").notNull(),
+        status: payoutStatusEnum("status").default("PENDING").notNull(),
+        // Bank destination snapshot (so a later KYC change can't retarget the transfer).
+        bank_code: text("bank_code").notNull(),
+        bank_account_number: text("bank_account_number").notNull(),
+        bank_account_name: text("bank_account_name").notNull(),
+        // Our idempotent reference sent to Xendit; also drives recordSellerPayout id.
+        external_id: text("external_id").notNull().unique(),
+        xendit_disbursement_id: text("xendit_disbursement_id"),
+        failure_reason: text("failure_reason"),
+        requested_at: timestamp("requested_at").defaultNow().notNull(),
+        approved_at: timestamp("approved_at"),
+        approved_by: text("approved_by").references(() => users.id, { onDelete: "set null" }),
+        completed_at: timestamp("completed_at"),
+        created_at: timestamp("created_at").defaultNow().notNull(),
+        updated_at: timestamp("updated_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        seller_idx: index("idx_seller_payouts_seller").on(table.seller_id),
+        status_idx: index("idx_seller_payouts_status").on(table.status),
+        xendit_idx: index("idx_seller_payouts_xendit").on(table.xendit_disbursement_id),
     })
 );
 
