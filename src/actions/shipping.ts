@@ -298,6 +298,9 @@ function buildQuoteCacheKey(provider: string, userId: string, addressId: string,
 }
 
 export async function getCheckoutShippingQuoteForUser(userId: string, addressId: string, courier: ShippingCourier, cartItemIds?: string[]): Promise<CheckoutShippingQuoteResult> {
+    // SECURITY: a buyer may only quote their OWN cart + address (no IDOR on userId).
+    const me = await getCurrentUser();
+    if (me.id !== userId) throw new Error("Unauthorized");
     const validated = getCheckoutShippingQuoteSchema.parse({ addressId, courier });
     const provider = await resolveActiveShippingProvider();
 

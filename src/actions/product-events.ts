@@ -1,12 +1,21 @@
 "use server";
 
 import { db } from "@/db";
-import { product_event_daily, product_events, products } from "@/db/schema";
+import { product_event_daily, product_events, products, users } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { and, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { logger } from "@/lib/logger";
+
+// SECURITY: seller analytics are owner-or-admin only (public Server Action surface).
+async function assertSellerSelfOrAdmin(sellerId: string) {
+    const me = await getCurrentUserOrNull();
+    if (!me) throw new Error("Unauthorized");
+    if (me.id === sellerId) return;
+    const role = (await db.query.users.findFirst({ where: eq(users.id, me.id), columns: { role: true } }))?.role;
+    if (role !== "ADMIN") throw new Error("Unauthorized");
+}
 
 const EVENT_TYPES = [
     "IMPRESSION",
@@ -181,6 +190,7 @@ void lt;
  * products in [start, end). Day strings expected as 'YYYY-MM-DD'.
  */
 export async function getSellerFunnel(sellerId: string, startDate: string, endDate: string) {
+    await assertSellerSelfOrAdmin(sellerId);
     const rows = await db
         .select({
             event_type: product_event_daily.event_type,
@@ -215,6 +225,7 @@ export async function getSellerFunnel(sellerId: string, startDate: string, endDa
  * ANLY-02 per-product breakdown — top sellers by purchase count + funnel %.
  */
 export async function getSellerTopProducts(sellerId: string, startDate: string, endDate: string, limit = 10) {
+    await assertSellerSelfOrAdmin(sellerId);
     const rows = await db
         .select({
             product_id: product_event_daily.product_id,

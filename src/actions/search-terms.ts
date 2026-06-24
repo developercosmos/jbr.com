@@ -1,9 +1,20 @@
 "use server";
 
 import { db } from "@/db";
-import { product_events, products, seller_search_terms_daily } from "@/db/schema";
+import { product_events, products, seller_search_terms_daily, users } from "@/db/schema";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { logger } from "@/lib/logger";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+
+// SECURITY: seller search analytics are owner-or-admin only.
+async function assertSellerSelfOrAdmin(sellerId: string) {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session?.user) throw new Error("Unauthorized");
+    if (session.user.id === sellerId) return;
+    const role = (await db.query.users.findFirst({ where: eq(users.id, session.user.id), columns: { role: true } }))?.role;
+    if (role !== "ADMIN") throw new Error("Unauthorized");
+}
 
 export interface SearchTermRollupResult {
     daysProcessed: number;
@@ -85,6 +96,7 @@ export async function runSearchTermRollup(): Promise<SearchTermRollupResult> {
 }
 
 export async function getSellerSearchTerms(sellerId: string, startDate: string, endDate: string, limit = 50) {
+    await assertSellerSelfOrAdmin(sellerId);
     return db
         .select({
             term: seller_search_terms_daily.term,

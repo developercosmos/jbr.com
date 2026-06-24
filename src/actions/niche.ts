@@ -156,7 +156,13 @@ async function upsertPlayerProfileInternal(input: z.infer<typeof upsertProfileSc
 }
 
 export async function getPlayerProfile(userId?: string) {
-    const targetId = userId ?? (await getCurrentUser()).id;
+    // SECURITY: read your OWN profile unless admin (no IDOR on the userId arg).
+    const me = await getCurrentUser();
+    const targetId = userId ?? me.id;
+    if (targetId !== me.id) {
+        const role = (await db.query.users.findFirst({ where: eq(users.id, me.id), columns: { role: true } }))?.role;
+        if (role !== "ADMIN") throw new Error("Unauthorized");
+    }
     return db.query.player_profiles.findFirst({
         where: eq(player_profiles.user_id, targetId),
     });
