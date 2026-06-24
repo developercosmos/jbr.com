@@ -14,7 +14,7 @@ import { getSetting } from "@/actions/accounting/settings";
 import { getT0Gates } from "@/actions/kyc";
 import { getSellerLedgerSummary } from "@/actions/accounting/seller-ledger";
 import { resolveBankCode } from "@/lib/bank-codes";
-import { createXenditDisbursement } from "@/lib/xendit-disbursement";
+import { createXenditDisbursement, DisbursementError } from "@/lib/xendit-disbursement";
 import { logger } from "@/lib/logger";
 
 const recordSellerPayoutSchema = z.object({
@@ -77,20 +77,33 @@ export async function recordSellerPayout(input: z.infer<typeof recordSellerPayou
     }
 
     const payoutId = validated.reference?.trim() || randomUUID();
+    await drainSellerPayoutGL({
+        sellerId: validated.sellerId,
+        amount: validated.amount,
+        bankFee: validated.bankFee,
+        reference: payoutId,
+    });
+    return { success: true, payoutId };
+}
 
+/**
+ * GL drain for a payout whose money has ALREADY left the platform (DR 22000 /
+ * CR 11100). AUTH-FREE on purpose: it's called from the Xendit disbursement
+ * webhook (no admin session) and from recordSellerPayout (after its admin guard
+ * + T0 gate). NO T0 gate here — the cash is already gone; blocking the books
+ * would only desync them. Idempotent via postPayout key PAYOUT:<reference>.
+ */
+async function drainSellerPayoutGL(args: { sellerId: string; amount: number; bankFee?: number; reference: string }) {
     const dualWrite = await getSetting<boolean>("gl.dual_write_legacy", { defaultValue: true });
     if (dualWrite) {
         await postPayout({
-            payoutId,
-            sellerId: validated.sellerId,
-            amount: validated.amount,
-            bankFee: validated.bankFee,
+            payoutId: args.reference,
+            sellerId: args.sellerId,
+            amount: Math.floor(args.amount),
+            bankFee: args.bankFee,
         });
     }
-
     revalidatePath("/admin/finance/seller-ledger");
-
-    return { success: true, payoutId };
 }
 
 // ============================================
@@ -161,6 +174,35 @@ export async function getSellerPayoutInfo() {
     };
 }
 
+const updateBankSchema = z.object({
+    bankName: z.string().trim().min(2).max(60),
+    accountNumber: z.string().trim().regex(/^[0-9]{6,20}$/),
+    accountName: z.string().trim().min(2).max(80),
+});
+
+/** Seller sets/updates their payout bank account (destination for disbursements). */
+export async function updateSellerPayoutBank(input: z.infer<typeof updateBankSchema>) {
+    try {
+        const user = await getSellerSession();
+        const v = updateBankSchema.parse(input);
+        if (!resolveBankCode(v.bankName)) {
+            return { success: false as const, error: "Nama bank tidak dikenali. Pakai nama umum (mis. BCA, BNI, BRI, Mandiri, CIMB)." };
+        }
+        await db
+            .update(users)
+            .set({
+                payout_bank_name: v.bankName,
+                payout_bank_account_number: v.accountNumber,
+                payout_bank_account_name: v.accountName,
+            })
+            .where(eq(users.id, user.id));
+        revalidatePath("/seller/keuangan");
+        return { success: true as const };
+    } catch (e) {
+        return { success: false as const, error: e instanceof Error ? e.message : "Gagal menyimpan rekening." };
+    }
+}
+
 const requestPayoutSchema = z.object({ amount: z.number().positive() });
 
 /** Seller requests a withdrawal of their wallet balance. Creates a PENDING payout. */
@@ -176,25 +218,59 @@ export async function requestSellerPayout(input: z.infer<typeof requestPayoutSch
         if (!kyc?.bank_account_number || !kyc.bank_account_name || !bankCode) {
             return { success: false as const, error: "Rekening bank belum lengkap / bank tidak dikenali. Lengkapi data bank Anda dulu." };
         }
-        const available = await availablePayoutBalance(user.id);
-        if (amount > available) {
-            return { success: false as const, error: `Saldo tersedia Rp ${available.toLocaleString("id-ID")}, kurang dari jumlah penarikan.` };
+        // Capture narrowed bank fields into consts — property narrowing doesn't
+        // survive into the transaction closure below.
+        const bankAccountNumber = kyc.bank_account_number;
+        const bankAccountName = kyc.bank_account_name;
+        const resolvedBankCode = bankCode;
+
+        // Enforce the T0 payout cap HERE (at request time), not at GL drain — a
+        // post-disbursement throw would desync the books and re-open a double-pay hole.
+        const me = await db.query.users.findFirst({ where: eq(users.id, user.id), columns: { tier: true } });
+        if (me?.tier === "T0") {
+            const { maxPayout } = await getT0Gates();
+            if (amount > maxPayout) {
+                return {
+                    success: false as const,
+                    error: `Tier T0 hanya dapat menarik hingga Rp ${maxPayout.toLocaleString("id-ID")} per penarikan. Lengkapi KYC untuk naik ke T1.`,
+                };
+            }
         }
-        const [row] = await db
-            .insert(sellerPayouts)
-            .values({
-                seller_id: user.id,
-                amount: amount.toString(),
-                status: "PENDING",
-                bank_code: bankCode,
-                bank_account_number: kyc.bank_account_number,
-                bank_account_name: kyc.bank_account_name,
-                external_id: `payout_${randomUUID()}`,
-            })
-            .returning({ id: sellerPayouts.id });
+
+        // Reserve atomically: a per-seller advisory xact lock serializes concurrent
+        // requests so two can't both read the same available balance and over-reserve
+        // (which would let the platform disburse more than the wallet holds).
+        const result = await db.transaction(async (tx) => {
+            await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${user.id}))`);
+
+            const ledger = await getSellerLedgerSummary(user.id); // committed wallet (22000)
+            const reservedRows = await tx
+                .select({ total: sql<string>`COALESCE(SUM(${sellerPayouts.amount}), 0)` })
+                .from(sellerPayouts)
+                .where(and(eq(sellerPayouts.seller_id, user.id), inArray(sellerPayouts.status, ["PENDING", "PROCESSING"])));
+            const available = Math.max(0, Math.floor(ledger.walletBalance - Number(reservedRows[0]?.total ?? 0)));
+            if (amount > available) {
+                return { error: `Saldo tersedia Rp ${available.toLocaleString("id-ID")}, kurang dari jumlah penarikan.` } as const;
+            }
+            const [row] = await tx
+                .insert(sellerPayouts)
+                .values({
+                    seller_id: user.id,
+                    amount: amount.toString(),
+                    status: "PENDING",
+                    bank_code: resolvedBankCode,
+                    bank_account_number: bankAccountNumber,
+                    bank_account_name: bankAccountName,
+                    external_id: `payout_${randomUUID()}`,
+                })
+                .returning({ id: sellerPayouts.id });
+            return { id: row.id } as const;
+        });
+
+        if ("error" in result) return { success: false as const, error: result.error };
         revalidatePath("/seller/keuangan");
         revalidatePath("/admin/payouts");
-        return { success: true as const, payoutId: row.id };
+        return { success: true as const, payoutId: result.id };
     } catch (e) {
         return { success: false as const, error: e instanceof Error ? e.message : "Gagal mengajukan penarikan." };
     }
@@ -234,6 +310,22 @@ export async function approveSellerPayout(input: { payoutId: string }) {
         return { success: true as const };
     } catch (e) {
         const msg = e instanceof Error ? e.message : "Disbursement gagal.";
+        // AMBIGUOUS (timeout/5xx/network): the transfer may already be in flight.
+        // Keep status PROCESSING (reservation held) and let the webhook finalize —
+        // releasing it now would risk a double-disbursement on re-request.
+        if (e instanceof DisbursementError && e.ambiguous) {
+            await db
+                .update(sellerPayouts)
+                .set({ failure_reason: msg, updated_at: new Date() })
+                .where(eq(sellerPayouts.id, payout.id));
+            logger.error("payout:disbursement_ambiguous", { payoutId: payout.id, error: msg });
+            revalidatePath("/admin/payouts");
+            return {
+                success: false as const,
+                error: `Status transfer belum pasti (${msg}). Tetap diproses — akan dikonfirmasi otomatis via webhook. Jangan approve ulang.`,
+            };
+        }
+        // Definitive pre-submit failure → safe to mark FAILED + release reservation.
         await db
             .update(sellerPayouts)
             .set({ status: "FAILED", failure_reason: msg, updated_at: new Date() })
@@ -259,10 +351,24 @@ export async function rejectSellerPayout(input: { payoutId: string; reason?: str
 
 export async function listPayoutsForAdmin() {
     await requireAdminFinanceSession();
-    return db.query.sellerPayouts.findMany({
-        orderBy: [desc(sellerPayouts.created_at)],
-        limit: 200,
-    });
+    return db
+        .select({
+            id: sellerPayouts.id,
+            amount: sellerPayouts.amount,
+            status: sellerPayouts.status,
+            bank_code: sellerPayouts.bank_code,
+            bank_account_number: sellerPayouts.bank_account_number,
+            bank_account_name: sellerPayouts.bank_account_name,
+            xendit_disbursement_id: sellerPayouts.xendit_disbursement_id,
+            failure_reason: sellerPayouts.failure_reason,
+            created_at: sellerPayouts.created_at,
+            sellerName: users.name,
+            sellerEmail: users.email,
+        })
+        .from(sellerPayouts)
+        .leftJoin(users, eq(sellerPayouts.seller_id, users.id))
+        .orderBy(desc(sellerPayouts.created_at))
+        .limit(200);
 }
 
 /**
@@ -293,13 +399,23 @@ export async function finalizeDisbursementWebhook(input: {
             .set({ status: "COMPLETED", completed_at: new Date(), updated_at: new Date() })
             .where(and(eq(sellerPayouts.id, payout.id), inArray(sellerPayouts.status, ["PENDING", "PROCESSING"])))
             .returning({ id: sellerPayouts.id });
-        if (won.length > 0) {
-            // Drain the GL wallet (idempotent on reference = external_id).
-            await recordSellerPayout({
-                sellerId: payout.seller_id,
-                amount: Number(payout.amount),
-                reference: payout.external_id,
-            }).catch((e) => logger.error("payout:gl_drain_failed", { payoutId: payout.id, error: String(e) }));
+        // Drain the GL wallet (DR 22000) — idempotent on reference = external_id.
+        // Run on the first transition AND on a retry where it is already COMPLETED
+        // (a previous drain may have failed), so the wallet always ends up debited.
+        if (won.length > 0 || payout.status === "COMPLETED") {
+            // MUST succeed; on failure rethrow so the webhook returns 500 and Xendit
+            // retries. Never leave the reservation released without the GL drained —
+            // that is the double-pay hole.
+            try {
+                await drainSellerPayoutGL({
+                    sellerId: payout.seller_id,
+                    amount: Number(payout.amount),
+                    reference: payout.external_id,
+                });
+            } catch (e) {
+                logger.error("payout:gl_drain_failed", { payoutId: payout.id, error: String(e) });
+                throw e;
+            }
         }
     } else if (status === "FAILED") {
         await db

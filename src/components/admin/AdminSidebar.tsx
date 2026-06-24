@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ShieldCheck, Package, Users, BarChart3, LifeBuoy, Gavel, ShoppingBag, FolderOpen, Settings, FileImage, BadgeCheck, Coins, Ticket, Megaphone, Calculator, SlidersHorizontal } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, Package, Users, BarChart3, LifeBuoy, Gavel, ShoppingBag, FolderOpen, Settings, FileImage, BadgeCheck, Coins, Ticket, Megaphone, Calculator, SlidersHorizontal, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AdminSidebarProps {
@@ -50,6 +50,11 @@ const getNavItems = (pendingCount: number) => [
         label: "KYC Review",
         href: "/admin/kyc",
         icon: BadgeCheck,
+    },
+    {
+        label: "Payouts",
+        href: "/admin/payouts",
+        icon: Wallet,
     },
 ];
 

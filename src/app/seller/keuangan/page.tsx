@@ -3,6 +3,8 @@ import { Download, TrendingUp, ShoppingBag, RefreshCcw, Wallet, Printer, Clock }
 import { requireSellerFinanceSession } from "@/lib/seller-finance";
 import { getSellerSalesSummary, getSellerSalesDetail } from "@/actions/accounting/reports";
 import { getSellerPotentialRevenue } from "@/actions/orders";
+import { getSellerPayoutInfo } from "@/actions/payouts";
+import { SellerPayoutPanel } from "@/components/seller/SellerPayoutPanel";
 import { getMySellerTaxStatus } from "@/actions/tax-profile";
 import { formatIdr } from "@/lib/format-idr";
 import TaxPmk37Card from "./TaxPmk37Card";
@@ -35,11 +37,12 @@ export default async function SellerKeuanganPage(props: {
     const from = parseDate(fromStr);
     const to = parseDate(toStr, true);
 
-    const [summary, detail, taxStatus, potential] = await Promise.all([
+    const [summary, detail, taxStatus, potential, payoutInfo] = await Promise.all([
         getSellerSalesSummary({ sellerId: session.sellerId, from, to }),
         getSellerSalesDetail({ sellerId: session.sellerId, from, to, limit: 50 }),
         getMySellerTaxStatus().catch(() => null),
         getSellerPotentialRevenue(from, to).catch(() => ({ total: 0, count: 0 })),
+        getSellerPayoutInfo().catch(() => null),
     ]);
 
     const exportHref = `/api/seller/keuangan/export/sales?from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}`;
@@ -143,6 +146,15 @@ export default async function SellerKeuanganPage(props: {
                         </p>
                     </div>
                 </div>
+
+                {payoutInfo && (
+                    <SellerPayoutPanel
+                        available={payoutInfo.available}
+                        minPayout={payoutInfo.minPayout}
+                        bank={payoutInfo.bank}
+                        payouts={payoutInfo.payouts}
+                    />
+                )}
 
                 <div className="grid gap-4 lg:grid-cols-3">
                     <div className="rounded-2xl border border-slate-200 bg-white p-5 lg:col-span-1">
