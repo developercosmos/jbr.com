@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { eq, desc, and, count, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { assertInternalCall } from "@/lib/internal-guard";
 
 // Helper to get current user
 async function getCurrentUser() {
@@ -119,8 +120,11 @@ export async function createNotification(
     type: "ORDER_CREATED" | "PAYMENT_SUCCESS" | "ORDER_SHIPPED" | "ORDER_DELIVERED" | "NEW_MESSAGE" | "NEW_REVIEW" | "REVIEW_REPLY" | "SYSTEM",
     title: string,
     message: string,
-    data?: Record<string, unknown>
+    data?: Record<string, unknown>,
+    internalToken?: string,
 ) {
+    // SECURITY: internal-only (creates a notification for an arbitrary userId).
+    assertInternalCall(internalToken);
     const [notification] = await db
         .insert(notifications)
         .values({
@@ -138,7 +142,8 @@ export async function createNotification(
 // ============================================
 // DELETE OLD NOTIFICATIONS (cleanup)
 // ============================================
-export async function deleteOldNotifications(daysOld = 30) {
+export async function deleteOldNotifications(daysOld = 30, internalToken?: string) {
+    assertInternalCall(internalToken); // SECURITY: internal/cron-only bulk delete
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysOld);
 

@@ -185,6 +185,9 @@ export async function ensureCompanyHasT2Application(userId: string) {
 }
 
 export async function seedSellerKycProfile(userId: string) {
+    // SECURITY: only the owner or an admin may seed a KYC profile row.
+    const me = await getCurrentUser();
+    if (me.id !== userId) await requireAdmin();
     const existing = await db.query.seller_kyc.findFirst({
         where: eq(seller_kyc.user_id, userId),
         columns: { id: true },
