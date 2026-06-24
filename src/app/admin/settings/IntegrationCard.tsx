@@ -48,14 +48,16 @@ const configLabels: Record<string, Record<string, string>> = {
         account_type: "Account Type",
     },
     biteship: {
-        origin_postal_code: "Kode Pos Asal (Pickup)",
-        origin_latitude: "Latitude Asal",
-        origin_longitude: "Longitude Asal",
-        origin_contact_name: "Nama Kontak Pengirim",
-        origin_contact_phone: "Telepon Pengirim",
-        origin_address: "Alamat Lengkap Asal",
+        // Origin sebenarnya = alamat pickup MASING-MASING seller. Field di bawah
+        // hanya FALLBACK saat seorang seller belum menyetel alamat pickup-nya.
+        origin_postal_code: "Kode Pos Asal — fallback (jika seller belum set pickup)",
+        origin_latitude: "Latitude Asal — fallback",
+        origin_longitude: "Longitude Asal — fallback",
+        origin_contact_name: "Nama Kontak Pengirim — fallback",
+        origin_contact_phone: "Telepon Pengirim — fallback",
+        origin_address: "Alamat Lengkap Asal — fallback",
         couriers: "Kurir (pisah koma: jne,jnt,sicepat,anteraja)",
-        fallback_cost: "Ongkir Fallback (Rp)",
+        fallback_cost: "Ongkir Fallback (Rp) — jika rute live gagal",
     },
 };
 
