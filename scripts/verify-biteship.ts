@@ -1,9 +1,9 @@
 /**
  * Read-only verification that Biteship is active + the API key works.
+ * Imports ONLY from @/lib/biteship (avoids the server-only chain so it runs under tsx).
  *   cd /var/www/jbr && set -a; . .env.local; set +a; npx tsx scripts/verify-biteship.ts
  */
 import { getBiteshipSettings, biteshipRates } from "@/lib/biteship";
-import { getActiveShippingProvider } from "@/actions/shipping";
 
 (async () => {
     const s = await getBiteshipSettings();
@@ -13,21 +13,18 @@ import { getActiveShippingProvider } from "@/actions/shipping";
     console.log("  apiUrl     :", s.apiUrl);
     console.log("  couriers   :", s.couriers);
     console.log("  origin     : postal", s.origin?.postalCode || "-", "| coords", s.origin?.latitude || "-", s.origin?.longitude || "-");
-
-    const provider = await getActiveShippingProvider();
-    console.log("=== Active shipping provider:", provider, "===");
+    console.log("  active     :", s.enabled && !!s.apiKey ? "YES (biteship)" : "NO (fallback)");
 
     if (!s.enabled || !s.apiKey) {
         console.log("Biteship NOT active (enabled/apiKey missing) — skipping live rate test.");
         process.exit(0);
     }
 
-    // Live connectivity test. Use the configured origin if present, else a Jakarta sample.
     const origin = s.origin?.postalCode || (s.origin?.latitude && s.origin?.longitude)
         ? { postalCode: s.origin?.postalCode, latitude: s.origin?.latitude, longitude: s.origin?.longitude }
         : { postalCode: "10110" };
 
-    console.log("\n=== Live rate test ->  destination Bandung 40111 ===");
+    console.log("\n=== Live rate test -> destination Bandung 40111 ===");
     try {
         const rates = await biteshipRates(s, {
             origin,
