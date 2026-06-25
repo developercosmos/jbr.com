@@ -599,12 +599,19 @@ async function updateUserInternal(userId: string, data: {
         throw new Error("You cannot demote yourself");
     }
 
+    // SECURITY: explicit field whitelist — never spread caller-supplied data into
+    // .set(). A Next-Action POST can carry arbitrary keys → otherwise it could write
+    // any users column (buyer_score, email_verified, payout fields, etc.).
+    const patch: { updated_at: Date; name?: string; email?: string; role?: "USER" | "ADMIN" } = {
+        updated_at: new Date(),
+    };
+    if (typeof data.name === "string") patch.name = data.name.trim().slice(0, 200);
+    if (typeof data.email === "string") patch.email = data.email.trim().toLowerCase().slice(0, 200);
+    if (data.role === "USER" || data.role === "ADMIN") patch.role = data.role;
+
     await db
         .update(users)
-        .set({
-            ...data,
-            updated_at: new Date()
-        })
+        .set(patch)
         .where(eq(users.id, userId));
 
     revalidatePath("/admin/users");
@@ -888,6 +895,14 @@ async function updateDisputeStatusInternal(
 ) {
     const admin = await getCurrentAdmin();
 
+    // SECURITY: validate the status enum (this path can trigger a refund) and cap the
+    // free-text resolution — never write an arbitrary string into the column.
+    const DISPUTE_STATUSES = ["OPEN", "IN_PROGRESS", "AWAITING_RESPONSE", "RESOLVED", "CLOSED"] as const;
+    if (!(DISPUTE_STATUSES as readonly string[]).includes(status)) {
+        throw new Error("Status sengketa tidak valid.");
+    }
+    const safeResolution = typeof resolution === "string" ? resolution.slice(0, 4000) : resolution;
+
     const existing = await db.query.disputes.findFirst({
         where: eq(disputes.id, disputeId),
         columns: { id: true, order_id: true, response_due_at: true, resolution_due_at: true },
@@ -924,8 +939,8 @@ async function updateDisputeStatusInternal(
         updateData.resolved_by = admin.id;
         updateData.response_due_at = null;
         updateData.resolution_due_at = null;
-        if (resolution) {
-            updateData.resolution = resolution;
+        if (safeResolution) {
+            updateData.resolution = safeResolution;
         }
     }
 
@@ -1001,12 +1016,20 @@ export async function getSupportTickets(filters?: {
     return allTickets;
 }
 
+const TICKET_STATUSES = ["OPEN", "PENDING", "IN_PROGRESS", "CLOSED"] as const;
+
 export async function updateTicketStatus(ticketId: string, status: string) {
     await getCurrentAdmin();
 
+    // SECURITY: validate against the enum — never cast an arbitrary string into the
+    // column (a bad value corrupts the support workflow / breaks status filters).
+    if (!(TICKET_STATUSES as readonly string[]).includes(status)) {
+        return { success: false as const, error: "Status tiket tidak valid." };
+    }
+
     await db
         .update(support_tickets)
-        .set({ status: status as any, updated_at: new Date() })
+        .set({ status: status as (typeof TICKET_STATUSES)[number], updated_at: new Date() })
         .where(eq(support_tickets.id, ticketId));
 
     revalidatePath("/admin/support");

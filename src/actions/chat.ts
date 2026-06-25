@@ -7,6 +7,26 @@ import { headers } from "next/headers";
 import { eq, desc, and, or, asc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { notify } from "@/lib/notify";
+import { isS3Configured, storageConfig } from "@/lib/storage";
+
+// SECURITY: a chat attachment URL must point at our own upload surface — reject
+// javascript:/data:/arbitrary-host values before persisting (defense-in-depth: it
+// renders via next/image which limits schemes, but we never store untrusted URLs).
+function isAllowedAttachmentUrl(url: string): boolean {
+    if (url.startsWith("/uploads/") || url.startsWith("/api/files/")) return true;
+    try {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://jualbeliraket.com";
+        const u = new URL(url);
+        if (u.origin === new URL(appUrl).origin && (u.pathname.startsWith("/uploads/") || u.pathname.startsWith("/api/files/"))) return true;
+        if (isS3Configured()) {
+            const host = `${storageConfig.s3.bucket}.s3.${storageConfig.s3.region}.amazonaws.com`;
+            if (u.hostname === host) return true;
+        }
+        return false;
+    } catch {
+        return false;
+    }
+}
 
 function firstRelation<T>(value: T | T[] | null | undefined): T | null {
     if (Array.isArray(value)) return value[0] ?? null;
@@ -243,6 +263,10 @@ export async function sendMessage(conversationId: string, content: string, attac
     const MAX_MESSAGE_LENGTH = 2000;
     if (content && content.trim().length > MAX_MESSAGE_LENGTH) {
         throw new Error(`Pesan terlalu panjang (maksimal ${MAX_MESSAGE_LENGTH} karakter)`);
+    }
+
+    if (attachmentUrl && !isAllowedAttachmentUrl(attachmentUrl)) {
+        throw new Error("Lampiran tidak valid.");
     }
 
     // Verify user is part of this conversation

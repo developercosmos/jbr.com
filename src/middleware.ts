@@ -120,10 +120,13 @@ function getClientIp(request: NextRequest): string | null {
 }
 
 function isNextInternalPost(request: NextRequest): boolean {
+    // SECURITY: a Server Action POST also carries `Next-Router-State-Tree`, so the
+    // generic checks below would wrongly exempt it. Server Actions are user-initiated
+    // writes (login, password reset, email, payouts, …) and MUST stay rate-limited —
+    // detect them via `Next-Action` and treat as NOT internal.
+    if (request.headers.get("Next-Action") !== null) return false;
     // Exempt ONLY framework-driven navigation (RSC payload fetches, prefetches,
-    // router-state hydration). SECURITY: do NOT exempt Server Actions (Next-Action)
-    // — they are user-initiated writes (login, password reset, email, payouts, …)
-    // and must stay rate-limited against brute force / abuse / email-bombing.
+    // router-state hydration).
     return (
         request.headers.get("RSC") === "1" ||
         request.headers.get("Next-Router-Prefetch") === "1" ||

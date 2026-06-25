@@ -36,7 +36,14 @@ export function resolveStoredFilePath(filePathOrUrl: string): string {
                 ? pathname.slice(1)
                 : pathname;
 
-    return path.join(baseDir, relative);
+    // SECURITY: assert the resolved path stays INSIDE the upload root — defense in
+    // depth against a stored key/URL containing `..` traversal (today keys are
+    // server-generated, but never trust a path that maps to disk reads/writes).
+    const resolved = path.resolve(baseDir, relative);
+    if (resolved !== baseDir && !resolved.startsWith(baseDir + path.sep)) {
+        throw new Error("Resolved file path escapes the upload root");
+    }
+    return resolved;
 }
 
 /**

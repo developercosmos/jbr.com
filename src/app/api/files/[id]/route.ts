@@ -75,10 +75,18 @@ export async function GET(
             try {
                 const fileBuffer = await fs.readFile(filePath);
 
+                // SECURITY: original_name is user-supplied (file.name at upload) — strip
+                // CR/LF/quotes/backslash + non-ASCII before placing it in the header to
+                // prevent response-header injection; RFC 5987 carries the real UTF-8 name.
+                const safeName = (file.original_name || "file")
+                    .replace(/[\r\n"\\]/g, "_")
+                    .replace(/[^\x20-\x7E]/g, "_")
+                    .slice(0, 120);
+
                 return new NextResponse(new Uint8Array(fileBuffer), {
                     headers: {
                         "Content-Type": file.mime_type,
-                        "Content-Disposition": `inline; filename="${file.original_name}"`,
+                        "Content-Disposition": `inline; filename="${safeName}"; filename*=UTF-8''${encodeURIComponent(file.original_name || "file")}`,
                         // Private cache only — these bytes may be access-controlled.
                         "Cache-Control": file.is_public
                             ? "public, max-age=31536000, immutable"

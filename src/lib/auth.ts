@@ -71,7 +71,7 @@ export const auth = betterAuth({
     socialProviders: Object.keys(socialProviders).length > 0 ? socialProviders : undefined,
     emailAndPassword: {
         enabled: true,
-        minPasswordLength: 6,
+        minPasswordLength: 8,
         requireEmailVerification: true,
         password: {
             hash: async (password: string) => {

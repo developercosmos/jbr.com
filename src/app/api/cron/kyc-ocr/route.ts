@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runAffiliateOcrSweep, runKycOcrSweep } from "@/actions/kyc-ocr";
 import { INTERNAL_CALL_TOKEN } from "@/lib/internal-guard";
+import { isAuthorizedCron } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -10,11 +11,7 @@ export const dynamic = "force-dynamic";
 //   * /5 * * * *  curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" \
 //                   https://jualbeliraket.com/api/cron/kyc-ocr
 function isAuthorized(request: NextRequest): boolean {
-    const expected = process.env.CRON_SECRET;
-    if (!expected) return false; // fail-closed
-    const header = request.headers.get("authorization") || "";
-    const provided = header.startsWith("Bearer ") ? header.slice(7) : "";
-    return provided === expected;
+    return isAuthorizedCron(request);
 }
 
 export async function POST(request: NextRequest) {

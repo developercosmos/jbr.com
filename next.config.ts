@@ -14,10 +14,9 @@ const securityHeaders = [
     key: "X-Content-Type-Options",
     value: "nosniff",
   },
-  {
-    key: "X-XSS-Protection",
-    value: "1; mode=block",
-  },
+  // X-XSS-Protection intentionally omitted: deprecated, and on some legacy browsers
+  // its auditor can be turned into an XS-leak. CSP (set at the nginx edge) is the
+  // real XSS control.
   {
     key: "Referrer-Policy",
     value: "strict-origin-when-cross-origin",

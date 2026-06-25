@@ -12,6 +12,15 @@ import {
 } from "@/actions/affiliate";
 import { runAffiliateOcrForUser } from "@/actions/kyc-ocr";
 
+// SECURITY: legacy ktp_url/statement_url are free-text columns that predate URL
+// validation; an attacker-controlled "javascript:..." value would run in the ADMIN
+// origin on click. Only emit https / same-origin upload paths as a real href.
+function safeHttpHref(u: string | null | undefined): string {
+    if (!u) return "#";
+    if (/^https:\/\//i.test(u) || u.startsWith("/api/files/") || u.startsWith("/uploads/")) return u;
+    return "#";
+}
+
 interface OcrResult {
     status: "PENDING" | "DONE" | "FAILED" | "SKIPPED";
     attempts: number;
@@ -308,7 +317,7 @@ export default function AffiliatesAdminClient({ initial, ocrConfigured }: Props)
                                                 </a>
                                             ) : a.ktpUrl ? (
                                                 <a
-                                                    href={a.ktpUrl}
+                                                    href={safeHttpHref(a.ktpUrl)}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="inline-flex items-center gap-1 text-amber-600 hover:underline"
@@ -330,7 +339,7 @@ export default function AffiliatesAdminClient({ initial, ocrConfigured }: Props)
                                                 </a>
                                             ) : a.statementUrl ? (
                                                 <a
-                                                    href={a.statementUrl}
+                                                    href={safeHttpHref(a.statementUrl)}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="inline-flex items-center gap-1 text-amber-600 hover:underline"

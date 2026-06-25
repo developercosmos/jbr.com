@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runStorageSweep } from "@/lib/storage-sweep";
+import { isAuthorizedCron } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -7,11 +8,7 @@ export const dynamic = "force-dynamic";
 // Schedule weekly (deletion guarded by a 48h min-age for in-flight forms):
 //   0 20 * * 6  /usr/bin/flock -n /tmp/jbr-storage-sweep.lock /var/www/jbr/scripts/jbr-storage-sweep.sh
 function isAuthorized(request: NextRequest): boolean {
-    const expected = process.env.CRON_SECRET;
-    if (!expected) return false; // fail-closed
-    const header = request.headers.get("authorization") || "";
-    const provided = header.startsWith("Bearer ") ? header.slice(7) : "";
-    return provided === expected;
+    return isAuthorizedCron(request);
 }
 
 const LIST_LIMIT = 300;

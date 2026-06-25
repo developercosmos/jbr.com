@@ -28,6 +28,16 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // SECURITY: reject an oversized body via Content-Length BEFORE buffering it
+        // into memory (memory-exhaustion DoS). This is a generous backstop — the
+        // per-file type/size limits are enforced after parse, and nginx
+        // client_max_body_size is the authoritative edge cap.
+        const HARD_BODY_CAP = 100 * 1024 * 1024; // 100MB (accommodates product videos)
+        const contentLength = Number(request.headers.get("content-length") || 0);
+        if (contentLength > HARD_BODY_CAP) {
+            return NextResponse.json({ error: "File terlalu besar." }, { status: 413 });
+        }
+
         // Parse form data
         const formData = await request.formData();
         const file = formData.get("file") as File | null;

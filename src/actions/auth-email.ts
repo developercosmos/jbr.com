@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/db";
-import { users, verifications, accounts } from "@/db/schema";
+import { users, verifications, accounts, sessions } from "@/db/schema";
 import { eq, and, gt } from "drizzle-orm";
 import {
     sendPasswordResetEmail,
@@ -81,8 +81,8 @@ export async function resetPassword(token: string, newPassword: string) {
             return { success: false, error: "Token dan password diperlukan." };
         }
 
-        if (newPassword.length < 6) {
-            return { success: false, error: "Password minimal 6 karakter." };
+        if (newPassword.length < 8) {
+            return { success: false, error: "Password minimal 8 karakter." };
         }
 
         // Find valid token
@@ -127,6 +127,11 @@ export async function resetPassword(token: string, newPassword: string) {
 
         // Delete the used token
         await db.delete(verifications).where(eq(verifications.identifier, token));
+
+        // SECURITY: invalidate ALL existing sessions for this user so a password
+        // reset (which may be a compromised-account recovery) logs out any attacker
+        // who still holds a live session cookie. The user re-authenticates.
+        await db.delete(sessions).where(eq(sessions.user_id, user.id));
 
         return { success: true };
     } catch (error) {

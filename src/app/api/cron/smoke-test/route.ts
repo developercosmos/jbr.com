@@ -10,6 +10,7 @@ import {
 import { desc, eq, sql } from "drizzle-orm";
 import { listFeatureFlagDefinitions, getFeatureKillSwitch } from "@/lib/feature-flags";
 import { logger } from "@/lib/logger";
+import { isAuthorizedCron } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -42,11 +43,7 @@ interface CheckResult {
 }
 
 function isAuthorized(request: NextRequest): boolean {
-    const expected = process.env.CRON_SECRET;
-    if (!expected) return false;
-    const header = request.headers.get("authorization") || "";
-    const provided = header.startsWith("Bearer ") ? header.slice(7) : "";
-    return provided === expected;
+    return isAuthorizedCron(request);
 }
 
 async function probeHttp(name: string, url: string, expectedStatuses: number[]): Promise<CheckResult> {

@@ -17,18 +17,12 @@ import { runGlReconciliation } from "@/actions/accounting/reconciliation";
 import { reconcilePendingPayments, runOrderExpirySweep } from "@/actions/payments";
 import { runUnansweredChatReminderSweep } from "@/actions/chat-reminders";
 import { INTERNAL_CALL_TOKEN } from "@/lib/internal-guard";
+import { isAuthorizedCron } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 
 function isAuthorized(request: NextRequest): boolean {
-    const expected = process.env.CRON_SECRET;
-    if (!expected) {
-        // Fail-closed: refuse to run unauthenticated when no secret is configured.
-        return false;
-    }
-    const header = request.headers.get("authorization") || "";
-    const provided = header.startsWith("Bearer ") ? header.slice(7) : "";
-    return provided === expected;
+    return isAuthorizedCron(request);
 }
 
 export async function POST(request: NextRequest) {

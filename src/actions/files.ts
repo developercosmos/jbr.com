@@ -147,6 +147,11 @@ async function uploadAdminFileInternal(formData: FormData) {
 
     const file = formData.get("file") as File | null;
     const folder = (formData.get("folder") as string) || "general";
+    // SECURITY: folder is part of the storage path — single safe segment only
+    // (same rule as /api/upload), to prevent traversal / writing into reserved dirs.
+    if (!/^[a-z0-9_-]{1,40}$/i.test(folder)) {
+        throw new Error("Folder tidak valid.");
+    }
     const isPublic = formData.get("isPublic") === "true";
     const altText = formData.get("altText") as string | null;
     const tagsRaw = formData.get("tags") as string | null;
