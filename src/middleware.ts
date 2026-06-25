@@ -236,8 +236,37 @@ export function middleware(request: NextRequest) {
     }
     } // end !isNextRsc
 
-    // 4. Add security headers that aren't set by nginx (defense in depth)
-    const response = NextResponse.next();
+    // 4. CSP nonce (staged rollout). A per-request nonce is generated and placed on
+    //    the REQUEST `Content-Security-Policy` header so Next auto-nonces its own
+    //    inline bootstrap scripts; the RESPONSE carries it as `*-Report-Only` so the
+    //    strict (no unsafe-inline) policy is MONITORED, not enforced — the nginx CSP
+    //    (with unsafe-inline) is still the enforced one, so nothing breaks. To finish
+    //    the migration: confirm violation reports are clean, then rename the response
+    //    header to `Content-Security-Policy` and drop the CSP from nginx.
+    const nonce = crypto.randomUUID().replace(/-/g, "");
+    const cspNonce = [
+        "default-src 'self'",
+        `script-src 'self' 'nonce-${nonce}' 'unsafe-eval' https://static.cloudflareinsights.com https://*.cloudflare.com`,
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com",
+        "img-src 'self' data: https: blob:",
+        "media-src 'self' blob:",
+        "connect-src 'self' https:",
+        "frame-src 'self' https://www.openstreetmap.org",
+        "frame-ancestors 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "upgrade-insecure-requests",
+    ].join("; ");
+
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-nonce", nonce);
+    requestHeaders.set("Content-Security-Policy", cspNonce);
+
+    // Add security headers that aren't set by nginx (defense in depth)
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    response.headers.set("Content-Security-Policy-Report-Only", cspNonce);
 
     // TECH-03: stamp every request with a correlation ID for log tracing.
     const incomingId = request.headers.get("x-request-id");
