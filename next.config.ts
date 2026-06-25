@@ -14,6 +14,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Keep sharp external (native module) so it isn't bundled + is copied into the
+  // standalone output — the /api/upload route uses it to optimize images on ingest.
+  serverExternalPackages: ["sharp"],
   // Type errors fail the build. The prior Drizzle relation typing regressions were
   // resolved (`tsc --noEmit` is clean and `next build` passes the type+route-validator
   // step). Keep this false so type safety is a real launch gate — do not re-enable to
@@ -45,6 +48,13 @@ const nextConfig: NextConfig = {
     // and adding an `imageLoader` here when the CDN is provisioned.
     formats: ["image/avif", "image/webp"],
     deviceSizes: [320, 420, 640, 768, 1024, 1280, 1600, 1920],
+    // Whitelist both qualities we actually request (Next 16 rejects un-listed q with
+    // HTTP 400). 75 = component default; 85 = buildImageVariants.
+    qualities: [75, 85],
+    // A given /uploads/<path> is effectively immutable (uploads get unique names), so
+    // optimized AVIF/WebP can be cached for a long time instead of re-encoding the
+    // (large) source every 4h. Cuts repeated optimizer work that made the PDP heavy.
+    minimumCacheTTL: 2592000, // 30 days
     remotePatterns: [
       {
         protocol: "https",
