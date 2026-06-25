@@ -739,7 +739,10 @@ export async function getSellerOrders(query: SellerOrdersQuery = {}) {
             offset,
             with: {
                 buyer: { columns: { id: true, name: true, email: true } },
-                items: { with: { product: true } },
+                // PERF: order list only needs title/images/slug — avoid pulling the
+                // heavy product columns (images already needed; skip description,
+                // condition_checklist, attributes jsonb, etc.) for every line.
+                items: { with: { product: { columns: { id: true, title: true, slug: true, images: true } } } },
                 shipping_address: true,
             },
         }),

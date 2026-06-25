@@ -9,7 +9,7 @@ import { auth } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 import { headers } from "next/headers";
 import { eq, desc, and, inArray } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, unstable_cache } from "next/cache";
 import { z } from "zod";
 
 // Product images may be:
@@ -514,7 +514,20 @@ export async function getPublishedProducts(limit = 20, offset = 0) {
     return publishedProducts;
 }
 
+// PERF: the PDP is the hottest page; its product read is pure (slug -> 2 queries,
+// no session/headers). Cache it in the Next Data Cache (revalidate 300 — the page's
+// originally-intended ISR window) so repeat views don't re-hit Postgres. Edits +
+// stock changes ride the 300s TTL; checkout re-validates stock server-side, so a
+// brief stale display is safe (this matches the page's pre-existing revalidate=300).
 export async function getProductBySlug(slug: string) {
+    return unstable_cache(
+        () => getProductBySlugUncached(slug),
+        ["product-by-slug", slug],
+        { revalidate: 300 }
+    )();
+}
+
+async function getProductBySlugUncached(slug: string) {
     const product = await db.query.products.findFirst({
         where: eq(products.slug, slug),
         with: {
