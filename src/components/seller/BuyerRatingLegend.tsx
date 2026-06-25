@@ -1,5 +1,3 @@
-"use client";
-
 import { Star } from "lucide-react";
 import { BUYER_RATING_LEVELS } from "@/lib/buyer-rating";
 

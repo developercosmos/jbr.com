@@ -466,6 +466,10 @@ export async function getSellerProducts() {
         with: {
             category: true,
         },
+        // PERF: safety bound so a seller with a pathological listing count can't load
+        // an unbounded result set. Realistic catalogs are far below this; served by
+        // idx_products_seller_id. (Add real pagination if any seller approaches it.)
+        limit: 1000,
     });
 
     return sellerProducts;

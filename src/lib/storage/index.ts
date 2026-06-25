@@ -18,6 +18,25 @@ export type UploadResult = {
 /**
  * Upload a file to the configured storage (S3 or local)
  */
+/**
+ * SECURITY: reject SVG/HTML/XML/script payloads regardless of the client-claimed
+ * contentType (stored-XSS vectors). Centralized so EVERY caller — admin, seller,
+ * chat, and the /api/upload route — is covered, not just the route.
+ */
+export function assertSafeUploadBytes(filename: string, contentType: string, body: Buffer | Uint8Array): void {
+    const head = Buffer.from(body.subarray(0, 512)).toString("utf8").toLowerCase();
+    const dangerous =
+        /\.(svg|svgz|html?|xht|xhtml|xml|js|mjs)$/i.test(filename) ||
+        contentType === "image/svg+xml" ||
+        head.includes("<svg") ||
+        head.includes("<!doctype html") ||
+        head.includes("<html") ||
+        head.includes("<?xml");
+    if (dangerous) {
+        throw new Error("Tipe file tidak diizinkan (SVG/HTML).");
+    }
+}
+
 export async function uploadFile(
     folder: string,
     filename: string,
@@ -27,6 +46,9 @@ export async function uploadFile(
     isPublic: boolean = true,
     maxBytes?: number
 ): Promise<UploadResult> {
+    // SECURITY: byte-sniff for SVG/HTML before anything touches disk/S3.
+    assertSafeUploadBytes(filename, contentType, body);
+
     // Validate file type
     if (!storageConfig.allowedMimeTypes.includes(contentType)) {
         throw new Error(`File type not allowed: ${contentType}`);

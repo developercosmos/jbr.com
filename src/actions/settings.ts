@@ -30,6 +30,33 @@ async function requireAdmin() {
     return user;
 }
 
+// SECURITY (SSRF): a server-fetched integration base_url must be a PUBLIC https host.
+function assertSafeIntegrationUrl(value: unknown): void {
+    if (typeof value !== "string" || value.trim() === "") return;
+    let u: URL;
+    try {
+        u = new URL(value);
+    } catch {
+        throw new Error("URL integrasi tidak valid.");
+    }
+    if (u.protocol !== "https:") throw new Error("URL integrasi harus memakai https.");
+    const host = u.hostname.toLowerCase();
+    if (
+        host === "localhost" ||
+        host === "0.0.0.0" ||
+        host === "::1" ||
+        host.endsWith(".local") ||
+        host.endsWith(".internal") ||
+        /^127\./.test(host) ||
+        /^10\./.test(host) ||
+        /^192\.168\./.test(host) ||
+        /^169\.254\./.test(host) ||
+        /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+    ) {
+        throw new Error("Host URL integrasi tidak diizinkan (privat/loopback).");
+    }
+}
+
 // ============================================
 // BITESHIP: AVAILABLE COURIERS (admin checklist source)
 // ============================================
@@ -157,6 +184,15 @@ async function updateIntegrationInternal(
     let newConfig = existing.config || {};
     if (data.config) {
         newConfig = { ...newConfig, ...data.config };
+    }
+
+    // SECURITY: an admin-set base_url is FETCHED server-side (Biteship/RajaOngkir) —
+    // validate it is a public https host so it can't be pointed at internal/cloud
+    // metadata endpoints (SSRF).
+    for (const [k, v] of Object.entries(newConfig)) {
+        if (k.toLowerCase() === "base_url" || k.toLowerCase().endsWith("_base_url")) {
+            assertSafeIntegrationUrl(v);
+        }
     }
 
     const [updated] = await db

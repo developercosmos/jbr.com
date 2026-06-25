@@ -85,17 +85,60 @@ export async function getSellerLedgerSummary(
 export async function listSellerLedgerSummaries(
     year: number = new Date().getUTCFullYear()
 ): Promise<SellerLedgerSummary[]> {
-    const idRows = await db.execute(sql`
-        SELECT DISTINCT jl.partner_user_id AS id
+    // PERF: 3 set-based aggregates (GROUP BY) instead of N×3 per-seller queries
+    // (was: distinct ids → loop getSellerLedgerSummary per id).
+    const walletRows = await db.execute(sql`
+        SELECT jl.partner_user_id AS id,
+            COALESCE(SUM(jl.credit - jl.debit), 0)::text AS wallet_balance,
+            COALESCE(SUM(CASE WHEN EXTRACT(YEAR FROM j.posted_at) = ${year} THEN jl.debit END), 0)::text AS ytd_payouts
         FROM journal_lines jl
         JOIN journals j ON j.id = jl.journal_id
+        JOIN coa_accounts c ON c.id = jl.account_id
         WHERE jl.partner_role = 'SELLER'
           AND jl.partner_user_id IS NOT NULL
+          AND c.code = '22000'
           AND j.status = 'POSTED'
+        GROUP BY jl.partner_user_id
     `);
-    const ids = (idRows as unknown as { id: string }[]).map((r) => r.id).filter(Boolean);
-    const out: SellerLedgerSummary[] = [];
-    for (const id of ids) out.push(await getSellerLedgerSummary(id, year));
+    const salesRows = await db.execute(sql`
+        SELECT sr.seller_id AS id,
+            COALESCE(SUM(CASE WHEN sr.event = 'SALE' THEN sr.gross END), 0)::text AS gross_sales,
+            COALESCE(SUM(CASE WHEN sr.event = 'SALE' THEN sr.platform_fee END), 0)::text AS commission_charged,
+            COALESCE(SUM(CASE WHEN sr.event = 'REFUND' THEN sr.gross END), 0)::text AS refunds_gross
+        FROM sales_register sr
+        WHERE EXTRACT(YEAR FROM sr.event_at) = ${year}
+        GROUP BY sr.seller_id
+    `);
+    type W = { id: string; wallet_balance: string; ytd_payouts: string };
+    type S = { id: string; gross_sales: string; commission_charged: string; refunds_gross: string };
+    const wallets = (walletRows as unknown as W[]).filter((w) => w.id);
+    const sales = new Map((salesRows as unknown as S[]).map((r) => [r.id, r]));
+
+    const ids = wallets.map((w) => w.id);
+    const users = new Map<string, { name: string | null; email: string | null }>();
+    if (ids.length > 0) {
+        const userRows = await db.execute(sql`
+            SELECT id, name, email FROM users WHERE id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})
+        `);
+        for (const u of userRows as unknown as { id: string; name: string | null; email: string | null }[]) {
+            users.set(u.id, { name: u.name, email: u.email });
+        }
+    }
+
+    const out: SellerLedgerSummary[] = wallets.map((w) => {
+        const s = sales.get(w.id);
+        const u = users.get(w.id);
+        return {
+            sellerId: w.id,
+            name: u?.name ?? null,
+            email: u?.email ?? null,
+            walletBalance: Number(w.wallet_balance),
+            ytdGrossSales: Number(s?.gross_sales ?? 0),
+            ytdCommissionCharged: Number(s?.commission_charged ?? 0),
+            ytdPayouts: Number(w.ytd_payouts),
+            ytdRefundsImpact: Number(s?.refunds_gross ?? 0),
+        };
+    });
     out.sort((a, b) => b.walletBalance - a.walletBalance);
     return out;
 }
