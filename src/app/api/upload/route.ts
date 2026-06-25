@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { uploadFile, getStorageInfo } from "@/lib/storage";
+import { optimizeImageBuffer } from "@/lib/image-optimize";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -101,29 +102,13 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        // PERF: optimize raster images on ingest — cap dimensions + recompress so we
-        // never store raw multi-MB phone photos (the root cause of heavy PDP loads).
-        // Videos + non-raster types pass through unchanged. Best-effort: on any failure
-        // we store the original. 2048px long-edge keeps full display + zoom quality.
+        // PERF: optimize raster images on ingest via ffmpeg (resize 2048px max edge +
+        // recompress) so we never store raw multi-MB phone photos. ffmpeg runs on this
+        // VM's CPU where sharp can't (see project_jbr_image_optimizer_cpu). Best-effort:
+        // stores the original on any failure / if not smaller. Videos pass through.
         let uploadBuffer: Uint8Array = buffer;
-        if (folder !== "product-videos" && /^image\/(jpeg|png|webp)$/i.test(file.type)) {
-            try {
-                const sharp = (await import("sharp")).default;
-                const pipeline = sharp(buffer, { failOn: "none" })
-                    .rotate() // bake EXIF orientation so resize is correct
-                    .resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true });
-                const optimized =
-                    file.type.toLowerCase() === "image/png"
-                        ? await pipeline.png({ compressionLevel: 9 }).toBuffer()
-                        : file.type.toLowerCase() === "image/webp"
-                            ? await pipeline.webp({ quality: 82 }).toBuffer()
-                            : await pipeline.jpeg({ quality: 82, mozjpeg: true }).toBuffer();
-                if (optimized.length > 0 && optimized.length < buffer.length) {
-                    uploadBuffer = optimized;
-                }
-            } catch (err) {
-                console.warn("[upload] image optimize failed, storing original:", err);
-            }
+        if (folder !== "product-videos") {
+            uploadBuffer = await optimizeImageBuffer(buffer, file.type);
         }
 
         // Upload file
