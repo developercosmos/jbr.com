@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { categories, conversations, messages } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { eq, desc, and, or, asc } from "drizzle-orm";
+import { eq, desc, and, or, asc, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { notify } from "@/lib/notify";
 import { isS3Configured, storageConfig } from "@/lib/storage";
@@ -445,42 +445,22 @@ export async function getUnreadCount(): Promise<number> {
 
         const user = session.user;
 
-        // Get all conversations where user is participant
-        const userConversations = await db.query.conversations.findMany({
-            where: or(
-                eq(conversations.buyer_id, user.id),
-                eq(conversations.seller_id, user.id)
-            ),
-            columns: {
-                id: true,
-                buyer_id: true,
-                seller_id: true,
-            },
-        });
-
-        if (userConversations.length === 0) {
-            return 0;
-        }
-
-        // Count unread messages from other parties
-        let totalUnread = 0;
-
-        for (const conv of userConversations) {
-            const otherPartyId = conv.buyer_id === user.id ? conv.seller_id : conv.buyer_id;
-
-            const unreadMessages = await db.query.messages.findMany({
-                where: and(
-                    eq(messages.conversation_id, conv.id),
-                    eq(messages.sender_id, otherPartyId),
+        // PERF: single aggregate instead of N+1 (was: load all conversations, then a
+        // messages query per conversation). Unread = messages in my conversations,
+        // not sent by me, still unread.
+        const [row] = await db
+            .select({ count: sql<number>`count(*)` })
+            .from(messages)
+            .innerJoin(conversations, eq(conversations.id, messages.conversation_id))
+            .where(
+                and(
+                    or(eq(conversations.buyer_id, user.id), eq(conversations.seller_id, user.id)),
+                    ne(messages.sender_id, user.id),
                     eq(messages.is_read, false)
-                ),
-                columns: { id: true },
-            });
+                )
+            );
 
-            totalUnread += unreadMessages.length;
-        }
-
-        return totalUnread;
+        return Number(row?.count ?? 0);
     } catch {
         return 0;
     }

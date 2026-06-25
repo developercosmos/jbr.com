@@ -439,6 +439,9 @@ export const products = pgTable(
         seller_id_idx: index("idx_products_seller_id").on(table.seller_id),
         category_id_idx: index("idx_products_category_id").on(table.category_id),
         status_idx: index("idx_products_status").on(table.status),
+        // PERF: catalog filters status=PUBLISHED then sorts by created_at / price.
+        status_created_idx: index("idx_products_status_created").on(table.status, table.created_at),
+        status_price_idx: index("idx_products_status_price").on(table.status, table.price),
     })
 );
 
@@ -708,6 +711,9 @@ export const orders = pgTable(
         status_idx: index("idx_orders_status").on(table.status),
         release_due_at_idx: index("idx_orders_release_due_at").on(table.release_due_at),
         biteship_order_id_idx: index("idx_orders_biteship_order_id").on(table.biteship_order_id),
+        // PERF: order lists filter by seller/buyer and sort by created_at DESC.
+        seller_created_idx: index("idx_orders_seller_created").on(table.seller_id, table.created_at),
+        buyer_created_idx: index("idx_orders_buyer_created").on(table.buyer_id, table.created_at),
     })
 );
 
@@ -1204,6 +1210,9 @@ export const messages = pgTable(
     },
     (table) => ({
         conversation_id_idx: index("idx_messages_conversation_id").on(table.conversation_id),
+        // PERF: unread-count + per-conversation reads filter (conversation_id, is_read, sender_id).
+        conv_read_sender_idx: index("idx_messages_conv_read_sender").on(table.conversation_id, table.is_read, table.sender_id),
+        product_ref_idx: index("idx_messages_product_ref").on(table.product_reference_id),
     })
 );
 
@@ -1388,6 +1397,8 @@ export const payments = pgTable(
     (table) => ({
         order_id_idx: index("idx_payments_order_id").on(table.order_id),
         xendit_invoice_idx: index("idx_payments_xendit_invoice").on(table.xendit_invoice_id),
+        // PERF: reconcile sweep filters status='PENDING' ORDER BY created_at DESC.
+        status_created_idx: index("idx_payments_status_created").on(table.status, table.created_at),
     })
 );
 
@@ -1495,6 +1506,8 @@ export const reviews = pgTable(
         product_id_idx: index("idx_reviews_product_id").on(table.product_id),
         seller_id_idx: index("idx_reviews_seller_id").on(table.seller_id),
         order_item_idx: uniqueIndex("idx_reviews_order_item").on(table.order_item_id),
+        // PERF: review rate-limit checks (buyer_id, created_at >= since).
+        buyer_created_idx: index("idx_reviews_buyer_created").on(table.buyer_id, table.created_at),
     })
 );
 

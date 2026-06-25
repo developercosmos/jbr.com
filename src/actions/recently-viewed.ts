@@ -75,16 +75,15 @@ export async function syncRecentlyViewedFromClient(productIds: string[]) {
 
     if (filtered.length === 0) return { synced: 0 };
 
+    // PERF: single multi-row upsert instead of N inserts (one round-trip).
     const now = new Date();
-    for (const id of filtered) {
-        await db
-            .insert(user_recently_viewed)
-            .values({ user_id: user.id, product_id: id, viewed_at: now })
-            .onConflictDoUpdate({
-                target: [user_recently_viewed.user_id, user_recently_viewed.product_id],
-                set: { viewed_at: now },
-            });
-    }
+    await db
+        .insert(user_recently_viewed)
+        .values(filtered.map((id) => ({ user_id: user.id, product_id: id, viewed_at: now })))
+        .onConflictDoUpdate({
+            target: [user_recently_viewed.user_id, user_recently_viewed.product_id],
+            set: { viewed_at: now },
+        });
     return { synced: filtered.length };
 }
 
