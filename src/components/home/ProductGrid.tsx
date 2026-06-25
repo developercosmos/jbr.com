@@ -79,6 +79,7 @@ export async function ProductGrid() {
                                             src={product.images[0]}
                                             alt={product.title}
                                             fill
+                                            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
                                             className="object-cover group-hover:scale-105 transition-transform duration-500"
                                         />
                                     ) : (
@@ -105,7 +106,7 @@ export async function ProductGrid() {
                                         <div className="flex items-center gap-2">
                                             {product.seller?.image ? (
                                                 <div className="relative w-5 h-5 rounded-full overflow-hidden bg-slate-200">
-                                                    <Image src={product.seller.image} alt={product.seller.name} fill className="object-cover" />
+                                                    <Image src={product.seller.image} alt={product.seller.name} fill sizes="20px" className="object-cover" />
                                                 </div>
                                             ) : (
                                                 <div className="w-5 h-5 rounded-full bg-brand-primary flex items-center justify-center">

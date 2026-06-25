@@ -42,6 +42,16 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "10mb",
     },
+    // PERF: rewrite barrel imports (icons, sentry) to per-module imports so a single
+    // used icon doesn't pull the whole set into the client bundle.
+    optimizePackageImports: [
+      "lucide-react",
+      "react-icons/fa",
+      "react-icons/gi",
+      "react-icons/io5",
+      "react-icons/tb",
+      "@sentry/nextjs",
+    ],
   },
   images: {
     // TECH-04: image pipeline. Next/Image handles on-demand resize and format

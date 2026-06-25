@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { ZoomIn, ZoomOut, X, Maximize2, Play } from "lucide-react";
 import { WishlistButton } from "@/components/product/WishlistButton";
@@ -177,9 +178,18 @@ export function ProductGallery({ images, videoUrl, videoPosition, conditionLabel
                         type="button"
                         onClick={openZoom}
                         aria-label="Perbesar gambar"
-                        className="w-full h-full bg-center bg-cover transition-transform duration-500 group-hover:scale-105 cursor-zoom-in"
-                        style={{ backgroundImage: `url('${activeImage}')` }}
-                    />
+                        className="relative w-full h-full transition-transform duration-500 group-hover:scale-105 cursor-zoom-in"
+                    >
+                        {/* LCP image — next/Image gives AVIF/WebP + responsive srcset. */}
+                        <Image
+                            src={activeImage}
+                            alt="Foto produk"
+                            fill
+                            priority
+                            sizes="(max-width: 1024px) 100vw, 50vw"
+                            className="object-cover"
+                        />
+                    </button>
                 ) : (
                     <div className="w-full h-full bg-slate-100 dark:bg-slate-800" />
                 )}
@@ -238,10 +248,13 @@ export function ProductGallery({ images, videoUrl, videoPosition, conditionLabel
                                 </span>
                             </>
                         ) : (
-                            <div
-                                className="w-full h-full bg-center bg-cover"
-                                style={{ backgroundImage: `url('${item.url}')` }}
-                            ></div>
+                            <Image
+                                src={item.url}
+                                alt={`Foto produk ${index + 1}`}
+                                fill
+                                sizes="80px"
+                                className="object-cover"
+                            />
                         )}
                     </button>
                 ))}
