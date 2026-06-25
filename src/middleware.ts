@@ -236,13 +236,14 @@ export function middleware(request: NextRequest) {
     }
     } // end !isNextRsc
 
-    // 4. CSP nonce (staged rollout). A per-request nonce is generated and placed on
-    //    the REQUEST `Content-Security-Policy` header so Next auto-nonces its own
-    //    inline bootstrap scripts; the RESPONSE carries it as `*-Report-Only` so the
-    //    strict (no unsafe-inline) policy is MONITORED, not enforced — the nginx CSP
-    //    (with unsafe-inline) is still the enforced one, so nothing breaks. To finish
-    //    the migration: confirm violation reports are clean, then rename the response
-    //    header to `Content-Security-Policy` and drop the CSP from nginx.
+    // 4. CSP nonce (ENFORCING). A per-request nonce is generated and placed on the
+    //    REQUEST `Content-Security-Policy` header so Next auto-nonces its own inline
+    //    bootstrap scripts; the RESPONSE enforces the same strict policy — script-src
+    //    has NO 'unsafe-inline', so an injected inline script (XSS) is blocked unless
+    //    it carries this per-request nonce (which an attacker can't predict). Verified
+    //    via Report-Only first: all SSR scripts across PDP/login/search/cart/home are
+    //    nonced. The nginx CSP (still permissive) is now redundant for scripts — the
+    //    browser enforces the intersection, so this stricter app policy governs.
     const nonce = crypto.randomUUID().replace(/-/g, "");
     const cspNonce = [
         "default-src 'self'",
@@ -266,7 +267,7 @@ export function middleware(request: NextRequest) {
 
     // Add security headers that aren't set by nginx (defense in depth)
     const response = NextResponse.next({ request: { headers: requestHeaders } });
-    response.headers.set("Content-Security-Policy-Report-Only", cspNonce);
+    response.headers.set("Content-Security-Policy", cspNonce);
 
     // TECH-03: stamp every request with a correlation ID for log tracing.
     const incomingId = request.headers.get("x-request-id");
