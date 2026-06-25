@@ -1,29 +1,14 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
+// nginx sets the edge security headers for ALL responses (X-Frame-Options,
+// X-Content-Type-Options, Referrer-Policy, Permissions-Policy, HSTS), so setting them
+// here too only duplicated the header line. They are removed; X-DNS-Prefetch-Control
+// (which nginx does not set) stays. CSP is set per-request by the app middleware.
 const securityHeaders = [
   {
     key: "X-DNS-Prefetch-Control",
     value: "on",
-  },
-  {
-    key: "X-Frame-Options",
-    value: "SAMEORIGIN",
-  },
-  {
-    key: "X-Content-Type-Options",
-    value: "nosniff",
-  },
-  // X-XSS-Protection intentionally omitted: deprecated, and on some legacy browsers
-  // its auditor can be turned into an XS-leak. CSP (set at the nginx edge) is the
-  // real XSS control.
-  {
-    key: "Referrer-Policy",
-    value: "strict-origin-when-cross-origin",
-  },
-  {
-    key: "Permissions-Policy",
-    value: "geolocation=(self), microphone=(), camera=(), payment=(self)",
   },
 ];
 
