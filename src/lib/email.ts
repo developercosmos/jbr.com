@@ -20,29 +20,56 @@ function esc(v: unknown): string {
         .replace(/'/g, "&#39;");
 }
 
-// Determine transport type - use sendmail on Linux, SMTP on Windows
+// Transport selection:
+//   1. If SMTP_HOST is set → authenticated SMTP submission relay on ANY platform.
+//      This host cannot egress to external MX on port 25 (firewalled), so mail must
+//      be relayed through the mail server's submission port (e.g. 192.168.1.99:587)
+//      instead of the local sendmail binary (whose queue just defers forever).
+//   2. Else on Linux → local sendmail (Postfix) binary.
+//   3. Else (Windows dev) → localhost:25.
 const isLinux = process.platform === "linux";
+const smtpHost = process.env.SMTP_HOST?.trim();
+const smtpPort = parseInt(process.env.SMTP_PORT || (smtpHost ? "587" : "25"));
+const smtpSecure = process.env.SMTP_SECURE === "true"; // true for 465, false (STARTTLS) for 587
 
-console.log(`[Email] Platform: ${process.platform}, using ${isLinux ? "sendmail" : "SMTP"} transport`);
+const transport = smtpHost
+    ? "smtp-relay"
+    : isLinux
+        ? "sendmail"
+        : "smtp";
+console.log(`[Email] Platform: ${process.platform}, transport=${transport}${smtpHost ? ` (${smtpHost}:${smtpPort})` : ""}`);
 
-// Create transporter - sendmail for Linux (uses Postfix binary), SMTP for others
-const transporter = isLinux
+const transporter = smtpHost
     ? nodemailer.createTransport({
-        sendmail: true,
-        newline: 'unix',
-        path: '/usr/sbin/sendmail',
-    })
-    : nodemailer.createTransport({
-        host: process.env.SMTP_HOST || "127.0.0.1",
-        port: parseInt(process.env.SMTP_PORT || "25"),
-        secure: false,
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        requireTLS: !smtpSecure, // enforce STARTTLS on 587
+        auth: process.env.SMTP_USER
+            ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS || "" }
+            : undefined,
         connectionTimeout: 10000,
         greetingTimeout: 10000,
-        socketTimeout: 10000,
-        tls: {
-            rejectUnauthorized: false,
-        },
-    });
+        socketTimeout: 15000,
+        tls: { rejectUnauthorized: false },
+    })
+    : isLinux
+        ? nodemailer.createTransport({
+            sendmail: true,
+            newline: 'unix',
+            path: '/usr/sbin/sendmail',
+        })
+        : nodemailer.createTransport({
+            host: "127.0.0.1",
+            port: 25,
+            secure: false,
+            connectionTimeout: 10000,
+            greetingTimeout: 10000,
+            socketTimeout: 10000,
+            tls: {
+                rejectUnauthorized: false,
+            },
+        });
 
 const FROM_EMAIL = process.env.EMAIL_FROM || "noreply@jualbeliraket.com";
 
