@@ -250,10 +250,10 @@ async function sendEmail(options: SendEmailOptions): Promise<boolean> {
             subject: options.subject,
             html: options.html,
         });
-        console.log(`[Email] ${kind} \u2192 ${options.to} sent via sendmail`);
+        console.log(`[Email] ${kind} \u2192 ${options.to} sent via ${transport}`);
         return true;
     } catch (error) {
-        console.error(`[Email] ${kind} \u2192 ${options.to} FAILED (sendmail):`, error);
+        console.error(`[Email] ${kind} \u2192 ${options.to} FAILED (${transport}):`, error);
         return false;
     }
 }
