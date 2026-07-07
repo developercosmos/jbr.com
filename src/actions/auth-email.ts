@@ -146,11 +146,21 @@ export async function resetPassword(token: string, newPassword: string) {
 
 export async function requestEmailVerification(userId: string) {
     try {
-        // SECURITY: only the logged-in user may trigger their OWN verification email
-        // (closes IDOR email-bombing of arbitrary userIds).
+        // SECURITY: the logged-in user may trigger their OWN verification email, and
+        // an ADMIN may (re)send it for any user from the admin console. Anyone else is
+        // rejected (closes IDOR email-bombing of arbitrary userIds).
         const session = await auth.api.getSession({ headers: await headers() });
-        if (!session?.user || session.user.id !== userId) {
+        if (!session?.user) {
             return { success: false, error: "Tidak diizinkan." };
+        }
+        if (session.user.id !== userId) {
+            const me = await db.query.users.findFirst({
+                where: eq(users.id, session.user.id),
+                columns: { role: true },
+            });
+            if (me?.role !== "ADMIN") {
+                return { success: false, error: "Tidak diizinkan." };
+            }
         }
         const user = await db.query.users.findFirst({
             where: eq(users.id, userId),

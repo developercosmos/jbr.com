@@ -354,6 +354,11 @@ export async function banUser(userId: string) {
         .set({ store_status: "BANNED", updated_at: new Date() })
         .where(eq(users.id, userId));
 
+    // SECURITY: kill all existing sessions so the ban takes effect immediately — the
+    // user is logged out on their next request instead of riding a live cookie. New
+    // logins are then blocked by the session-create hook in lib/auth.ts.
+    await db.execute(sql`DELETE FROM sessions WHERE user_id = ${userId}`);
+
     revalidatePath("/admin/users");
     return { success: true as const };
 }
@@ -501,6 +506,14 @@ export async function deleteUser(userId: string) {
         throw new Error("Anda tidak dapat menghapus akun sendiri");
     }
 
+    // Capture the email up-front so we can purge non-cascading verification rows
+    // (they key on token/email, NOT a users FK, so they'd otherwise linger and can
+    // block a fresh signup's verification email when the same email re-registers).
+    const target = await db.query.users.findFirst({
+        where: eq(users.id, userId),
+        columns: { email: true },
+    });
+
     try {
         // Delete related data in correct order to avoid FK constraints
         // Order matters: delete child tables before parent tables
@@ -544,7 +557,19 @@ export async function deleteUser(userId: string) {
         // 13. Delete support tickets
         await db.execute(sql`DELETE FROM support_tickets WHERE user_id = ${userId}`);
 
-        // 14. Finally delete the user (sessions, accounts, verifications should cascade)
+        // 14. Purge NON-cascading verification rows tied to this email (email-verify /
+        // password-reset / resend-throttle tokens key on token+email, not a users FK,
+        // so a fresh signup with the same email gets a clean verification flow).
+        if (target?.email) {
+            await db.execute(sql`
+                DELETE FROM verifications
+                WHERE identifier = ${target.email}
+                   OR identifier LIKE ${"%" + target.email}
+                   OR value LIKE ${"%" + target.email}
+            `);
+        }
+
+        // 15. Finally delete the user (sessions + accounts cascade via FK).
         await db.delete(users).where(eq(users.id, userId));
 
         revalidatePath("/admin/users");

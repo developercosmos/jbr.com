@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth";
+import { APIError } from "better-auth/api";
 import { Pool } from "pg";
 import bcrypt from "bcryptjs";
 import { sendVerificationEmail } from "./email";
@@ -89,6 +90,33 @@ export const auth = betterAuth({
         sendVerificationEmail: async ({ user, url, token }) => {
             console.log(`[Auth] Sending verification email to ${user.email}`);
             await sendVerificationEmail(user.email, token, user.name || undefined);
+        },
+    },
+    databaseHooks: {
+        session: {
+            create: {
+                // SECURITY: block a banned account from establishing ANY new session
+                // (email or social login). Combined with deleting existing sessions at
+                // ban time (actions/admin.ts banUser), this makes the ban effective
+                // immediately. Fail-open on a DB hiccup so a transient error can't lock
+                // out every user.
+                before: async (session: { userId: string }) => {
+                    try {
+                        const res = await pool.query(
+                            "SELECT store_status FROM users WHERE id = $1 LIMIT 1",
+                            [session.userId],
+                        );
+                        if (res.rows[0]?.store_status === "BANNED") {
+                            throw new APIError("FORBIDDEN", {
+                                message: "Akun Anda telah diblokir oleh admin.",
+                            });
+                        }
+                    } catch (e) {
+                        if (e instanceof APIError) throw e;
+                    }
+                    return;
+                },
+            },
         },
     },
     // Map to existing database schema (snake_case)
