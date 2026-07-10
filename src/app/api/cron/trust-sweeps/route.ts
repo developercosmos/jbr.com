@@ -30,86 +30,56 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    try {
-        const [
-            escrow,
-            dispute,
-            reputation,
-            offers,
-            offerSla,
-            affiliate,
-            wishlistAlerts,
-            abandonment,
-            eventRollup,
-            searchTermRollup,
-            sellerDigest,
-            searchIndexReconcile,
-            glReconciliation,
-            buyerRatingOutliers,
-            flagScheduled,
-            flagCleanup,
-            presencePrune,
-            paymentsReconcile,
-            chatReminders,
-            expiredOfferCart,
-            orderExpiry,
-        ] = await Promise.all([
-            runEscrowAutoRelease(INTERNAL_CALL_TOKEN),
-            runDisputeSlaSweep(INTERNAL_CALL_TOKEN),
-            recomputeAllSellerRatingsForActiveSellers(INTERNAL_CALL_TOKEN),
-            runOfferExpirySweep(INTERNAL_CALL_TOKEN),
-            runOfferSlaFollowupSweep(INTERNAL_CALL_TOKEN),
-            clearAttributionsForCompletedOrders(INTERNAL_CALL_TOKEN),
-            runWishlistPriceDropSweep(INTERNAL_CALL_TOKEN),
-            runCartAbandonmentSweep(INTERNAL_CALL_TOKEN),
-            runProductEventRollup(INTERNAL_CALL_TOKEN),
-            runSearchTermRollup(INTERNAL_CALL_TOKEN),
-            runSellerWeeklyDigestSweep(INTERNAL_CALL_TOKEN),
-            runSearchIndexReconcile(INTERNAL_CALL_TOKEN),
-            runGlReconciliation(),
-            runBuyerRatingOutlierDetection(INTERNAL_CALL_TOKEN),
-            runFeatureFlagScheduledToggle(INTERNAL_CALL_TOKEN),
-            runFeatureFlagCleanupNotices(INTERNAL_CALL_TOKEN),
-            runPresencePruneSweep(INTERNAL_CALL_TOKEN),
-            reconcilePendingPayments(100, INTERNAL_CALL_TOKEN),
-            runUnansweredChatReminderSweep(INTERNAL_CALL_TOKEN),
-            runExpiredOfferCartSweep(INTERNAL_CALL_TOKEN),
-            runOrderExpirySweep(INTERNAL_CALL_TOKEN),
-        ]);
+    // RESILIENCE: run every sweep independently. A single sweep throwing must NOT
+    // abort the others — previously `Promise.all` meant one rejection silently
+    // disabled ALL periodic jobs for that run. Failures are collected + surfaced
+    // (HTTP 207 + `errors`) so the cron runner's fail-marker / mail fires, while the
+    // healthy sweeps still complete.
+    const tasks: { key: string; run: () => Promise<unknown> }[] = [
+        { key: "escrow", run: () => runEscrowAutoRelease(INTERNAL_CALL_TOKEN) },
+        { key: "dispute", run: () => runDisputeSlaSweep(INTERNAL_CALL_TOKEN) },
+        { key: "reputation", run: () => recomputeAllSellerRatingsForActiveSellers(INTERNAL_CALL_TOKEN) },
+        { key: "offers", run: () => runOfferExpirySweep(INTERNAL_CALL_TOKEN) },
+        { key: "offerSla", run: () => runOfferSlaFollowupSweep(INTERNAL_CALL_TOKEN) },
+        { key: "affiliate", run: () => clearAttributionsForCompletedOrders(INTERNAL_CALL_TOKEN) },
+        { key: "wishlistAlerts", run: () => runWishlistPriceDropSweep(INTERNAL_CALL_TOKEN) },
+        { key: "abandonment", run: () => runCartAbandonmentSweep(INTERNAL_CALL_TOKEN) },
+        { key: "eventRollup", run: () => runProductEventRollup(INTERNAL_CALL_TOKEN) },
+        { key: "searchTermRollup", run: () => runSearchTermRollup(INTERNAL_CALL_TOKEN) },
+        { key: "sellerDigest", run: () => runSellerWeeklyDigestSweep(INTERNAL_CALL_TOKEN) },
+        { key: "searchIndexReconcile", run: () => runSearchIndexReconcile(INTERNAL_CALL_TOKEN) },
+        { key: "glReconciliation", run: () => runGlReconciliation() },
+        { key: "buyerRatingOutliers", run: () => runBuyerRatingOutlierDetection(INTERNAL_CALL_TOKEN) },
+        { key: "flagScheduled", run: () => runFeatureFlagScheduledToggle(INTERNAL_CALL_TOKEN) },
+        { key: "flagCleanup", run: () => runFeatureFlagCleanupNotices(INTERNAL_CALL_TOKEN) },
+        { key: "presencePrune", run: () => runPresencePruneSweep(INTERNAL_CALL_TOKEN) },
+        { key: "paymentsReconcile", run: () => reconcilePendingPayments(100, INTERNAL_CALL_TOKEN) },
+        { key: "chatReminders", run: () => runUnansweredChatReminderSweep(INTERNAL_CALL_TOKEN) },
+        { key: "expiredOfferCart", run: () => runExpiredOfferCartSweep(INTERNAL_CALL_TOKEN) },
+        { key: "orderExpiry", run: () => runOrderExpirySweep(INTERNAL_CALL_TOKEN) },
+    ];
 
-        return NextResponse.json({
-            success: true,
-            escrow,
-            dispute,
-            reputation,
-            offers,
-            offerSla,
-            affiliate,
-            wishlistAlerts,
-            abandonment,
-            eventRollup,
-            searchTermRollup,
-            sellerDigest,
-            searchIndexReconcile,
-            glReconciliation,
-            buyerRatingOutliers,
-            flagScheduled,
-            flagCleanup,
-            presencePrune,
-            paymentsReconcile,
-            chatReminders,
-            expiredOfferCart,
-            orderExpiry,
+    const settled = await Promise.allSettled(tasks.map((t) => t.run()));
+    const results: Record<string, unknown> = {};
+    const errors: Record<string, string> = {};
+    settled.forEach((r, i) => {
+        const key = tasks[i].key;
+        if (r.status === "fulfilled") {
+            results[key] = r.value;
+        } else {
+            errors[key] = r.reason instanceof Error ? r.reason.message : String(r.reason);
+            console.error(`[trust-sweeps] sweep '${key}' failed:`, r.reason);
+        }
+    });
+
+    const hasErrors = Object.keys(errors).length > 0;
+    return NextResponse.json(
+        {
+            success: !hasErrors,
+            ...results,
+            ...(hasErrors ? { errors } : {}),
             ranAt: new Date().toISOString(),
-        });
-    } catch (error) {
-        console.error("[trust-sweeps] failure:", error);
-        return NextResponse.json(
-            {
-                success: false,
-                error: error instanceof Error ? error.message : "Sweep failed",
-            },
-            { status: 500 }
-        );
-    }
+        },
+        { status: hasErrors ? 207 : 200 }
+    );
 }
