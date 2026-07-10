@@ -293,8 +293,10 @@ function getIdempotencyKey(input: NotifyInput) {
 }
 
 // Best-effort deep-link for the generic notification email's CTA button.
-function ctaForEvent(input: NotifyInput): { url: string; label: string } | undefined {
-    const base = process.env.NEXT_PUBLIC_APP_URL || "https://jualbeliraket.com";
+// Returns a RELATIVE click-through path (+ email label) for an event, audience-aware.
+// Persisted to notification.data.url at creation so the in-app bell and the email CTA
+// share one source of truth. The email caller prepends the absolute base URL.
+function ctaForEvent(input: NotifyInput): { path: string; label: string } | undefined {
     switch (input.event) {
         case "ORDER_CREATED":
         case "ORDER_DELIVERED":
@@ -302,42 +304,46 @@ function ctaForEvent(input: NotifyInput): { url: string; label: string } | undef
         case "ORDER_CANCELLED": {
             const audience = "audience" in input ? input.audience : "buyer";
             const path = audience === "seller" ? `/seller/orders/${input.orderId}` : `/profile/orders/${input.orderId}`;
-            return { url: `${base}${path}`, label: "Lihat Pesanan" };
+            return { path, label: "Lihat Pesanan" };
         }
         case "PAYMENT_SUCCESS":
         case "ORDER_SHIPPED":
         case "ORDER_REFUNDED":
-            return { url: `${base}/profile/orders/${input.orderId}`, label: "Lihat Pesanan" };
+            return { path: `/profile/orders/${input.orderId}`, label: "Lihat Pesanan" };
         case "DISPUTE_OPENED":
         case "DISPUTE_UPDATED": {
-            const path = input.audience === "admin" ? `/admin` : input.audience === "seller" ? `/seller/orders/${input.orderId}` : `/profile/orders/${input.orderId}`;
-            return { url: `${base}${path}`, label: "Lihat Sengketa" };
+            const path = input.audience === "admin"
+                ? `/admin/disputes?id=${input.disputeId}`
+                : input.audience === "seller"
+                    ? `/seller/orders/${input.orderId}`
+                    : `/profile/orders/${input.orderId}`;
+            return { path, label: "Lihat Sengketa" };
         }
         case "OFFER_RECEIVED": {
             // Route to the recipient's own offer surface and deep-link the offer.
             const path = input.audience === "seller" ? "/seller/offers" : "/profile/offers";
-            return { url: `${base}${path}?offer=${input.offerId}`, label: "Lihat Penawaran" };
+            return { path: `${path}?offer=${input.offerId}`, label: "Lihat Penawaran" };
         }
         case "OFFER_ACCEPTED":
             // Buyer: item is now in their cart → send them there. Seller: their offers inbox.
             return input.audience === "seller"
-                ? { url: `${base}/seller/offers?offer=${input.offerId}`, label: "Lihat Penawaran" }
-                : { url: `${base}/cart`, label: "Lihat Keranjang" };
+                ? { path: `/seller/offers?offer=${input.offerId}`, label: "Lihat Penawaran" }
+                : { path: "/cart", label: "Lihat Keranjang" };
         case "OFFER_SLA_REMINDER":
-            return { url: `${base}/profile/offers?offer=${input.offerId}`, label: "Lihat Penawaran" };
+            return { path: `/profile/offers?offer=${input.offerId}`, label: "Lihat Penawaran" };
         case "REVIEW_RECEIVED":
-            return { url: `${base}/seller/reviews`, label: "Lihat Ulasan" };
+            return { path: "/seller/reviews", label: "Lihat Ulasan" };
         case "REVIEW_REPLY":
-            return { url: `${base}/profile`, label: "Lihat Ulasan" };
+            return { path: "/profile", label: "Lihat Ulasan" };
         case "NEW_MESSAGE":
         case "CHAT_REMINDER":
-            return { url: `${base}/messages`, label: "Buka Chat" };
+            return { path: "/messages", label: "Buka Chat" };
         case "WISHLIST_PRICE_DROP":
-            return { url: `${base}/product/${input.productSlug}`, label: "Lihat Produk" };
+            return { path: `/product/${input.productSlug}`, label: "Lihat Produk" };
         case "CART_ABANDONMENT_REMINDER":
-            return { url: `${base}/cart`, label: "Lihat Keranjang" };
+            return { path: "/cart", label: "Lihat Keranjang" };
         case "SELLER_WEEKLY_DIGEST":
-            return { url: `${base}/seller/analytics`, label: "Lihat Analitik" };
+            return { path: "/seller/analytics", label: "Lihat Analitik" };
     }
     return undefined;
 }
@@ -653,6 +659,10 @@ export async function notify(input: NotifyInput) {
     const inAppEnabled = prefs[category].inApp;
     const emailEnabled = prefs[category].email;
 
+    // Persist the audience-aware click-through path (computed once here) so the in-app
+    // bell routes EVERY notification correctly — the same source of truth as the email
+    // CTA below. Events with no cta leave data.url unset (bell uses its legacy fallback).
+    const cta = ctaForEvent(input);
     const [notification] = await db
         .insert(notifications)
         .values({
@@ -661,7 +671,7 @@ export async function notify(input: NotifyInput) {
             title,
             message,
             idempotency_key: idempotencyKey,
-            data,
+            data: cta ? { ...data, url: cta.path } : data,
             in_app_suppressed: !inAppEnabled,
         })
         .returning();
@@ -693,10 +703,11 @@ export async function notify(input: NotifyInput) {
         // email (re-engagement styling for promo events) built from title/message.
         let thunk = emailThunk;
         if (!thunk) {
-            const cta = ctaForEvent(input);
+            const base = process.env.NEXT_PUBLIC_APP_URL || "https://jualbeliraket.com";
+            const ctaUrl = cta ? `${base}${cta.path}` : undefined;
             thunk = PROMO_EVENTS.has(input.event)
-                ? () => sendReEngagementEmail({ to: toEmail, name: toName, title, message, ctaUrl: cta?.url, ctaLabel: cta?.label })
-                : () => sendNotificationEmail({ to: toEmail, name: toName, title, message, ctaUrl: cta?.url, ctaLabel: cta?.label });
+                ? () => sendReEngagementEmail({ to: toEmail, name: toName, title, message, ctaUrl, ctaLabel: cta?.label })
+                : () => sendNotificationEmail({ to: toEmail, name: toName, title, message, ctaUrl, ctaLabel: cta?.label });
         }
         // Route through the queue so a future BullMQ adapter can retry. The
         // in-process adapter runs synchronously so semantics are unchanged.

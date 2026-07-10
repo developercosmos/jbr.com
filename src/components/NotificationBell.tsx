@@ -29,7 +29,7 @@ type NotificationBellProps = {
 function getNotificationHref(notification: Notification): string | null {
     const data = (notification.data ?? {}) as Record<string, unknown>;
     const orderId = typeof data.order_id === "string" ? data.order_id : null;
-    const productId = typeof data.product_id === "string" ? data.product_id : null;
+    const offerId = typeof data.offer_id === "string" ? data.offer_id : null;
     const productSlug = typeof data.product_slug === "string" ? data.product_slug : null;
     const disputeId = typeof data.dispute_id === "string" ? data.dispute_id : null;
     const sellerId = typeof data.seller_id === "string" ? data.seller_id : null;
@@ -39,6 +39,11 @@ function getNotificationHref(notification: Notification): string | null {
     // seller order page, the buyer's to their profile orders. (No audience in
     // data => buyer, the historical default.)
     const orderBase = data.audience === "seller" ? "/seller/orders" : "/profile/orders";
+
+    // Preferred: the notification builder now persists an audience-aware click path
+    // (data.url) computed at creation — use it for every notification. The per-type
+    // switch below is a fallback for legacy rows written before data.url existed.
+    if (typeof data.url === "string" && data.url) return data.url;
 
     switch (notification.type) {
         case "ORDER_CREATED":
@@ -52,14 +57,15 @@ function getNotificationHref(notification: Notification): string | null {
         case "NEW_REVIEW":
             return "/seller/reviews";
         case "REVIEW_REPLY":
-            return productId ? `/product/${productId}` : "/profile/orders";
+            return productSlug ? `/product/${productSlug}` : "/profile";
         case "NEW_MESSAGE":
             return "/messages";
         case "DISPUTE_OPENED":
         case "DISPUTE_UPDATED":
-            return disputeId
-                ? `/admin/disputes?id=${disputeId}`
-                : (orderId ? `/profile/orders/${orderId}` : "/admin/disputes");
+            // Legacy fallback (new rows carry data.url). Without a stored audience we
+            // can't tell admin from buyer/seller, so prefer the order page (accessible
+            // to both parties) over the admin-only disputes console.
+            return orderId ? `/profile/orders/${orderId}` : (disputeId ? `/admin/disputes?id=${disputeId}` : null);
         case "OFFER_RECEIVED":
             return "/seller/offers";
         case "OFFER_ACCEPTED":
@@ -79,7 +85,13 @@ function getNotificationHref(notification: Notification): string | null {
                 return "/admin/kyc?status=PENDING_REVIEW";
             }
             return sellerId ? `/admin/users?highlight=${sellerId}` : "/admin/users";
+        case "CART_ABANDONMENT_REMINDER":
+            return "/cart";
+        case "SELLER_WEEKLY_DIGEST":
+            return "/seller/analytics";
         case "SYSTEM":
+            // OFFER_SLA_REMINDER is coerced to type=SYSTEM but carries offer_id.
+            return offerId ? "/profile/offers" : null;
         default:
             return null;
     }
