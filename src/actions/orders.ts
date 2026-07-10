@@ -331,6 +331,12 @@ async function createOrderFromCartInternal(input: z.infer<typeof createOrderSche
                     if (decV.length === 0) {
                         throw new Error(`Stok varian "${item.product.title}" tidak mencukupi`);
                     }
+                    // Mirror to the denormalized product-level aggregate so listing/card
+                    // surfaces (which read products.stock) stay correct for variant products.
+                    await tx
+                        .update(products)
+                        .set({ stock: sql`${products.stock} - ${item.quantity}` })
+                        .where(eq(products.id, item.product.id));
                 } else {
                     const decP = await tx
                         .update(products)
@@ -587,6 +593,8 @@ async function createOrderFromOfferInternal(input: z.infer<typeof createOrderFro
                 .where(and(eq(product_variants.id, resolved.variant.id), gte(product_variants.stock, 1)))
                 .returning({ id: product_variants.id });
             if (decV.length === 0) throw new Error("Stok produk sudah habis.");
+            // Mirror to the denormalized product-level aggregate (see createOrderFromCart).
+            await tx.update(products).set({ stock: sql`${products.stock} - 1` }).where(eq(products.id, productRow.id));
         } else {
             const decP = await tx
                 .update(products)

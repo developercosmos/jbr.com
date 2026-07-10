@@ -272,6 +272,10 @@ export async function createProduct(input: z.infer<typeof createProductSchema>) 
                     sort_order: i,
                 }))
             );
+            // Denormalized aggregate: products.stock = Σ variant stock so listing/card
+            // surfaces (which read products.stock) reflect true variant inventory.
+            const variantStockSum = variantInputs.reduce((sum, v) => sum + (v.stock ?? 0), 0);
+            await db.update(products).set({ stock: variantStockSum }).where(eq(products.id, product.id));
         }
 
         if (validated.tiered_floor_price && Object.keys(validated.tiered_floor_price).length > 0) {
@@ -380,6 +384,12 @@ async function updateProductInternal(input: z.infer<typeof updateProductSchema>)
                     sort_order: i,
                 }))
             );
+        }
+        // Keep products.stock as the Σ of variant stock (denormalized aggregate). When
+        // variants are cleared ([]), the seller-entered product-level stock stands.
+        if (variantInputs.length > 0) {
+            const variantStockSum = variantInputs.reduce((sum, v) => sum + (v.stock ?? 0), 0);
+            await db.update(products).set({ stock: variantStockSum }).where(eq(products.id, id));
         }
     }
 
@@ -523,7 +533,10 @@ export async function getProductBySlug(slug: string) {
     return unstable_cache(
         () => getProductBySlugUncached(slug),
         ["product-by-slug", slug],
-        { revalidate: 300 }
+        // Short TTL so stock mutations (order/cancel/restock/expiry, seller edits) show
+        // within ~1 min instead of up to 5. (Next 16's revalidateTag(tag, profile)
+        // tag-invalidation isn't wired here; the shorter window is the pragmatic fix.)
+        { revalidate: 60 }
     )();
 }
 

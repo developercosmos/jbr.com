@@ -500,6 +500,13 @@ async function restockOrder(orderId: string) {
                 .update(product_variants)
                 .set({ stock: sql`${product_variants.stock} + ${item.quantity}` })
                 .where(eq(product_variants.id, item.variant_id));
+            // Mirror to the denormalized product-level aggregate.
+            if (item.product_id) {
+                await db
+                    .update(products)
+                    .set({ stock: sql`${products.stock} + ${item.quantity}` })
+                    .where(eq(products.id, item.product_id));
+            }
         } else if (item.product_id) {
             await db
                 .update(products)
