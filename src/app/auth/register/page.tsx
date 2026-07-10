@@ -3,8 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Lock, Mail, User, Loader2, CheckCircle, MailCheck } from "lucide-react";
+import { ArrowRight, Mail, User, Loader2, CheckCircle, MailCheck } from "lucide-react";
 import { registerAccount } from "@/actions/auth-register";
+import { PasswordInput } from "@/components/PasswordInput";
 
 export default function RegisterPage() {
     const [name, setName] = useState("");
@@ -241,20 +242,16 @@ export default function RegisterPage() {
                         <label className="text-sm font-bold text-slate-900 dark:text-white">
                             Password
                         </label>
-                        <div className="relative">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                                <Lock className="w-5 h-5" />
-                            </div>
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                placeholder="••••••••"
-                                required
-                                minLength={8}
-                                className="block w-full pl-10 pr-3 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary transition-all"
-                            />
-                        </div>
+                        <PasswordInput
+                            withLockIcon
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="••••••••"
+                            required
+                            minLength={8}
+                            autoComplete="new-password"
+                            className="block w-full pl-10 pr-10 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary transition-all"
+                        />
                         <p className="text-xs text-slate-500">
                             Minimal 8 karakter dengan kombinasi huruf dan angka.
                         </p>

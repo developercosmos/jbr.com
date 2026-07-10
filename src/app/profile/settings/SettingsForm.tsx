@@ -4,6 +4,7 @@ import { Save, User, Lock, Bell, Upload, Loader2, Mail, Smartphone, AlertTriangl
 import Image from "next/image";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { PasswordInput } from "@/components/PasswordInput";
 import { updateProfile } from "@/actions/profile";
 import { updateNotificationPreferences } from "@/actions/notification-preferences";
 import {
@@ -376,14 +377,13 @@ export function SettingsForm({ user }: { user: UserData }) {
                         <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                             Password Saat Ini
                         </label>
-                        <input
-                            type="password"
+                        <PasswordInput
                             value={formData.currentPassword}
                             onChange={(e) => setFormData({ ...formData, currentPassword: e.target.value })}
                             name="current-password-input"
                             autoComplete="off"
                             placeholder="Masukkan password lama"
-                            className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm"
+                            className="block w-full pl-3 pr-10 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm"
                         />
                         {renderFieldError("currentPassword")}
                     </div>
@@ -392,13 +392,12 @@ export function SettingsForm({ user }: { user: UserData }) {
                             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                                 Password Baru
                             </label>
-                            <input
-                                type="password"
+                            <PasswordInput
                                 value={formData.newPassword}
                                 onChange={(e) => setFormData({ ...formData, newPassword: e.target.value })}
                                 autoComplete="new-password"
                                 placeholder="Minimal 6 karakter"
-                                className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm"
+                                className="block w-full pl-3 pr-10 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm"
                             />
                             {renderFieldError("newPassword")}
                         </div>
@@ -406,13 +405,12 @@ export function SettingsForm({ user }: { user: UserData }) {
                             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                                 Konfirmasi Password Baru
                             </label>
-                            <input
-                                type="password"
+                            <PasswordInput
                                 value={formData.confirmPassword}
                                 onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                                 autoComplete="new-password"
                                 placeholder="Ulangi password baru"
-                                className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm"
+                                className="block w-full pl-3 pr-10 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-primary sm:text-sm"
                             />
                         </div>
                     </div>

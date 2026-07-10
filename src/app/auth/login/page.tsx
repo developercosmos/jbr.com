@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Lock, Mail, Loader2, AlertCircle, Send } from "lucide-react";
+import { ArrowRight, Mail, Loader2, AlertCircle, Send } from "lucide-react";
 import { signIn } from "@/lib/auth-client";
+import { PasswordInput } from "@/components/PasswordInput";
 
 function getSafeCallbackUrl(value: string | null): string {
     if (!value) {
@@ -301,20 +302,15 @@ export default function LoginPage() {
                                 Lupa Password?
                             </Link>
                         </div>
-                        <div className="relative">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                                <Lock className="w-5 h-5" />
-                            </div>
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                placeholder="••••••••"
-                                autoComplete="current-password"
-                                required
-                                className="block w-full pl-10 pr-3 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary transition-all"
-                            />
-                        </div>
+                        <PasswordInput
+                            withLockIcon
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="••••••••"
+                            autoComplete="current-password"
+                            required
+                            className="block w-full pl-10 pr-10 py-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-black/20 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-primary transition-all"
+                        />
                     </div>
 
                     <button
