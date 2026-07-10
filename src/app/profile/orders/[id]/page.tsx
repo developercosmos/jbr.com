@@ -374,6 +374,7 @@ export default async function OrderDetailPage({ params }: PageProps) {
                             {canDispute && (
                                 <ReportProblemButton
                                     orderId={order.id}
+                                    orderStatus={order.status}
                                     existing={existingDispute ? {
                                         dispute_number: existingDispute.dispute_number,
                                         status: existingDispute.status,

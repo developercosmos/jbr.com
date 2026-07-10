@@ -534,8 +534,15 @@ export async function getCities(provinceId?: string) {
 // ============================================
 const updateShippingSchema = z.object({
     orderId: z.string().uuid(),
-    trackingNumber: z.string().min(1),
-    shippingProvider: z.string().min(1),
+    // A real courier waybill is ≥6 alphanumerics (dashes allowed). Rejects junk like
+    // "...", ".", or "test" that let orders be marked shipped with no real resi.
+    trackingNumber: z
+        .string()
+        .trim()
+        .min(6, "Nomor resi tidak valid (minimal 6 karakter).")
+        .max(40)
+        .regex(/^[A-Za-z0-9-]+$/, "Nomor resi hanya boleh huruf, angka, dan tanda hubung."),
+    shippingProvider: z.string().trim().min(1),
     estimatedDelivery: z.string().optional(),
 });
 

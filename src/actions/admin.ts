@@ -514,6 +514,22 @@ export async function deleteUser(userId: string) {
         columns: { email: true },
     });
 
+    // DATA-INTEGRITY: refuse to delete a user who still has orders (as buyer OR
+    // seller). Hard-deleting them cascades to `DELETE FROM orders ... buyer_id OR
+    // seller_id`, which would also wipe the COUNTERPARTY's order/escrow/dispute/
+    // payout history and orphan the other party's notifications (they then 404 on
+    // click — the "Pesanan Baru → 404" bug). Orders are financial records; the admin
+    // must cancel/resolve them (or deactivate/ban the account) before deletion.
+    const orderCountRes = await db.execute(
+        sql`SELECT count(*)::int AS n FROM orders WHERE buyer_id = ${userId} OR seller_id = ${userId}`
+    );
+    const orderCount = Number((orderCountRes?.[0] as { n?: number } | undefined)?.n ?? 0);
+    if (orderCount > 0) {
+        throw new Error(
+            `User tidak dapat dihapus: masih memiliki ${orderCount} pesanan (sebagai pembeli/penjual). Riwayat pesanan, escrow, dan sengketa harus dipertahankan. Batalkan/selesaikan pesanan tersebut atau nonaktifkan (ban) akun sebagai gantinya.`
+        );
+    }
+
     try {
         // Delete related data in correct order to avoid FK constraints
         // Order matters: delete child tables before parent tables

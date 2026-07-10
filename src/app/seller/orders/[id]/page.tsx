@@ -412,6 +412,36 @@ export default async function SellerOrderDetailPage({
                             </div>
                         )}
 
+                        {/* Shipping / tracking info — shown for any shipped order,
+                            not just Biteship pickups (manual ship is the common case). */}
+                        {(order.tracking_number || order.shipped_at) && (
+                            <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
+                                <h2 className="font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                                    <Truck className="w-4 h-4" />Informasi Pengiriman
+                                </h2>
+                                <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between">
+                                        <span className="text-slate-500">Status</span>
+                                        <span className="font-medium text-slate-900 dark:text-white">{statusConfig[order.status]?.label ?? order.status}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-slate-500">Kurir</span>
+                                        <span className="font-medium text-slate-900 dark:text-white">{order.shipping_provider || "-"}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-slate-500">No. Resi</span>
+                                        <span className="font-mono text-slate-900 dark:text-white">{order.tracking_number || "-"}</span>
+                                    </div>
+                                    {order.shipped_at && (
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-500">Dikirim</span>
+                                            <span className="text-slate-900 dark:text-white">{formatDate(new Date(order.shipped_at))}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Payment Summary */}
                         <div className="bg-white dark:bg-surface-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
                             <h2 className="font-bold text-slate-900 dark:text-white mb-4">Ringkasan Pembayaran</h2>

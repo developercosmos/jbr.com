@@ -39,6 +39,19 @@ const createOrderDisputeSchema = z.object({
 // or claimed delivered). Not allowed before payment or after the order is closed out.
 const DISPUTABLE_ORDER_STATUSES = ["PAID", "PACKING", "PROCESSING", "SHIPPED", "DELIVERED"] as const;
 
+// Per-reason status gating. A buyer must not be able to claim "barang tidak diterima"
+// or "tidak sesuai deskripsi" BEFORE the seller has even shipped — those only make
+// sense once the goods are in transit or delivered. Pre-shipment grievances (seller
+// not processing, wanting to cancel) go through REFUND_REQUEST / SELLER_NOT_RESPONSIVE
+// (or the cancel/refund flow) instead.
+const REASON_ALLOWED_STATUSES: Record<string, ReadonlyArray<string>> = {
+    ITEM_NOT_RECEIVED: ["SHIPPED", "DELIVERED"],
+    ITEM_NOT_AS_DESCRIBED: ["SHIPPED", "DELIVERED"],
+    REFUND_REQUEST: DISPUTABLE_ORDER_STATUSES,
+    SELLER_NOT_RESPONSIVE: DISPUTABLE_ORDER_STATUSES,
+    OTHER: DISPUTABLE_ORDER_STATUSES,
+};
+
 export async function createOrderDispute(input: z.infer<typeof createOrderDisputeSchema>) {
     try {
         return await createOrderDisputeInternal(input);
@@ -61,8 +74,16 @@ async function createOrderDisputeInternal(input: z.infer<typeof createOrderDispu
     });
     if (!order) throw new Error("Pesanan tidak ditemukan");
 
-    if (!DISPUTABLE_ORDER_STATUSES.includes(order.status as (typeof DISPUTABLE_ORDER_STATUSES)[number])) {
-        throw new Error(`Pesanan berstatus ${order.status} tidak dapat disengketakan`);
+    const allowedForReason = REASON_ALLOWED_STATUSES[validated.type] ?? DISPUTABLE_ORDER_STATUSES;
+    if (!allowedForReason.includes(order.status)) {
+        // Distinguish "wrong stage for this reason" (e.g. not-received before shipment)
+        // from "order not disputable at all" so the buyer gets an actionable message.
+        const requiresShipment = allowedForReason !== DISPUTABLE_ORDER_STATUSES;
+        throw new Error(
+            requiresShipment
+                ? "Laporan ini hanya bisa diajukan setelah pesanan dikirim. Untuk pesanan yang belum dikirim, ajukan pembatalan/pengembalian dana."
+                : `Pesanan berstatus ${order.status} tidak dapat disengketakan`
+        );
     }
 
     // One open dispute per order — block duplicates.

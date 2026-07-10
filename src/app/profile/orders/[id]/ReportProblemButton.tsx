@@ -13,6 +13,7 @@ interface ExistingDispute {
 
 interface Props {
     orderId: string;
+    orderStatus: string;
     existing: ExistingDispute | null;
 }
 
@@ -24,10 +25,19 @@ const DISPUTE_TYPES: { value: string; label: string }[] = [
     { value: "OTHER", label: "Lainnya" },
 ];
 
-export default function ReportProblemButton({ orderId, existing }: Props) {
+// Mirror of the server-side gating (actions/disputes.ts): "not received" / "not as
+// described" only make sense once the order has shipped. Hidden pre-shipment so the
+// buyer can't pick a reason the server would reject.
+const SHIPPED_ONLY_REASONS = new Set(["ITEM_NOT_RECEIVED", "ITEM_NOT_AS_DESCRIBED"]);
+
+export default function ReportProblemButton({ orderId, orderStatus, existing }: Props) {
     const router = useRouter();
+    const hasShipped = orderStatus === "SHIPPED" || orderStatus === "DELIVERED";
+    const availableTypes = DISPUTE_TYPES.filter(
+        (t) => hasShipped || !SHIPPED_ONLY_REASONS.has(t.value)
+    );
     const [open, setOpen] = useState(false);
-    const [type, setType] = useState("ITEM_NOT_RECEIVED");
+    const [type, setType] = useState(availableTypes[0]?.value ?? "REFUND_REQUEST");
     const [description, setDescription] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [isPending, startTransition] = useTransition();
@@ -90,7 +100,7 @@ export default function ReportProblemButton({ orderId, existing }: Props) {
                             onChange={(e) => setType(e.target.value)}
                             className="w-full mb-3 px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-sm"
                         >
-                            {DISPUTE_TYPES.map((t) => (
+                            {availableTypes.map((t) => (
                                 <option key={t.value} value={t.value}>{t.label}</option>
                             ))}
                         </select>

@@ -783,7 +783,11 @@ const SELLER_ALLOWED_TRANSITIONS: Record<string, ReadonlyArray<string>> = {
     // -> SHIPPED (courier picked up; set via updateShippingInfo / Biteship webhook).
     PAID: ["PACKING"],
     PACKING: ["PROCESSING"],
-    PROCESSING: ["SHIPPED"],
+    // PROCESSING → SHIPPED is intentionally NOT allowed here: shipping MUST go through
+    // updateShippingInfo (or the Biteship webhook), which captures a tracking number +
+    // shipped_at. A bare status flip to SHIPPED let orders reach SHIPPED/DELIVERED with
+    // no resi ("Diterima tanpa nomor pengiriman" bug) and skipped buyer tracking notifs.
+    PROCESSING: [],
 };
 
 export async function updateOrderStatus(
