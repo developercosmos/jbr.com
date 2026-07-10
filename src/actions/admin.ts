@@ -11,6 +11,7 @@ import { revalidatePath } from "next/cache";
 import { categories } from "@/db/schema";
 import { sendSellerActivationApprovedEmail, sendSellerActivationRejectedEmail, sendProductApprovedEmail, sendProductRejectedEmail } from "@/lib/email";
 import { refundOrder } from "@/actions/refunds";
+import { notify } from "@/lib/notify";
 
 // Get current admin user
 async function getCurrentAdmin() {
@@ -147,7 +148,7 @@ export async function approveProduct(productId: string) {
 
     await db
         .update(products)
-        .set({ status: "PUBLISHED", moderation_reason: null, updated_at: new Date() })
+        .set({ status: "PUBLISHED", moderation_reason: null, approved_at: new Date(), updated_at: new Date() })
         .where(eq(products.id, productId));
 
     // Notify the seller (best-effort: email if available, plus in-app).
@@ -946,7 +947,7 @@ async function updateDisputeStatusInternal(
 
     const existing = await db.query.disputes.findFirst({
         where: eq(disputes.id, disputeId),
-        columns: { id: true, order_id: true, response_due_at: true, resolution_due_at: true },
+        columns: { id: true, order_id: true, reporter_id: true, reported_id: true, response_due_at: true, resolution_due_at: true },
     });
 
     if (!existing) {
@@ -997,6 +998,35 @@ async function updateDisputeStatusInternal(
     if (options?.refund && (status === "RESOLVED" || status === "CLOSED") && existing.order_id) {
         const result = await refundOrder({ orderId: existing.order_id, reason: resolution });
         refunded = result.success;
+    }
+
+    // Notify BOTH parties of the outcome. Previously nothing was sent on resolve/close
+    // (only refundOrder emailed the buyer), so buyer & seller saw either nothing or an
+    // identical generic message. Order disputes only — buyer-rating disputes have no order.
+    if ((status === "RESOLVED" || status === "CLOSED") && existing.order_id) {
+        try {
+            const ord = await db.query.orders.findFirst({
+                where: eq(orders.id, existing.order_id),
+                columns: { order_number: true },
+            });
+            const base = {
+                event: "DISPUTE_UPDATED" as const,
+                disputeId,
+                orderId: existing.order_id,
+                orderNumber: ord?.order_number ?? "",
+                status,
+                refunded,
+                resolutionNote: safeResolution,
+            };
+            if (existing.reporter_id) {
+                await notify({ ...base, audience: "buyer", recipientUserId: existing.reporter_id });
+            }
+            if (existing.reported_id) {
+                await notify({ ...base, audience: "seller", recipientUserId: existing.reported_id });
+            }
+        } catch (e) {
+            logger.warn("admin:dispute_notify_failed", { disputeId, error: String(e) });
+        }
     }
 
     revalidatePath("/admin/disputes");

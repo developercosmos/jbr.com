@@ -8,20 +8,23 @@ import { RecentlyViewedStrip } from "@/components/RecentlyViewedStrip";
 
 export const dynamic = "force-dynamic";
 
-export default function Home() {
+export default async function Home({ searchParams }: { searchParams: Promise<{ condition?: string }> }) {
+  const { condition } = await searchParams;
+  const conditionFilter = condition === "NEW" || condition === "PRELOVED" ? condition : undefined;
   return (
     <main className="w-full max-w-[1440px] mx-auto pb-20">
       <Hero />
       <Categories />
       {/* Recently-viewed strip — self-hydrates from localStorage + server data. */}
       <RecentlyViewedStrip />
-      <Suspense fallback={
+      <div id="featured" />
+      <Suspense key={conditionFilter ?? "all"} fallback={
         <div className="py-24 text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary mx-auto mb-4"></div>
           <p className="text-slate-400">Loading recommendations...</p>
         </div>
       }>
-        <ProductGrid />
+        <ProductGrid condition={conditionFilter} />
       </Suspense>
       <TrustSection />
       {/* Personalized recommendations ("Cocok untuk Anda") — REC-01. Moved to the

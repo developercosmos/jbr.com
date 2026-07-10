@@ -329,9 +329,15 @@ async function updateProductInternal(input: z.infer<typeof updateProductSchema>)
         checklist: updateData.condition_checklist ?? (existing.condition_checklist ?? []),
     });
 
-    const finalStatus = checklistPolicy.requiresModeration && updateData.status === "PUBLISHED"
-        ? ("MODERATED" as const)
-        : updateData.status;
+    // Re-moderation gates only content that was NEVER approved. A previously-approved
+    // listing (approved_at set) that the seller merely un-archives goes straight back
+    // to PUBLISHED instead of bouncing to MODERATED (bug #10).
+    const isReactivationOfApproved =
+        existing.status === "ARCHIVED" && updateData.status === "PUBLISHED" && existing.approved_at != null;
+    const finalStatus =
+        checklistPolicy.requiresModeration && updateData.status === "PUBLISHED" && !isReactivationOfApproved
+            ? ("MODERATED" as const)
+            : updateData.status;
     // Set the auto reason when auto-moderated; clear it when leaving moderation;
     // otherwise leave it untouched (so an admin-set reason isn't clobbered when a
     // seller just re-saves a still-moderated product).
@@ -355,6 +361,8 @@ async function updateProductInternal(input: z.infer<typeof updateProductSchema>)
             tiered_floor_price: updateData.tiered_floor_price,
             status: finalStatus,
             ...moderationReasonPatch,
+            // Stamp first approval so future un-archive skips re-moderation (bug #10).
+            ...(finalStatus === "PUBLISHED" && !existing.approved_at ? { approved_at: new Date() } : {}),
             updated_at: new Date(),
         })
         .where(eq(products.id, id))
@@ -499,9 +507,11 @@ export async function getSellerProductById(productId: string) {
     return product ?? null;
 }
 
-export async function getPublishedProducts(limit = 20, offset = 0) {
+export async function getPublishedProducts(limit = 20, offset = 0, condition?: "NEW" | "PRELOVED") {
     const publishedProducts = await db.query.products.findMany({
-        where: eq(products.status, "PUBLISHED"),
+        where: condition
+            ? and(eq(products.status, "PUBLISHED"), eq(products.condition, condition))
+            : eq(products.status, "PUBLISHED"),
         orderBy: [desc(products.created_at)],
         limit,
         offset,

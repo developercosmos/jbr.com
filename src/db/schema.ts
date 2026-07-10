@@ -414,6 +414,10 @@ export const products = pgTable(
         // Why the product is under moderation (admin reason or auto-policy), shown
         // to the seller on the edit page. Null when not moderated.
         moderation_reason: text("moderation_reason"),
+        // When the product was first approved to go live (admin approve, or a publish
+        // that needed no moderation). Skips re-moderation when un-archiving a
+        // previously-approved listing. Null = never approved.
+        approved_at: timestamp("approved_at"),
         images: jsonb("images").$type<string[]>().default([]),
         // Video produk opsional (URL publik; batas via accounting_settings).
         video_url: text("video_url"),

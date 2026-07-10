@@ -25,18 +25,19 @@ async function getSellerBySlug(slug: string) {
     return seller;
 }
 
-async function getSellerProducts(sellerId: string) {
+async function getSellerProducts(sellerId: string, includeAll = false) {
+    // The store OWNER sees ALL their products (incl. arsip/draft/moderasi, badged);
+    // the public sees only PUBLISHED.
     const sellerProducts = await db
         .select()
         .from(products)
         .where(
-            and(
-                eq(products.seller_id, sellerId),
-                eq(products.status, "PUBLISHED")
-            )
+            includeAll
+                ? eq(products.seller_id, sellerId)
+                : and(eq(products.seller_id, sellerId), eq(products.status, "PUBLISHED"))
         )
         .orderBy(desc(products.created_at))
-        .limit(20);
+        .limit(includeAll ? 60 : 20);
     return sellerProducts;
 }
 
@@ -65,7 +66,7 @@ export default async function StorePage({ params }: Props) {
     const followerCount = await getFollowerCount(seller.id);
     const reputation = await getSellerReputationSummary(seller.id);
 
-    const sellerProducts = await getSellerProducts(seller.id);
+    const sellerProducts = await getSellerProducts(seller.id, isOwnStore);
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
@@ -197,7 +198,7 @@ export default async function StorePage({ params }: Props) {
                             Belum ada produk
                         </h3>
                         <p className="text-slate-500">
-                            Toko ini belum memiliki produk yang dijual
+                            {isOwnStore ? "Anda belum punya produk. Tambah produk lewat Seller Center." : "Toko ini belum memiliki produk yang dijual"}
                         </p>
                     </div>
                 ) : (
@@ -226,6 +227,11 @@ export default async function StorePage({ params }: Props) {
                                     {product.condition === "PRELOVED" && (
                                         <span className="absolute top-2 left-2 px-2 py-0.5 bg-amber-500 text-white text-xs font-semibold rounded">
                                             Preloved
+                                        </span>
+                                    )}
+                                    {product.status !== "PUBLISHED" && (
+                                        <span className="absolute top-2 right-2 px-2 py-0.5 bg-slate-800/90 text-white text-xs font-semibold rounded">
+                                            {product.status === "ARCHIVED" ? "Arsip" : product.status === "MODERATED" ? "Dimoderasi" : product.status === "DRAFT" ? "Draft" : product.status}
                                         </span>
                                     )}
                                 </div>

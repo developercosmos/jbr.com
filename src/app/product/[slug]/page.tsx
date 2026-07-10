@@ -35,6 +35,13 @@ export default async function ProductPage({ params }: ProductPageProps) {
         notFound();
     }
 
+    // Only PUBLISHED products are publicly viewable/buyable. Draft/moderated/archived
+    // products 404 for everyone EXCEPT their owner (who may preview from their store),
+    // so a stale/shared link can't be used to buy an unlisted item (bug #9).
+    if (product.status !== "PUBLISHED" && session?.user?.id !== product.seller_id) {
+        notFound();
+    }
+
     const flagContext = {
         userId: session?.user?.id,
         bucketKey: session?.user?.id,

@@ -148,6 +148,8 @@ type NotifyInput =
         orderId: string;
         orderNumber: string;
         status: string;
+        refunded?: boolean;
+        resolutionNote?: string | null;
         idempotencyKey?: string;
     }
     | {
@@ -493,10 +495,26 @@ export async function notify(input: NotifyInput) {
                 dispute_type: input.disputeType,
             };
             break;
-        case "DISPUTE_UPDATED":
+        case "DISPUTE_UPDATED": {
             type = "DISPUTE_UPDATED";
-            title = "Dispute Diperbarui";
-            message = `Status dispute untuk pesanan ${input.orderNumber} berubah menjadi ${input.status}.`;
+            const forBuyer = input.audience === "buyer";
+            if (input.status === "RESOLVED" || input.status === "CLOSED") {
+                const verb = input.status === "RESOLVED" ? "diselesaikan" : "ditutup";
+                title = input.status === "RESOLVED" ? "Sengketa Diselesaikan" : "Sengketa Ditutup";
+                if (input.refunded) {
+                    message = forBuyer
+                        ? `Sengketa pesanan ${input.orderNumber} ${verb} admin: dana dikembalikan ke Anda.`
+                        : `Sengketa pesanan ${input.orderNumber} ${verb} admin: dana pesanan dikembalikan ke pembeli.`;
+                } else {
+                    message = `Sengketa pesanan ${input.orderNumber} telah ${verb} oleh admin.`;
+                }
+            } else {
+                title = "Dispute Diperbarui";
+                message = `Status sengketa pesanan ${input.orderNumber} berubah menjadi ${input.status}.`;
+            }
+            if (input.resolutionNote) {
+                message += ` Catatan admin: ${input.resolutionNote}`;
+            }
             data = {
                 dispute_id: input.disputeId,
                 order_id: input.orderId,
@@ -504,6 +522,7 @@ export async function notify(input: NotifyInput) {
                 status: input.status,
             };
             break;
+        }
         case "OFFER_RECEIVED":
             type = "OFFER_RECEIVED";
             title = input.round === 1 ? "Penawaran Baru" : `Counter Offer (Ronde ${input.round})`;

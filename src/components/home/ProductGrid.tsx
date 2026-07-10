@@ -6,12 +6,13 @@ import { getPublishedProducts } from "@/actions/products";
 import { getWishlistedProductIds } from "@/actions/wishlist";
 import { TrackedProductLink } from "@/components/product/TrackedProductLink";
 import { LowStockText } from "@/components/product/LowStockBadge";
+import { FeaturedConditionFilter } from "@/components/home/FeaturedConditionFilter";
 import { SellerBadgeIcon } from "@/components/seller/SellerBadges";
 import { WishlistButton } from "@/components/product/WishlistButton";
 
-export async function ProductGrid() {
+export async function ProductGrid({ condition }: { condition?: "NEW" | "PRELOVED" }) {
     const [products, session, wishlistedIds] = await Promise.all([
-        getPublishedProducts(8),
+        getPublishedProducts(8, 0, condition),
         auth.api.getSession({ headers: await headers() }),
         getWishlistedProductIds(),
     ]);
@@ -36,11 +37,12 @@ export async function ProductGrid() {
         return (
             <section className="py-16 bg-slate-50">
                 <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center justify-between mb-8 gap-3 flex-wrap">
                         <h2 className="text-2xl font-bold text-slate-900 font-heading">Featured Listings</h2>
+                        <FeaturedConditionFilter value={condition ?? "ALL"} />
                     </div>
                     <div className="text-center py-16">
-                        <p className="text-slate-500 text-lg">Belum ada produk tersedia.</p>
+                        <p className="text-slate-500 text-lg">{condition ? "Tidak ada produk untuk kondisi ini." : "Belum ada produk tersedia."}</p>
                         <Link href="/seller/products/add" className="inline-block mt-4 px-6 py-3 bg-brand-primary text-white font-bold rounded-xl hover:bg-blue-600 transition-colors">
                             Jual Produk Pertama
                         </Link>
@@ -53,11 +55,14 @@ export async function ProductGrid() {
     return (
         <section className="py-16 bg-slate-50">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center justify-between mb-8 gap-3 flex-wrap">
                     <h2 className="text-2xl font-bold text-slate-900 font-heading">Featured Listings</h2>
-                    <Link href="/category/all" className="text-sm font-semibold text-brand-primary hover:text-blue-700 transition-colors">
-                        View All Products &rarr;
-                    </Link>
+                    <div className="flex items-center gap-4">
+                        <FeaturedConditionFilter value={condition ?? "ALL"} />
+                        <Link href="/category/all" className="text-sm font-semibold text-brand-primary hover:text-blue-700 transition-colors">
+                            View All Products &rarr;
+                        </Link>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
