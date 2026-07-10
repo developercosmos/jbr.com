@@ -7,7 +7,7 @@ import { headers } from "next/headers";
 import { and, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { logger } from "@/lib/logger";
-import { assertInternalCall } from "@/lib/internal-guard";
+import { assertInternalCall, isInternalCall } from "@/lib/internal-guard";
 
 // SECURITY: seller analytics are owner-or-admin only (public Server Action surface).
 async function assertSellerSelfOrAdmin(sellerId: string) {
@@ -191,8 +191,10 @@ void lt;
  * ANLY-02 funnel data per seller. Returns per-event-type sums for the seller's
  * products in [start, end). Day strings expected as 'YYYY-MM-DD'.
  */
-export async function getSellerFunnel(sellerId: string, startDate: string, endDate: string) {
-    await assertSellerSelfOrAdmin(sellerId);
+export async function getSellerFunnel(sellerId: string, startDate: string, endDate: string, internalToken?: string) {
+    // Internal callers (e.g. the weekly-digest cron) run without a session; gate only
+    // the public Server Action surface.
+    if (!isInternalCall(internalToken)) await assertSellerSelfOrAdmin(sellerId);
     const rows = await db
         .select({
             event_type: product_event_daily.event_type,
@@ -226,8 +228,8 @@ export async function getSellerFunnel(sellerId: string, startDate: string, endDa
 /**
  * ANLY-02 per-product breakdown — top sellers by purchase count + funnel %.
  */
-export async function getSellerTopProducts(sellerId: string, startDate: string, endDate: string, limit = 10) {
-    await assertSellerSelfOrAdmin(sellerId);
+export async function getSellerTopProducts(sellerId: string, startDate: string, endDate: string, limit = 10, internalToken?: string) {
+    if (!isInternalCall(internalToken)) await assertSellerSelfOrAdmin(sellerId);
     const rows = await db
         .select({
             product_id: product_event_daily.product_id,

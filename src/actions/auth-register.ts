@@ -23,11 +23,15 @@ const registerSchema = z.object({
 });
 
 export async function registerAccount(input: z.infer<typeof registerSchema>) {
-    const validated = registerSchema.parse(input);
-
-    // Better Auth server API: creates the user + sends the verification email
-    // (same pipeline as the client signUp.email call this replaces).
+    // The ENTIRE body is guarded: a bad payload (Zod) or transient signup/email error
+    // must return a graceful { success:false } instead of throwing an uncaught
+    // server-action error — an uncaught throw surfaces the page-level "Terjadi
+    // kesalahan" error boundary instead of an inline form message.
     try {
+        const validated = registerSchema.parse(input);
+
+        // Better Auth server API: creates the user + sends the verification email
+        // (same pipeline as the client signUp.email call this replaces).
         await auth.api.signUpEmail({
             body: {
                 name: validated.name,
@@ -35,22 +39,27 @@ export async function registerAccount(input: z.infer<typeof registerSchema>) {
                 password: validated.password,
             },
         });
+
+        if (validated.accountType === "COMPANY") {
+            try {
+                await db
+                    .update(users)
+                    .set({ account_type: "COMPANY", updated_at: new Date() })
+                    .where(eq(users.email, validated.email));
+            } catch (e) {
+                // User exists; tipe akun bisa disusulkan oleh admin bila langkah ini gagal.
+                console.error("[registerAccount] gagal set account_type COMPANY:", e);
+            }
+        }
+
+        return { success: true as const, accountType: validated.accountType };
     } catch (error) {
-        const message = error instanceof Error ? error.message : "Pendaftaran gagal. Silakan coba lagi.";
+        const message =
+            error instanceof z.ZodError
+                ? (error.issues[0]?.message ?? "Data pendaftaran tidak valid.")
+                : error instanceof Error
+                    ? error.message
+                    : "Pendaftaran gagal. Silakan coba lagi.";
         return { success: false as const, error: message };
     }
-
-    if (validated.accountType === "COMPANY") {
-        try {
-            await db
-                .update(users)
-                .set({ account_type: "COMPANY", updated_at: new Date() })
-                .where(eq(users.email, validated.email));
-        } catch (e) {
-            // User exists; tipe akun bisa disusulkan oleh admin bila langkah ini gagal.
-            console.error("[registerAccount] gagal set account_type COMPANY:", e);
-        }
-    }
-
-    return { success: true as const, accountType: validated.accountType };
 }

@@ -28,7 +28,7 @@ export function Hero() {
                     </p>
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                         <Link
-                            href="#"
+                            href="/category/all"
                             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full bg-brand-primary px-8 py-4 text-base font-bold text-white shadow-lg shadow-brand-primary/25 hover:bg-slate-800 transition-all hover:-translate-y-1"
                         >
                             Start Buying

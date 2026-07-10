@@ -6,7 +6,7 @@ import { and, eq, isNotNull, lt, or, sql } from "drizzle-orm";
 import { notify } from "@/lib/notify";
 import { getSellerFunnel, getSellerTopProducts } from "@/actions/product-events";
 import { logger } from "@/lib/logger";
-import { assertInternalCall } from "@/lib/internal-guard";
+import { assertInternalCall, INTERNAL_CALL_TOKEN } from "@/lib/internal-guard";
 
 export interface SellerDigestSweepResult {
     eligibleSellers: number;
@@ -56,8 +56,8 @@ export async function runSellerWeeklyDigestSweep(internalToken?: string): Promis
     let sent = 0;
     for (const seller of eligible) {
         try {
-            const funnel = await getSellerFunnel(seller.id, periodStart, periodEnd);
-            const topProducts = await getSellerTopProducts(seller.id, periodStart, periodEnd, 5);
+            const funnel = await getSellerFunnel(seller.id, periodStart, periodEnd, INTERNAL_CALL_TOKEN);
+            const topProducts = await getSellerTopProducts(seller.id, periodStart, periodEnd, 5, INTERNAL_CALL_TOKEN);
 
             // Skip silent weeks (no impressions) so sellers don't get noisy digests.
             if ((funnel.IMPRESSION || 0) === 0) {
