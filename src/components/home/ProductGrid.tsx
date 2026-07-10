@@ -6,7 +6,6 @@ import { getPublishedProducts } from "@/actions/products";
 import { getWishlistedProductIds } from "@/actions/wishlist";
 import { TrackedProductLink } from "@/components/product/TrackedProductLink";
 import { LowStockText } from "@/components/product/LowStockBadge";
-import { FeaturedConditionFilter } from "@/components/home/FeaturedConditionFilter";
 import { SellerBadgeIcon } from "@/components/seller/SellerBadges";
 import { WishlistButton } from "@/components/product/WishlistButton";
 
@@ -37,9 +36,8 @@ export async function ProductGrid({ condition }: { condition?: "NEW" | "PRELOVED
         return (
             <section className="py-16 bg-slate-50">
                 <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between mb-8 gap-3 flex-wrap">
+                    <div className="flex items-center justify-between mb-8">
                         <h2 className="text-2xl font-bold text-slate-900 font-heading">Featured Listings</h2>
-                        <FeaturedConditionFilter value={condition ?? "ALL"} />
                     </div>
                     <div className="text-center py-16">
                         <p className="text-slate-500 text-lg">{condition ? "Tidak ada produk untuk kondisi ini." : "Belum ada produk tersedia."}</p>
@@ -55,14 +53,11 @@ export async function ProductGrid({ condition }: { condition?: "NEW" | "PRELOVED
     return (
         <section className="py-16 bg-slate-50">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center justify-between mb-8 gap-3 flex-wrap">
+                <div className="flex items-center justify-between mb-8">
                     <h2 className="text-2xl font-bold text-slate-900 font-heading">Featured Listings</h2>
-                    <div className="flex items-center gap-4">
-                        <FeaturedConditionFilter value={condition ?? "ALL"} />
-                        <Link href="/category/all" className="text-sm font-semibold text-brand-primary hover:text-blue-700 transition-colors">
-                            View All Products &rarr;
-                        </Link>
-                    </div>
+                    <Link href="/category/all" className="text-sm font-semibold text-brand-primary hover:text-blue-700 transition-colors">
+                        View All Products &rarr;
+                    </Link>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">

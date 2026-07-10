@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { Search, Package, Tag, Loader2, X, ArrowRight, Clock, TrendingUp } from "lucide-react";
@@ -57,6 +57,7 @@ function formatPrice(price: string) {
 
 export function SearchBar() {
     const router = useRouter();
+    const pathname = usePathname();
     const [query, setQuery] = useState("");
     const [condition, setCondition] = useState("all");
     const [results, setResults] = useState<SearchResult | null>(null);
@@ -74,6 +75,13 @@ export function SearchBar() {
             .then((titles) => setPopularSearches(titles))
             .catch(() => {});
     }, []);
+
+    // Keep the dropdown in sync with an active ?condition= in the URL (e.g. after it
+    // filtered a listing, or on a shared link) across navigations.
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        setCondition(new URLSearchParams(window.location.search).get("condition") ?? "all");
+    }, [pathname]);
 
     // Persist a term to the recent-searches list (dedup, most-recent-first, capped).
     const saveRecentSearch = (term: string) => {
@@ -154,6 +162,23 @@ export function SearchBar() {
         }
     };
 
+    // The condition dropdown doubles as an inline catalog filter: changing it with no
+    // active query navigates to the filtered listing — the home Featured Listings stay
+    // on home via ?condition=, elsewhere browses /search?condition=. With a query typed,
+    // it still applies on submit instead (handleSubmit/runSearch).
+    const applyConditionFilter = (value: string) => {
+        setCondition(value);
+        if (query.trim()) return;
+        const onListing = pathname === "/" || pathname.startsWith("/search");
+        const current = typeof window !== "undefined" ? window.location.search : "";
+        const params = new URLSearchParams(onListing ? current : "");
+        if (value === "all") params.delete("condition");
+        else params.set("condition", value);
+        const target = onListing ? pathname : "/search";
+        const qs = params.toString();
+        router.push(qs ? `${target}?${qs}` : target);
+    };
+
     // Close dropdown when clicking outside
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -222,7 +247,7 @@ export function SearchBar() {
                 <div className="absolute inset-y-0 right-0 flex items-center">
                     <select
                         value={condition}
-                        onChange={(e) => setCondition(e.target.value)}
+                        onChange={(e) => applyConditionFilter(e.target.value)}
                         className="h-full py-0 pl-2 pr-7 border-transparent bg-transparent text-slate-500 text-xs font-medium rounded-r-md focus:ring-0 focus:border-transparent cursor-pointer hover:text-brand-primary transition-colors border-l border-slate-200"
                     >
                         <option value="all">Semua</option>
