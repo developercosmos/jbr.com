@@ -88,7 +88,8 @@ export async function runWishlistPriceDropSweep(internalToken?: string): Promise
                 productSlug: row.product_slug,
                 baselinePrice: row.baseline_price,
                 newPrice: row.current_price,
-                dropPercent: dropQualifies ? dropPct : 100,
+                dropPercent: dropPct,
+                kind: dropQualifies ? "drop" : "restock",
             });
             if (!result.duplicate) {
                 dispatched++;

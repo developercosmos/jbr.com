@@ -30,6 +30,7 @@ function getNotificationHref(notification: Notification): string | null {
     const data = (notification.data ?? {}) as Record<string, unknown>;
     const orderId = typeof data.order_id === "string" ? data.order_id : null;
     const productId = typeof data.product_id === "string" ? data.product_id : null;
+    const productSlug = typeof data.product_slug === "string" ? data.product_slug : null;
     const disputeId = typeof data.dispute_id === "string" ? data.dispute_id : null;
     const sellerId = typeof data.seller_id === "string" ? data.seller_id : null;
     const storeSlug = typeof data.store_slug === "string" ? data.store_slug : null;
@@ -63,6 +64,8 @@ function getNotificationHref(notification: Notification): string | null {
             return "/seller/offers";
         case "OFFER_ACCEPTED":
             return "/profile/offers";
+        case "WISHLIST_PRICE_DROP":
+            return productSlug ? `/product/${productSlug}` : null;
         case "AFFILIATE_CONVERSION":
         case "PAYOUT_PROCESSED":
             return "/affiliate";

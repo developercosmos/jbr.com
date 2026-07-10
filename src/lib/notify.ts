@@ -193,6 +193,10 @@ type NotifyInput =
         baselinePrice: string;
         newPrice: string;
         dropPercent: number;
+        // "drop" = price fell >= threshold; "restock" = a wishlisted item came back in
+        // stock (0 -> positive). Drives distinct copy so a restock isn't mislabeled as a
+        // "Harga turun 100%".
+        kind?: "drop" | "restock";
         idempotencyKey?: string;
     }
     | {
@@ -568,18 +572,28 @@ export async function notify(input: NotifyInput) {
                 suggestions: input.suggestions ?? [],
             };
             break;
-        case "WISHLIST_PRICE_DROP":
+        case "WISHLIST_PRICE_DROP": {
             type = "WISHLIST_PRICE_DROP";
-            title = `Harga turun ${input.dropPercent}%`;
-            message = `${input.productTitle} sekarang ${input.newPrice} (sebelumnya ${input.baselinePrice}).`;
+            const fmtIDR = (v: string) =>
+                new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 })
+                    .format(parseFloat(v) || 0);
+            if (input.kind === "restock") {
+                title = "Kembali tersedia";
+                message = `${input.productTitle} di wishlist Anda tersedia lagi (${fmtIDR(input.newPrice)}).`;
+            } else {
+                title = `Harga turun ${input.dropPercent}%`;
+                message = `${input.productTitle} sekarang ${fmtIDR(input.newPrice)} (sebelumnya ${fmtIDR(input.baselinePrice)}).`;
+            }
             data = {
                 product_id: input.productId,
                 product_slug: input.productSlug,
                 baseline_price: input.baselinePrice,
                 new_price: input.newPrice,
                 drop_percent: input.dropPercent,
+                kind: input.kind ?? "drop",
             };
             break;
+        }
         case "CART_ABANDONMENT_REMINDER":
             type = "CART_ABANDONMENT_REMINDER";
             title =
