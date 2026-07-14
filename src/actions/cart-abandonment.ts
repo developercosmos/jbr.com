@@ -1,19 +1,15 @@
 "use server";
 
 import { db } from "@/db";
-import { carts, products, users, vouchers } from "@/db/schema";
+import { carts, products, users } from "@/db/schema";
 import { and, eq, isNull, lt, ne, or, sql } from "drizzle-orm";
 import { notify } from "@/lib/notify";
 import { logger } from "@/lib/logger";
 import { assertInternalCall } from "@/lib/internal-guard";
-import { randomBytes } from "crypto";
 
 const STAGE_1_HOURS = Number(process.env.ABANDONMENT_STAGE_1_HOURS || 1);
 const STAGE_2_HOURS = Number(process.env.ABANDONMENT_STAGE_2_HOURS || 24);
 const STAGE_3_HOURS = Number(process.env.ABANDONMENT_STAGE_3_HOURS || 72);
-const STAGE_2_DISCOUNT = Number(process.env.ABANDONMENT_STAGE_2_DISCOUNT || 5);
-const STAGE_3_DISCOUNT = Number(process.env.ABANDONMENT_STAGE_3_DISCOUNT || 8);
-const VOUCHER_VALIDITY_DAYS = 7;
 
 type Stage = "STAGE_1" | "STAGE_2" | "STAGE_3";
 
@@ -88,25 +84,12 @@ function nextStageFor(group: CartGroup, now: Date): Stage | null {
     return null;
 }
 
-async function issueVoucher(userId: string, percent: number): Promise<string> {
-    const code = `WIN${percent}-${randomBytes(4).toString("hex").toUpperCase()}`;
-    const validTo = new Date(Date.now() + VOUCHER_VALIDITY_DAYS * 24 * 60 * 60 * 1000);
-    await db.insert(vouchers).values({
-        code,
-        type: "PERCENT",
-        value: String(percent),
-        max_uses: 1,
-        max_uses_per_user: 1,
-        valid_to: validTo,
-        is_active: true,
-        scope: { issued_to_user: userId, source: "cart_abandonment" },
-    });
-    return code;
-}
-
 /**
- * ALERT-02: cart abandonment sweep. STAGE_1 (1h, no voucher), STAGE_2 (24h, 5% off),
- * STAGE_3 (72h, 8% off). Idempotent per (cartId, stage) via notify idempotency key.
+ * ALERT-02: cart abandonment sweep — REMINDER ONLY at STAGE_1 (1h) / STAGE_2 (24h) /
+ * STAGE_3 (72h). It does NOT auto-issue any discount voucher: an unsolicited voucher's
+ * discount is settled out of the SELLER's payout (order.total is net of discount, seller
+ * credited order.total - fee), so the platform must never mint one on the seller's
+ * behalf. Idempotent per (cartId, stage) via notify idempotency key.
  */
 export async function runCartAbandonmentSweep(internalToken?: string): Promise<AbandonmentSweepResult> {
     assertInternalCall(internalToken);
@@ -119,18 +102,13 @@ export async function runCartAbandonmentSweep(internalToken?: string): Promise<A
         const stage = nextStageFor(group, now);
         if (!stage) continue;
 
-        let voucherCode: string | undefined;
         try {
-            if (stage === "STAGE_2") voucherCode = await issueVoucher(group.userId, STAGE_2_DISCOUNT);
-            if (stage === "STAGE_3") voucherCode = await issueVoucher(group.userId, STAGE_3_DISCOUNT);
-
             const result = await notify({
                 event: "CART_ABANDONMENT_REMINDER",
                 recipientUserId: group.userId,
                 cartId: group.cartIds[0], // representative; idempotency keyed on first cart entry
                 stage,
                 itemTitles: group.itemTitles,
-                voucherCode,
             });
 
             if (!result.duplicate) {

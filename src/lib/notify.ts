@@ -606,13 +606,12 @@ export async function notify(input: NotifyInput) {
                 input.stage === "STAGE_1"
                     ? "Keranjang Anda menunggu"
                     : input.stage === "STAGE_2"
-                        ? "Diskon 5% untuk keranjang Anda"
-                        : "Penawaran terakhir: 8% off";
+                        ? "Item favorit masih di keranjang"
+                        : "Pengingat terakhir: keranjang Anda";
             message = `${input.itemTitles.slice(0, 2).join(", ")}${input.itemTitles.length > 2 ? ` dan ${input.itemTitles.length - 2} lainnya` : ""} masih menunggu checkout.`;
             data = {
                 cart_id: input.cartId,
                 stage: input.stage,
-                voucher_code: input.voucherCode,
                 item_count: input.itemTitles.length,
             };
             break;
