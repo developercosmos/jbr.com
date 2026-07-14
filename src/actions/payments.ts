@@ -84,7 +84,11 @@ async function createPaymentInvoiceInternal(orderId: string, preferredMethod?: "
     }
 
     // RATE-03: gate COD on buyer reputation. Other payment methods skip this check.
-    if (preferredMethod === "COD") {
+    // AUTHORITATIVE on the ORDER's stored method (not just what the caller passes), so
+    // a COD order can NEVER be routed to an online Xendit invoice — e.g. the /payment
+    // page's "Bayar Sekarang" button calls this without a preferredMethod.
+    const isCod = order.payment_method === "COD" || preferredMethod === "COD";
+    if (isCod) {
         const eligibility = await isBuyerEligibleForCod(user.id, INTERNAL_CALL_TOKEN);
         if (!eligibility.eligible) {
             throw new Error(eligibility.reason || "Akun Anda belum memenuhi syarat untuk COD.");

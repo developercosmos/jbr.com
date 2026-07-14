@@ -7,9 +7,10 @@ import { createPaymentInvoice } from "@/actions/payments";
 interface PaymentButtonProps {
     orderId: string;
     existingInvoiceUrl?: string | null;
+    isCod?: boolean;
 }
 
-export function PaymentButton({ orderId, existingInvoiceUrl }: PaymentButtonProps) {
+export function PaymentButton({ orderId, existingInvoiceUrl, isCod }: PaymentButtonProps) {
     const [isPending, startTransition] = useTransition();
     const [error, setError] = useState<string | null>(null);
 
@@ -25,13 +26,19 @@ export function PaymentButton({ orderId, existingInvoiceUrl }: PaymentButtonProp
         startTransition(async () => {
             try {
                 const result = await createPaymentInvoice(orderId);
-                if (result.success && result.invoiceUrl) {
+                // COD: no online invoice — createPaymentInvoice moves the order to
+                // fulfilment and returns a redirect to the order page.
+                if (result.success && "redirectUrl" in result && result.redirectUrl) {
+                    window.location.href = result.redirectUrl;
+                    return;
+                }
+                if (result.success && "invoiceUrl" in result && result.invoiceUrl) {
                     // Redirect to Xendit payment page
                     window.location.href = result.invoiceUrl;
                     return;
                 }
 
-                setError(result.error || "Terjadi kesalahan saat membuat invoice pembayaran");
+                setError(("error" in result ? result.error : null) || "Terjadi kesalahan saat membuat invoice pembayaran");
             } catch (err) {
                 console.error("Payment error:", err);
                 setError(err instanceof Error ? err.message : "Terjadi kesalahan saat membuat invoice pembayaran");
@@ -54,7 +61,7 @@ export function PaymentButton({ orderId, existingInvoiceUrl }: PaymentButtonProp
                 ) : (
                     <>
                         <CreditCard className="w-5 h-5" />
-                        Bayar Sekarang
+                        {isCod ? "Konfirmasi Pesanan (Bayar di Tempat)" : "Bayar Sekarang"}
                     </>
                 )}
             </button>

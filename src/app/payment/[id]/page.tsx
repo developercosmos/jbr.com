@@ -45,6 +45,9 @@ export default async function PaymentPage({ params }: PageProps) {
         paymentStatus = null;
     }
 
+    // COD orders settle on delivery — never route them to an online Xendit invoice.
+    const isCod = order.payment_method === "COD";
+
     return (
         <main className="flex-grow w-full max-w-[1280px] mx-auto px-4 lg:px-16 py-8">
             {/* Back Link */}
@@ -123,9 +126,9 @@ export default async function PaymentPage({ params }: PageProps) {
                             <div>
                                 <h3 className="font-bold text-blue-900 dark:text-blue-200 mb-1">Informasi Pembayaran</h3>
                                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                                    Setelah klik &quot;Bayar Sekarang&quot;, Anda akan diarahkan ke halaman pembayaran Xendit
-                                    untuk memilih metode pembayaran (Transfer Bank, E-Wallet, QRIS, dll).
-                                    Pembayaran harus diselesaikan dalam waktu 24 jam.
+                                    {isCod
+                                        ? "Metode Bayar di Tempat (COD): Anda membayar tunai kepada kurir saat barang tiba — tidak ada pembayaran online. Klik “Konfirmasi Pesanan” untuk meneruskan pesanan ke penjual agar segera diproses."
+                                        : "Setelah klik “Bayar Sekarang”, Anda akan diarahkan ke halaman pembayaran Xendit untuk memilih metode pembayaran (Transfer Bank, E-Wallet, QRIS, dll). Pembayaran harus diselesaikan dalam waktu 24 jam."}
                                 </p>
                             </div>
                         </div>
@@ -167,13 +170,14 @@ export default async function PaymentPage({ params }: PageProps) {
                     {/* Payment Button */}
                     <PaymentButton
                         orderId={order.id}
-                        existingInvoiceUrl={paymentStatus?.payment?.xendit_invoice_url}
+                        isCod={isCod}
+                        existingInvoiceUrl={isCod ? null : paymentStatus?.payment?.xendit_invoice_url}
                     />
 
                     {/* Secure Payment Badge */}
                     <div className="flex items-center justify-center gap-2 text-sm text-slate-500">
                         <CheckCircle className="w-4 h-4 text-green-500" />
-                        <span>Pembayaran aman dengan Xendit</span>
+                        <span>{isCod ? "Bayar tunai saat barang tiba (COD)" : "Pembayaran aman dengan Xendit"}</span>
                     </div>
                 </div>
             </div>
